@@ -55,3 +55,4 @@ If the latest version of the DApp does not load on your mobile device:
 
 ## License
 This project is licensed under the terms in the [LICENSE](./LICENSE) file.
+<!-- beta-deploy-gate smoke test 20260527T214035Z — harmless; verifies /ship CI-gated merge -->
