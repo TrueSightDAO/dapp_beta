@@ -79,7 +79,7 @@
     root.innerHTML = [
       '<style>',
       '  #tsd-notif-root { position: fixed; top: 0.75rem; right: 0.75rem; z-index: 9999; font-family: inherit; }',
-      '  #tsd-notif-btn { position: relative; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); border: 1px solid #e1ddd4; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }',
+      '  #tsd-notif-btn { position: relative; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); border: 1px solid #e1ddd4; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; overflow: visible; z-index: 10000; }',
       '  #tsd-notif-btn svg { width: 20px; height: 20px; fill: #4a4a4a; }',
       '  #tsd-notif-btn:hover { background: #faf7f1; }',
       '  #tsd-notif-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #d64545; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-sizing: border-box; display: none; }',
