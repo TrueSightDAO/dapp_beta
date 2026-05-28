@@ -1942,9 +1942,16 @@
 
         async function loadRecipients() {
             try {
-                const res = await fetch(`${DAO_FORMS_BASE}?recipients=true`);
-                const recs = await res.json();
-                recipientsList = recs;
+                // Use DaoMembersCache (CDN-served, ~50-150ms) instead of the GAS
+                // ?recipients=true endpoint (1-3s cold-start).
+                const snapshot = await window.DaoMembersCache.fetchSnapshot();
+                const contributors = (snapshot && snapshot.contributors) || [];
+                recipientsList = contributors
+                    .filter(c => c.name && c.name.trim())
+                    .map(c => ({
+                        key: encodeURIComponent(c.name.trim()),
+                        name: c.name.trim()
+                    }));
                 
                 const display = document.getElementById('recipientSelectDisplay');
                 if (display) {
