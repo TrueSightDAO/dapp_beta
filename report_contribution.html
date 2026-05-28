@@ -631,10 +631,14 @@
 
         async function loadContributors() {
             try {
-                // Use DaoMembersCache (CDN-served, ~50-150ms) instead of the GAS
-                // ?recipients=true endpoint (1-3s cold-start).
-                const snapshot = await window.DaoMembersCache.fetchSnapshot();
-                const contributors = (snapshot && snapshot.contributors) || [];
+                const res = await fetch(`${DAO_FORMS_ENDPOINT}?recipients=true`);
+                const data = await res.json();
+                let contributors = [];
+                if (data.status === 'success' && data.data && data.data.contributors) {
+                    contributors = data.data.contributors;
+                } else if (Array.isArray(data)) {
+                    contributors = data;
+                }
                 allContributors = contributors
                     .filter(c => c.name && c.name.trim())
                     .map(c => ({
