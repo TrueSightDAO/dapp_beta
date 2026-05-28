@@ -632,13 +632,12 @@
 
         async function loadContributors() {
             try {
-                const res = await fetch(`${DAO_FORMS_ENDPOINT}?recipients=true`);
-                const data = await res.json();
+                const data = await window.ContributorsCache.fetch();
                 let contributors = [];
-                if (data.status === 'success' && data.data && data.data.contributors) {
-                    contributors = data.data.contributors;
-                } else if (Array.isArray(data)) {
+                if (Array.isArray(data)) {
                     contributors = data;
+                } else if (data.status === 'success' && data.data && data.data.contributors) {
+                    contributors = data.data.contributors;
                 }
                 allContributors = contributors
                     .filter(c => c.name && c.name.trim())
