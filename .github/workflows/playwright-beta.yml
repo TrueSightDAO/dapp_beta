@@ -1,0 +1,60 @@
+name: Playwright (beta)
+
+# Interface tests against the LIVE deployed beta site (beta.dapp.truesight.me),
+# not localhost. Runs after GitHub Pages successfully deploys, so we test what
+# the user actually gets. Pulled out of PR CI to keep the merge gate fast and
+# to make Playwright a meaningful post-deploy check.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright against beta.dapp.truesight.me
+    # Only run on a successful github-pages deployment (or manual dispatch).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'github-pages')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright against deployed beta
+        run: npm run test:integration
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: https://beta.dapp.truesight.me
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-beta
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-beta
+          path: test-results/
+          retention-days: 7
