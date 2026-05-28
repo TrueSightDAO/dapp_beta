@@ -631,8 +631,16 @@
 
         async function loadContributors() {
             try {
-                const res = await fetch(`${DAO_FORMS_ENDPOINT}?recipients=true`);
-                allContributors = await res.json();
+                // Use DaoMembersCache (CDN-served, ~50-150ms) instead of the GAS
+                // ?recipients=true endpoint (1-3s cold-start).
+                const snapshot = await window.DaoMembersCache.fetchSnapshot();
+                const contributors = (snapshot && snapshot.contributors) || [];
+                allContributors = contributors
+                    .filter(c => c.name && c.name.trim())
+                    .map(c => ({
+                        key: encodeURIComponent(c.name.trim()),
+                        name: c.name.trim()
+                    }));
                 updateContributorAutocomplete();
                 
                 // Auto-select current contributor if available
