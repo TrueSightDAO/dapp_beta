@@ -82,7 +82,7 @@
       '  #tsd-notif-btn { position: relative; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); border: 1px solid #e1ddd4; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; overflow: visible; z-index: 10000; }',
       '  #tsd-notif-btn svg { width: 20px; height: 20px; fill: #4a4a4a; }',
       '  #tsd-notif-btn:hover { background: #faf7f1; }',
-      '  #tsd-notif-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #d64545; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-sizing: border-box; display: none; }',
+      '  #tsd-notif-badge { position: absolute; top: -3px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #d64545; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-sizing: border-box; display: none; }',
       '  #tsd-notif-badge.has-count { display: inline-block; }',
       '  #tsd-notif-popup { position: absolute; top: 48px; right: 0; min-width: 280px; max-width: 360px; background: #fff; border: 1px solid #e1ddd4; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.16); padding: 0.5rem 0; display: none; }',
       '  #tsd-notif-popup.open { display: block; }',
