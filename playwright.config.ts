@@ -16,6 +16,9 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
+    // Handle GitHub Pages HTTPS cert transitions on beta (cert can be briefly
+    // unissued/renewed after the first deploy of a new custom domain).
+    ignoreHTTPSErrors: true,
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
