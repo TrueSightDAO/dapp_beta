@@ -294,6 +294,26 @@
                 background: #fff !important;
                 display: block !important;
             }
+            /* §16 — textareas (e.g. #descriptionInput) and result <pre> blocks
+               must expand to show every line when printed. Browsers default to
+               clipping textareas to the on-screen scroll box, which cuts off
+               long descriptions. See agentic_ai_context/DAPP_PAGE_CONVENTIONS.md §16. */
+            textarea {
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                white-space: pre-wrap;
+                page-break-inside: auto;
+                border: 1px solid #999;
+            }
+            pre {
+                white-space: pre-wrap !important;
+                word-break: break-word !important;
+                overflow: visible !important;
+                max-height: none !important;
+                page-break-inside: auto;
+            }
         }
         .fade-in {
             animation: fadeIn 0.5s ease-in;
