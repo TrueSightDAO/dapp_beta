@@ -990,6 +990,28 @@
             
             output.innerHTML = `Batch complete: ${successCount}/${codes.length} submitted. <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">View Telegram Chat Logs</a>`;
             output.className = 'status';
+            
+            // Show batch summary with transaction hash
+            const recipientName = getRecipientName();
+            const publicKey = localStorage.getItem('publicKey');
+            const batchSummaryHash = arrayBufferToBase64(new TextEncoder().encode(`batch_${Date.now()}_${publicKey}`));
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            const txHashValue = document.getElementById('txHashValue');
+            txHashValue.textContent = batchSummaryHash;
+            txHashDisplay.style.display = 'block';
+            
+            const summary = document.getElementById('movementSummary');
+            document.getElementById('summaryManagerName').textContent = `${codes.length} QR code(s)`;
+            document.getElementById('summaryRecipientName').textContent = recipientName;
+            document.getElementById('summaryInventoryItem').textContent = 'Multiple items (see batch)';
+            document.getElementById('summaryQrCode').textContent = codes.map(c => c.name).join(', ');
+            document.getElementById('summaryQuantity').textContent = codes.length;
+            document.getElementById('summaryLocation').textContent = `${latitude}, ${longitude}`;
+            document.getElementById('summaryTxHash').textContent = batchSummaryHash;
+            document.getElementById('summaryFileLocation').textContent = 'No file attached';
+            document.getElementById('summaryTimestamp').textContent = new Date().toLocaleString();
+            summary.style.display = 'block';
+            
             batchQRList = [];
             refreshBatchList();
             batchBtn.disabled = false;
