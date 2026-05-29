@@ -989,6 +989,13 @@
             cashProceedsIndependentFromSoldBy = false;
             if (cashProceedsSelect) cashProceedsSelect.value = '';
             clearSalesMetadataFields();
+            
+            // Hide transaction hash and sales summary on reset
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            if (txHashDisplay) txHashDisplay.style.display = 'none';
+            const salesSummary = document.getElementById('salesSummary');
+            if (salesSummary) salesSummary.style.display = 'none';
+            
             updateReportButtonState();
         }
 
