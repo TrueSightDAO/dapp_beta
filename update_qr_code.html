@@ -279,6 +279,30 @@
                 padding: 0.8rem;
             }
         }
+
+        /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+        #submissionResult { margin-top: 1.5rem; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+
+        /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+        @media print {
+            textarea {
+                height: auto !important; min-height: 0 !important; max-height: none !important;
+                overflow: visible !important; white-space: pre-wrap;
+                page-break-inside: auto; border: 1px solid #999;
+            }
+            pre {
+                white-space: pre-wrap !important; word-break: break-word !important;
+                overflow: visible !important; max-height: none !important;
+                page-break-inside: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -295,6 +319,14 @@
         <div id="status" class="loading fade-in" style="display: none;"></div>
         <div id="welcome" style="display: none;"></div>
         <div id="report_output" style="display: none;"></div>
+
+        <!-- §9b — forensic detail. Populated on successful API write. -->
+        <div id="submissionResult" style="display:none;" aria-live="polite">
+            <h3>Transaction request (signed payload sent)</h3>
+            <pre id="requestPre"></pre>
+            <h3>Server response</h3>
+            <pre id="responsePre"></pre>
+        </div>
 
         <div id="form_container" style="display: none;">
             <div class="form-row">
@@ -1130,6 +1162,11 @@
                     reportOutput.textContent = 'QR code updated successfully!';
                     reportOutput.className = 'success';
                     reportOutput.style.display = 'block';
+
+                    // §9b — show signed payload + server response for verifiability.
+                    document.getElementById('requestPre').textContent = shareText;
+                    document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                    document.getElementById('submissionResult').style.display = 'block';
 
                     setTimeout(() => {
                         lastQrParam = '';
