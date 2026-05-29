@@ -49,6 +49,30 @@
   .qr-id { font-family: 'SF Mono', Menlo, Consolas, monospace; background: rgba(42,143,42,0.12); padding: 0.15rem 0.4rem; border-radius: 4px; }
   .next-step { background: #fff; border: 1px solid #cfe6cf; border-radius: 6px; padding: 0.85rem; margin-top: 0.75rem; font-size: 0.9rem; }
   .next-step a { color: #2a8f2a; font-weight: 600; }
+
+  /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+  #submissionResult { margin-top: 1.5rem; }
+  #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+  #submissionResult pre {
+    background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+    padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+    word-break: break-word; max-height: 360px; overflow: auto;
+  }
+
+  /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+  @media print {
+    textarea {
+      height: auto !important; min-height: 0 !important; max-height: none !important;
+      overflow: visible !important; white-space: pre-wrap;
+      page-break-inside: auto; border: 1px solid #999;
+    }
+    pre {
+      white-space: pre-wrap !important; word-break: break-word !important;
+      overflow: visible !important; max-height: none !important;
+      page-break-inside: auto;
+    }
+  }
 </style>
 </head>
 <body>
@@ -106,6 +130,14 @@
 </form>
 
 <div id="output" style="display: none;"></div>
+
+<!-- §9b — forensic detail. Populated on successful Edgar write. -->
+<div id="submissionResult" style="display:none;" aria-live="polite">
+  <h3>Transaction request (signed payload sent to Edgar)</h3>
+  <pre id="requestPre"></pre>
+  <h3>Edgar response</h3>
+  <pre id="responsePre"></pre>
+</div>
 
 <script>
   const EDGAR_PING = (window.Routes && window.Routes.edgar && window.Routes.edgar.ping) || 'https://edgar.truesight.me/ping';
@@ -284,6 +316,10 @@
         `<div style="margin-top:0.5rem; font-size:0.85rem; color:#666;">If the GAS handler rejects (governor / currency / proof URL gate failure), the audit row will appear on <a href="https://docs.google.com/spreadsheets/d/1qbZZhf-_7xzmDTriaJVWj6OZshyQsFkdsAV8-pyzASQ/edit?gid=519599408" target="_blank">Donation Pledge tab</a> with a REJECTED_* status — no Agroverse QR codes row is created in that case.</div>`;
       out.className = 'success';
       out.style.display = 'block';
+      // §9b — surface signed payload + Edgar's response.
+      document.getElementById('requestPre').textContent = shareText;
+      document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+      document.getElementById('submissionResult').style.display = 'block';
       submitBtn.textContent = 'Submitted ✓';
     } catch (err) {
       out.textContent = `Submission failed: ${err && err.message ? err.message : err}`;
