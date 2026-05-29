@@ -232,6 +232,47 @@
         max-width: 100%;
       }
     }
+
+    /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 {
+      font-size: 0.95rem;
+      margin: 1.2rem 0 0.4rem;
+      color: #333;
+    }
+    #submissionResult pre {
+      background: #f7f7f7;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.8rem 1rem;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 360px;
+      overflow: auto;
+    }
+
+    /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+    @media print {
+      textarea {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        white-space: pre-wrap;
+        page-break-inside: auto;
+        border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow: visible !important;
+        max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -272,6 +313,15 @@
         <button id="submitButton" aria-label="Submit Report">Submit Report</button>
       </div>
       <div id="action-status" aria-live="polite"></div>
+
+      <!-- §9b — forensic detail block. Populated by the submit handler on
+           successful Edgar write. Hidden until first successful submission. -->
+      <div id="submissionResult" style="display:none;" aria-live="polite">
+        <h3>Transaction request (signed payload sent to Edgar)</h3>
+        <pre id="requestPre"></pre>
+        <h3>Edgar response</h3>
+        <pre id="responsePre"></pre>
+      </div>
     </div>
   </div>
 
@@ -690,8 +740,22 @@
 
           if (!resp.ok) throw new Error(await resp.text());
 
+          // §9b — capture Edgar's response body so we can surface it in
+          // the submissionResult <pre>. Some Edgar endpoints return JSON,
+          // some return plain text; fall back gracefully.
+          const respText = await resp.text();
+          let respPretty = respText;
+          try {
+            respPretty = JSON.stringify(JSON.parse(respText), null, 2);
+          } catch (_) { /* keep raw text */ }
+
           actionStatus.innerHTML = `Report sent successfully via API. View: <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">https://truesight.me/submissions/raw-telegram-chatlogs</a>` + (newKeysGenerated && !isSignatureRegistered ? ' <a href="https://truesightdao.github.io/dapp/create_signature.html">Register your account</a> to complete your digital signature registration.' : '');
           actionStatus.className = 'status';
+          // §9b — show the verbatim signed payload + Edgar's response for
+          // forensic copy/paste. See agentic_ai_context/DAPP_PAGE_CONVENTIONS.md §9b.
+          document.getElementById('requestPre').textContent = shareText;
+          document.getElementById('responsePre').textContent = respPretty;
+          document.getElementById('submissionResult').style.display = 'block';
           isPostSubmission = true; // Set flag after successful submission
           updateButtonText();
         } else {
