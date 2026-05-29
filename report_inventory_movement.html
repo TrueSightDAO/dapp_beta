@@ -2890,6 +2890,9 @@
                     updateButtonText();
                     updateReportButtonState();
                     
+                    // Show transaction hash and inventory movement summary
+                    renderInventoryMovementSummary(requestHash, managerName, recipientName, formattedItemName, lastQrParam, quantity, latitude, longitude, inventoryLocation, fileName);
+                    
                     // If a new recipient was added, add it to the local list immediately
                     // This ensures it's available for the next submission even before backend sync
                     const newRecipientInput = document.getElementById('newRecipientInput');
