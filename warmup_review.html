@@ -201,6 +201,30 @@
       .summary div b { font-size: 1rem; }
       .draft { padding: 0.7rem; }
     }
+
+    /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+
+    /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+    @media print {
+      textarea {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; white-space: pre-wrap;
+        page-break-inside: auto; border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important; word-break: break-word !important;
+        overflow: visible !important; max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -246,6 +270,16 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- §9b — forensic detail for the LAST submitted draft. This page submits
+       one card at a time; the block shows the last successful submission's
+       payload + Edgar response. -->
+  <div id="submissionResult" style="display:none;" aria-live="polite">
+    <h3>Last submitted draft — signed payload</h3>
+    <pre id="requestPre"></pre>
+    <h3>Last Edgar response</h3>
+    <pre id="responsePre"></pre>
+  </div>
 
   <script>
     const ACTION_ROLE = 'warmup.send';
@@ -687,6 +721,16 @@
           const errText = await resp.text();
           throw new Error('Edgar HTTP ' + resp.status + ': ' + errText.substring(0, 200));
         }
+        // §9b — capture Edgar's response body and surface signed payload
+        // + response in the page-level #submissionResult block (last-submit-wins).
+        try {
+          const respText = await resp.text();
+          let respPretty = respText;
+          try { respPretty = JSON.stringify(JSON.parse(respText), null, 2); } catch (_) { /* raw */ }
+          document.getElementById('requestPre').textContent = shareText;
+          document.getElementById('responsePre').textContent = respPretty;
+          document.getElementById('submissionResult').style.display = 'block';
+        } catch (_) { /* don't let display failure break the submit */ }
         // Edgar logs the event + fires the GAS webhook async. Optimistic
         // remove from view: GmailApp.sendDraft idempotent; if it fails on
         // GAS side, the draft survives and a refresh will re-show it.
