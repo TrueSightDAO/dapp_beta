@@ -2707,6 +2707,32 @@
             }
         }
 
+        function renderInventoryMovementSummary(requestHash, managerName, recipientName, itemName, qrCode, quantity, lat, lng, inventoryLocation, fileName) {
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            const txHashValue = document.getElementById('txHashValue');
+            txHashValue.textContent = requestHash;
+            txHashDisplay.style.display = 'block';
+
+            const summary = document.getElementById('movementSummary');
+            document.getElementById('summaryManagerName').textContent = managerName || 'N/A';
+            document.getElementById('summaryRecipientName').textContent = recipientName;
+            document.getElementById('summaryInventoryItem').textContent = itemName;
+            document.getElementById('summaryQrCode').textContent = qrCode || 'N/A';
+            document.getElementById('summaryQuantity').textContent = quantity;
+            document.getElementById('summaryLocation').textContent = `${lat}, ${lng}`;
+            document.getElementById('summaryTxHash').textContent = requestHash;
+
+            const fileLocationEl = document.getElementById('summaryFileLocation');
+            if (inventoryLocation && inventoryLocation !== 'No file attached' && inventoryLocation !== 'N/A') {
+                fileLocationEl.innerHTML = `<a href="${inventoryLocation}" target="_blank">${inventoryLocation}</a>`;
+            } else {
+                fileLocationEl.textContent = inventoryLocation || 'No file attached';
+            }
+
+            document.getElementById('summaryTimestamp').textContent = new Date().toLocaleString();
+            summary.style.display = 'block';
+        }
+
         async function onReport() {
             const reportBtn = document.getElementById('reportButton');
             const output = document.getElementById('reportOutput');
