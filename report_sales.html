@@ -432,7 +432,54 @@
             <div class="button-row">
                 <input type="button" id="report_button" value="Report Sold" disabled>
             </div>
-            <div id="report_output" aria-live="polite"></div>            
+            <div id="report_output" aria-live="polite"></div>
+            <div id="txHashDisplay">
+                <span class="tx-label">Transaction Hash (Request ID):</span><br>
+                <span class="tx-value" id="txHashValue"></span>
+            </div>
+            <div id="salesSummary">
+                <h3>✅ Sales Summary</h3>
+                <div class="summary-row">
+                    <span class="summary-label">QR Code:</span>
+                    <span class="summary-value" id="summaryQrCode"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Sale Price:</span>
+                    <span class="summary-value" id="summarySalePrice"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Sold By:</span>
+                    <span class="summary-value" id="summarySoldBy"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Cash Proceeds Collected By:</span>
+                    <span class="summary-value" id="summaryCashProceeds"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Owner Email:</span>
+                    <span class="summary-value" id="summaryOwnerEmail"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Stripe Session ID:</span>
+                    <span class="summary-value" id="summaryStripeSession"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Shipping Provider:</span>
+                    <span class="summary-value" id="summaryShippingProvider"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Tracking Number:</span>
+                    <span class="summary-value" id="summaryTrackingNumber"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Transaction Hash:</span>
+                    <span class="summary-value" id="summaryTxHash"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Submission Timestamp:</span>
+                    <span class="summary-value" id="summaryTimestamp"></span>
+                </div>
+            </div>
         </div>
     </div>
     <!-- Include jsQR library via CDN -->
