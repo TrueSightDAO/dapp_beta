@@ -1082,6 +1082,43 @@
             await submitReport(file, fileName, typeName, amount);
         }
 
+        function renderContributionSummary(requestHash, contributorNames, typeName, amount, hoursInput, minutesInput, description, tdgValues, contributionLocation, fileName) {
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            const txHashValue = document.getElementById('txHashValue');
+            txHashValue.textContent = requestHash;
+            txHashDisplay.style.display = 'block';
+
+            const summary = document.getElementById('contributionSummary');
+            document.getElementById('summaryContributors').textContent = contributorNames.join(', ');
+            
+            let typeText = '';
+            if (typeName === 'Time') {
+                const h = parseInt(hoursInput.value || 0);
+                const m = parseInt(minutesInput.value || 0);
+                typeText = `Time: ${h} hour${h !== 1 ? 's' : ''} ${m} minute${m !== 1 ? 's' : ''}`;
+            } else {
+                typeText = `USD: $${parseFloat(amount).toFixed(2)}`;
+            }
+            document.getElementById('summaryType').textContent = typeText;
+            document.getElementById('summaryDescription').textContent = description;
+            
+            const tdgPerContributor = tdgValues[0];
+            document.getElementById('summaryTDG').textContent = `${tdgPerContributor} TDG per contributor (${contributorNames.length} contributor${contributorNames.length !== 1 ? 's' : ''})`;
+            
+            document.getElementById('summaryTxHash').textContent = requestHash;
+            
+            const fileLocationEl = document.getElementById('summaryFileLocation');
+            if (contributionLocation && contributionLocation !== 'No file attached' && contributionLocation !== 'See description (URL(s))') {
+                fileLocationEl.innerHTML = `<a href="${contributionLocation}" target="_blank">${contributionLocation}</a>`;
+            } else {
+                fileLocationEl.textContent = contributionLocation || 'No file attached';
+            }
+            
+            document.getElementById('summaryTimestamp').textContent = new Date().toLocaleString();
+            
+            summary.style.display = 'block';
+        }
+
         async function submitReport(file, fileName, typeName, amount) {
             const contributorNames = selectedContributors.map(c => c.name);
             const hoursInput = document.getElementById('hoursInput');
@@ -1156,6 +1193,9 @@
                     output.className = 'status';
                     isPostSubmission = true;
                     updateButtonText();
+                    
+                    // Show transaction hash and contribution summary
+                    renderContributionSummary(requestHash, contributorNames, typeName, amount, hoursInput, minutesInput, description, tdgValues, contributionLocation, fileName);
                 } else {
                     if (isMobileDevice()) {
                         if (navigator.share) {
@@ -1182,6 +1222,9 @@
                             output.className = 'error';
                         }
                     }
+                    
+                    // Show transaction hash and contribution summary even in offline/clipboard mode
+                    renderContributionSummary(requestHash, contributorNames, typeName, amount, hoursInput, minutesInput, description, tdgValues, contributionLocation, fileName);
                 }
             } catch (err) {
                 output.innerHTML = `Error generating contribution report: ${err.message}. Please try again or contact support.`;
