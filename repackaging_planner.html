@@ -125,6 +125,30 @@
     #signatureStatus.ok { color: #1e7e34; }
     #signatureStatus.err { color: #c82333; }
     #welcomeMsg { margin: 0 0 0.75rem; text-align: center; font-size: 0.95rem; color: #1e7e34; }
+
+    /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+
+    /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+    @media print {
+      textarea {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; white-space: pre-wrap;
+        page-break-inside: auto; border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important; word-break: break-word !important;
+        overflow: visible !important; max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -209,6 +233,16 @@
     <p class="status" id="submitStatus" style="min-height:1.25rem;"></p>
 
     <div id="receiptPanel" style="display:none;"></div>
+
+    <!-- §9b — forensic detail. Populated on successful Edgar write.
+         The receipt panel above is a richer UI; these <pre> blocks are the
+         raw signed payload + verbatim Edgar response for copy/forward. -->
+    <div id="submissionResult" style="display:none;" aria-live="polite">
+      <h3>Transaction request (signed payload sent to Edgar)</h3>
+      <pre id="requestPre"></pre>
+      <h3>Edgar response</h3>
+      <pre id="responsePre"></pre>
+    </div>
 
     <p class="hint" style="margin-top:1rem;">
       <strong>API:</strong> unit costs come from the inventory endpoint when present; AGL Balance lines often return <code>null</code> — use custom lines or type a unit cost on each ledger row.
@@ -1604,6 +1638,13 @@
           if (res.ok) {
             setSubmitStatus('ok', 'Sent to Edgar. GAS will pick up the record from the Telegram Chat Logs.');
             showReceipt(plan, holderLabel, reqId, requestText, res.status, j, null);
+            // §9b — surface signed payload + Edgar's response.
+            var subDiv = document.getElementById('submissionResult');
+            if (subDiv) {
+              document.getElementById('requestPre').textContent = shareText;
+              document.getElementById('responsePre').textContent = j ? JSON.stringify(j, null, 2) : res.text;
+              subDiv.style.display = 'block';
+            }
             return;
           }
           var errMsg = (j && j.error) ? j.error : ('HTTP ' + res.status + ' ' + (res.text || '').slice(0, 200));
