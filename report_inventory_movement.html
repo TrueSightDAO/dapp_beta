@@ -1825,6 +1825,12 @@
                 outputEl.className = '';
             }
             
+            // Hide transaction hash and movement summary on reset
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            if (txHashDisplay) txHashDisplay.style.display = 'none';
+            const movementSummary = document.getElementById('movementSummary');
+            if (movementSummary) movementSummary.style.display = 'none';
+            
             updateReportButtonState();
         }
 
