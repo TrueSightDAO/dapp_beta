@@ -1414,6 +1414,10 @@
 
             document.getElementById('tdgOutput').textContent = '';
 
+            // Hide transaction hash and contribution summary on reset
+            document.getElementById('txHashDisplay').style.display = 'none';
+            document.getElementById('contributionSummary').style.display = 'none';
+
             updateContributorAutocomplete();
 
             toggleInputMethod();
