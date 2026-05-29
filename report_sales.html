@@ -1478,6 +1478,8 @@
                                 reportOutput.innerHTML += '<br>Copied to clipboard!';
                             }
                         }
+                        // Show transaction hash and sales summary
+                        renderSalesSummary(requestHash, qrParam, salePrice, soldByName, cashName, ownerEmailVal, stripeSessionVal, shippingProvVal, trackingVal);
                     } else {
                         if (await copyToClipboard(shareText)) {
                             reportOutput.innerHTML = `Internet or server not available. Report copied to clipboard. Please paste it into our <a href="${telegramLink}" target="_blank">Telegram</a> or <a href="${whatsappLink}" target="_blank">WhatsApp</a> channels.`;
@@ -1486,6 +1488,8 @@
                             reportOutput.innerHTML = `Internet or server not available and clipboard copy failed. Please manually copy the report below and share it to our <a href="${telegramLink}" target="_blank">Telegram</a> or <a href="${whatsappLink}" target="_blank">WhatsApp</a> channels:<br><br><pre>${shareText}</pre>`;
                             reportOutput.className = 'error';
                         }
+                        // Show transaction hash and sales summary
+                        renderSalesSummary(requestHash, qrParam, salePrice, soldByName, cashName, ownerEmailVal, stripeSessionVal, shippingProvVal, trackingVal);
                     }
                 }
             } catch (err) {
