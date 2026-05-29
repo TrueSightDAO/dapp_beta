@@ -81,6 +81,30 @@
 
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .fade-in { animation: fadeIn 0.3s ease-in; }
+
+    /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+
+    /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+    @media print {
+      textarea {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; white-space: pre-wrap;
+        page-break-inside: auto; border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important; word-break: break-word !important;
+        overflow: visible !important; max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -297,7 +321,9 @@
         : '';
       return '<div class="mode-bar"><span class="' + pillCls + '">' + pillText + '</span>' +
              editBtn + submitBtn +
-             '<div id="submitResults" class="submit-result"></div></div>';
+             '<div id="submitResults" class="submit-result"></div>' +
+             '<!-- §9b — forensic detail. Populated per successful change. -->' +
+             '<div id="submissionResult" style="display:none;" aria-live="polite"></div></div>';
     }
 
     function renderPendingPanel() {
@@ -443,7 +469,10 @@
       formData.append('text', shareText);
       const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
       if (!resp.ok) throw new Error(await resp.text());
-      return await resp.json();
+      const result = await resp.json();
+      // §9b — return both so the caller can surface the signed payload +
+      // server response in the submissionResult <pre> blocks.
+      return { result: result, shareText: shareText };
     }
 
     async function onSubmit() {
@@ -463,10 +492,28 @@
         try {
           resultsEl.innerHTML = lines.join('<br>') + (lines.length ? '<br>' : '') +
               '<span>Submitting <code>' + escapeHtml(c.action) + '</code>&hellip;</span>';
-          const r = await signAndSubmitOne(c);
+          const { result: r, shareText: stxt } = await signAndSubmitOne(c);
           okCount++;
           lines.push('<span class="ok">✔</span> ' + escapeHtml(label) +
               ' — sent to Edgar (' + escapeHtml(JSON.stringify(r)) + ')');
+          // §9b — append a request/response pair per change to
+          // #submissionResult. See agentic_ai_context/DAPP_PAGE_CONVENTIONS.md §9b.
+          const subDiv = document.getElementById('submissionResult');
+          if (subDiv) {
+            const h3req = document.createElement('h3');
+            h3req.textContent = 'Change ' + (i + 1) + '/' + pending.length + ' — request: ' + label;
+            const preReq = document.createElement('pre');
+            preReq.textContent = stxt;
+            const h3res = document.createElement('h3');
+            h3res.textContent = 'Change ' + (i + 1) + '/' + pending.length + ' — Edgar response';
+            const preRes = document.createElement('pre');
+            preRes.textContent = JSON.stringify(r, null, 2);
+            subDiv.appendChild(h3req);
+            subDiv.appendChild(preReq);
+            subDiv.appendChild(h3res);
+            subDiv.appendChild(preRes);
+            subDiv.style.display = 'block';
+          }
         } catch (err) {
           failCount++;
           lines.push('<span class="fail">✖</span> ' + escapeHtml(label) +
