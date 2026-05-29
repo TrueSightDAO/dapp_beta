@@ -422,6 +422,16 @@
                 font-size: 0.95rem;
             }
         }
+
+        /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+        #submissionResult { margin-top: 1.5rem; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
     </style>
 </head>
 <body>
@@ -507,6 +517,14 @@
             </div>
             <button id="submitButton" disabled>Submit Contribution Report</button>
             <div id="outputMessage"></div>
+
+            <!-- §9b — forensic detail. Populated on successful Edgar write. -->
+            <div id="submissionResult" style="display:none;" aria-live="polite">
+                <h3>Transaction request (signed payload sent to Edgar)</h3>
+                <pre id="requestPre"></pre>
+                <h3>Edgar response</h3>
+                <pre id="responsePre"></pre>
+            </div>
             <div id="txHashDisplay">
                 <span class="tx-label">Transaction Hash (Request ID):</span><br>
                 <span class="tx-value" id="txHashValue"></span>
@@ -1211,6 +1229,10 @@
 
                     output.innerHTML = `Report sent to Edgar successfully. <br>View: <a id="telegramLink" href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">https://truesight.me/submissions/raw-telegram-chatlogs</a>`;
                     output.className = 'status';
+                    // §9b — surface signed payload + Edgar's response.
+                    document.getElementById('requestPre').textContent = shareText;
+                    document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                    document.getElementById('submissionResult').style.display = 'block';
                     isPostSubmission = true;
                     updateButtonText();
                     
