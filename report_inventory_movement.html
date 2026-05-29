@@ -2937,6 +2937,8 @@
                             output.className = 'error';
                         }
                     }
+                    // Show transaction hash and inventory movement summary even in offline/clipboard mode
+                    renderInventoryMovementSummary(requestHash, managerName, recipientName, formattedItemName, lastQrParam, quantity, latitude, longitude, inventoryLocation, fileName);
                 }
             } catch (err) {
                 output.innerHTML = `Error generating inventory report: ${err.message}. Please try again or contact support.`;
