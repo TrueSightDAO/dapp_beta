@@ -1458,6 +1458,9 @@
                     isPostSubmission = true;
                     reportButton.value = 'Report Another Sale';
                     updateReportButtonState();
+                    
+                    // Show transaction hash and sales summary
+                    renderSalesSummary(requestHash, qrParam, salePrice, soldByName, cashName, ownerEmailVal, stripeSessionVal, shippingProvVal, trackingVal);
                 } else {
                     if (isMobileDevice()) {
                         if (navigator.share) {
