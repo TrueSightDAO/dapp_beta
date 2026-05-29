@@ -206,6 +206,74 @@
             max-width: 100%;
             word-wrap: break-word;
         }
+        #txHashDisplay {
+            margin: 1rem 0;
+            padding: 0.6rem;
+            background-color: #f0f8ff;
+            border: 1px solid #b3d4fc;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            word-break: break-all;
+            text-align: center;
+            display: none;
+        }
+        #txHashDisplay .tx-label {
+            font-weight: bold;
+            color: #333;
+        }
+        #txHashDisplay .tx-value {
+            font-family: monospace;
+            color: #0056b3;
+            font-size: 0.8rem;
+        }
+        #movementSummary {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background-color: #f9f9f9;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            display: none;
+        }
+        #movementSummary h3 {
+            margin: 0 0 0.8rem 0;
+            color: #28a745;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        #movementSummary .summary-row {
+            margin: 0.4rem 0;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        #movementSummary .summary-row:last-child {
+            border-bottom: none;
+        }
+        #movementSummary .summary-label {
+            font-weight: bold;
+            color: #555;
+        }
+        #movementSummary .summary-value {
+            color: #333;
+            word-break: break-word;
+        }
+        #movementSummary .summary-value a {
+            color: #007bff;
+            text-decoration: underline;
+        }
+        @media print {
+            #movementSummary {
+                border: 2px solid #000 !important;
+                background: #fff !important;
+                display: block !important;
+            }
+            #txHashDisplay {
+                border: 1px solid #000 !important;
+                background: #fff !important;
+                display: block !important;
+            }
+        }
         .info-box {
             margin: 1rem 0;
             background-color: #f8f9fa;
