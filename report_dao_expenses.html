@@ -444,6 +444,45 @@
                 <button id="submitButton" disabled aria-label="Submit Expense Report">Submit Expense Report</button>
             </div>
             <div id="outputMessage" aria-live="polite"></div>
+            <div id="txHashDisplay">
+                <span class="tx-label">Transaction Hash (Request ID):</span><br>
+                <span class="tx-value" id="txHashValue"></span>
+            </div>
+            <div id="expenseSummary">
+                <h3>✅ Expense Summary</h3>
+                <div class="summary-row">
+                    <span class="summary-label">DAO Member:</span>
+                    <span class="summary-value" id="summaryMember"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Target Ledger:</span>
+                    <span class="summary-value" id="summaryTargetLedger"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Inventory Type:</span>
+                    <span class="summary-value" id="summaryInventoryType"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Quantity:</span>
+                    <span class="summary-value" id="summaryQuantity"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Description:</span>
+                    <span class="summary-value" id="summaryDescription"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">File Location:</span>
+                    <span class="summary-value" id="summaryFileLocation"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Transaction Hash:</span>
+                    <span class="summary-value" id="summaryTxHash"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Submission Timestamp:</span>
+                    <span class="summary-value" id="summaryTimestamp"></span>
+                </div>
+            </div>
         </div>
     </div>
 
