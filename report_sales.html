@@ -1388,6 +1388,26 @@
             await submitSalesReport(fileToShare, fileName, lastQrParam, contributorSelect.value, cashProceedsSelect ? cashProceedsSelect.value : contributorSelect.value, salePrice);
         }
 
+        function renderSalesSummary(requestHash, qrParam, salePrice, soldByName, cashName, ownerEmailVal, stripeSessionVal, shippingProvVal, trackingVal) {
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            const txHashValue = document.getElementById('txHashValue');
+            txHashValue.textContent = requestHash;
+            txHashDisplay.style.display = 'block';
+
+            const summary = document.getElementById('salesSummary');
+            document.getElementById('summaryQrCode').textContent = qrParam || 'N/A';
+            document.getElementById('summarySalePrice').textContent = `$${parseFloat(salePrice).toFixed(2)}`;
+            document.getElementById('summarySoldBy').textContent = soldByName || 'N/A';
+            document.getElementById('summaryCashProceeds').textContent = cashName || 'N/A';
+            document.getElementById('summaryOwnerEmail').textContent = ownerEmailVal || '(none)';
+            document.getElementById('summaryStripeSession').textContent = stripeSessionVal || '(none)';
+            document.getElementById('summaryShippingProvider').textContent = shippingProvVal || '(none)';
+            document.getElementById('summaryTrackingNumber').textContent = trackingVal || '(none)';
+            document.getElementById('summaryTxHash').textContent = requestHash;
+            document.getElementById('summaryTimestamp').textContent = new Date().toLocaleString();
+            summary.style.display = 'block';
+        }
+
         async function submitSalesReport(file, fileName, qrParam, soldByName, cashProceedsCollectedByName, salePrice) {
             const publicKey = localStorage.getItem('publicKey');
             const privateKey = localStorage.getItem('privateKey');
