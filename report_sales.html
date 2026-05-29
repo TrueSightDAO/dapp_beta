@@ -349,6 +349,30 @@
                 padding: 0.6rem;
             }
         }
+
+        /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+        #submissionResult { margin-top: 1.5rem; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+
+        /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+        @media print {
+            textarea {
+                height: auto !important; min-height: 0 !important; max-height: none !important;
+                overflow: visible !important; white-space: pre-wrap;
+                page-break-inside: auto; border: 1px solid #999;
+            }
+            pre {
+                white-space: pre-wrap !important; word-break: break-word !important;
+                overflow: visible !important; max-height: none !important;
+                page-break-inside: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -453,6 +477,14 @@
                 <input type="button" id="report_button" value="Report Sold" disabled>
             </div>
             <div id="report_output" aria-live="polite"></div>
+
+            <!-- §9b — forensic detail. Populated on successful Edgar write. -->
+            <div id="submissionResult" style="display:none;" aria-live="polite">
+                <h3>Transaction request (signed payload sent to Edgar)</h3>
+                <pre id="requestPre"></pre>
+                <h3>Edgar response</h3>
+                <pre id="responsePre"></pre>
+            </div>
             <div id="txHashDisplay">
                 <span class="tx-label">Transaction Hash (Request ID):</span><br>
                 <span class="tx-value" id="txHashValue"></span>
@@ -1460,7 +1492,17 @@
 
                     if (!resp.ok) throw new Error(await resp.text());
 
+                    // §9b — capture Edgar's response body (was discarded) so
+                    // we can surface it in the submissionResult <pre>.
+                    const respText = await resp.text();
+                    let respPretty = respText;
+                    try { respPretty = JSON.stringify(JSON.parse(respText), null, 2); } catch (_) { /* raw text */ }
+
                     reportOutput.innerHTML = `Report sent to Edgar successfully via API. View: <a id="telegram_link" href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">https://truesight.me/submissions/raw-telegram-chatlogs</a>`;
+                    // §9b — surface signed payload + Edgar's response.
+                    document.getElementById('requestPre').textContent = shareText;
+                    document.getElementById('responsePre').textContent = respPretty;
+                    document.getElementById('submissionResult').style.display = 'block';
                     reportOutput.className = 'status';
                     isPostSubmission = true;
                     reportButton.value = 'Report Another Sale';
