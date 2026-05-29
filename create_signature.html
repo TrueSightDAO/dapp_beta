@@ -334,6 +334,30 @@
       text-align: center;
       gap: 1rem;
     }
+
+    /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+    #submissionResult { margin-top: 1.5rem; text-align: left; max-width: 720px; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+
+    /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+    @media print {
+      textarea {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; white-space: pre-wrap;
+        page-break-inside: auto; border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important; word-break: break-word !important;
+        overflow: visible !important; max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -373,6 +397,14 @@
       <button id="createNewButton" type="button" onclick="generateKeys()" style="display: none;">Create New Signature</button>
     </div>
     <p id="status" class="fade-in"></p>
+
+    <!-- §9b — forensic detail. Populated on each successful Edgar write (last submission wins). -->
+    <div id="submissionResult" style="display:none;" aria-live="polite">
+      <h3>Transaction request (signed payload sent to Edgar)</h3>
+      <pre id="requestPre"></pre>
+      <h3>Edgar response</h3>
+      <pre id="responsePre"></pre>
+    </div>
     
     <h3 id="actionHeader" style="display: none;">Things You Can Do with Your Voting Rights</h3>
     <div id="actionLinks">
@@ -531,6 +563,17 @@
             : '';
         throw new Error(String(base) + extra);
       }
+      // §9b — show signed payload + Edgar response for verifiability (last submission wins).
+      try {
+        const reqEl = document.getElementById('requestPre');
+        const respEl = document.getElementById('responsePre');
+        const wrap = document.getElementById('submissionResult');
+        if (reqEl && respEl && wrap) {
+          reqEl.textContent = shareText;
+          respEl.textContent = JSON.stringify(data && Object.keys(data).length ? data : { raw: rawText }, null, 2);
+          wrap.style.display = 'block';
+        }
+      } catch (_) {}
       return data;
     }
 
