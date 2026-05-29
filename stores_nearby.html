@@ -834,6 +834,30 @@
                 top: 60px;
             }
         }
+
+        /* §9b submission result rendering — see agentic_ai_context/DAPP_PAGE_CONVENTIONS.md */
+        #submissionResult { margin: 1.5rem auto; max-width: 720px; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+
+        /* §16 print stylesheet — textareas + result blocks expand to show full content. */
+        @media print {
+            textarea {
+                height: auto !important; min-height: 0 !important; max-height: none !important;
+                overflow: visible !important; white-space: pre-wrap;
+                page-break-inside: auto; border: 1px solid #999;
+            }
+            pre {
+                white-space: pre-wrap !important; word-break: break-word !important;
+                overflow: visible !important; max-height: none !important;
+                page-break-inside: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -854,6 +878,14 @@
 
         <div id="welcome" style="display: none; margin: 1rem 0;"></div>
         <p id="status" class="fade-in" style="margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center;">Verifying your digital signature...</p>
+
+        <!-- §9b — forensic detail. Populated on each successful Edgar write (last submission wins). -->
+        <div id="submissionResult" style="display:none;" aria-live="polite">
+            <h3>Transaction request (signed payload sent to Edgar)</h3>
+            <pre id="requestPre"></pre>
+            <h3>Edgar response</h3>
+            <pre id="responsePre"></pre>
+        </div>
         <div id="signaturePromptBanner" class="signature-banner">
             You are currently viewing stores in read-only mode. <a href="./create_signature.html">Generate your digital signature</a> to add or update store information.
         </div>
@@ -1532,7 +1564,19 @@
 
             const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
             if (!resp.ok) throw new Error(await resp.text());
-            return { ok: true, result: await resp.json() };
+            const result = await resp.json();
+            // §9b — show signed payload + Edgar response for verifiability (last submission wins).
+            try {
+                const reqEl = document.getElementById('requestPre');
+                const respEl = document.getElementById('responsePre');
+                const wrap = document.getElementById('submissionResult');
+                if (reqEl && respEl && wrap) {
+                    reqEl.textContent = shareText;
+                    respEl.textContent = JSON.stringify(result, null, 2);
+                    wrap.style.display = 'block';
+                }
+            } catch (_) {}
+            return { ok: true, result };
         }
 
         const stateNameLookup = {
