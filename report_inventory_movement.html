@@ -480,6 +480,49 @@
             <button id="reportButton" disabled aria-label="Report Inventory Movement">Report Inventory Movement</button>
             <button id="batchSubmitButton" style="display: none; background-color: #28a745; margin-top: 0.5rem;" aria-label="Batch Submit">Batch Submit (0)</button>
             <div id="reportOutput" aria-live="polite"></div>
+            <div id="txHashDisplay">
+                <span class="tx-label">Transaction Hash (Request ID):</span><br>
+                <span class="tx-value" id="txHashValue"></span>
+            </div>
+            <div id="movementSummary">
+                <h3>✅ Inventory Movement Summary</h3>
+                <div class="summary-row">
+                    <span class="summary-label">Manager Name:</span>
+                    <span class="summary-value" id="summaryManagerName"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Recipient Name:</span>
+                    <span class="summary-value" id="summaryRecipientName"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Inventory Item:</span>
+                    <span class="summary-value" id="summaryInventoryItem"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">QR Code:</span>
+                    <span class="summary-value" id="summaryQrCode"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Quantity Moved:</span>
+                    <span class="summary-value" id="summaryQuantity"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Location:</span>
+                    <span class="summary-value" id="summaryLocation"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Transaction Hash:</span>
+                    <span class="summary-value" id="summaryTxHash"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">File Location:</span>
+                    <span class="summary-value" id="summaryFileLocation"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Submission Timestamp:</span>
+                    <span class="summary-value" id="summaryTimestamp"></span>
+                </div>
+            </div>
         </div>
     </div>
     <!-- Include jsQR library via CDN -->
