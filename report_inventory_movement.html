@@ -1039,10 +1039,11 @@
             
             output.innerHTML = `Batch complete: ${successCount}/${codes.length} submitted. <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">View Telegram Chat Logs</a>`;
             output.className = 'status';
-            
-            // Show batch summary with transaction hash
-            const recipientName = getRecipientName();
-            const publicKey = localStorage.getItem('publicKey');
+
+            // Show batch summary with transaction hash. (recipientName + publicKey
+            // are already in scope from lines ~1001-1002 above — redeclaring them
+            // with `const` here throws "Identifier has already been declared" and
+            // breaks the whole script.)
             const batchSummaryHash = arrayBufferToBase64(new TextEncoder().encode(`batch_${Date.now()}_${publicKey}`));
             const txHashDisplay = document.getElementById('txHashDisplay');
             const txHashValue = document.getElementById('txHashValue');
