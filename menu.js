@@ -8,6 +8,7 @@
     { title: 'Governor Chat', url: './chat.html', section: 'Governor only' },
     { title: 'Add New Contributor', url: './governor_contributor_admin.html', section: 'Governor only' },
     { title: 'Permissions Viewer', url: './governor_permissions.html', section: 'Governor only' },
+    { title: 'Program Registrations (review)', url: './program_registrations_review.html', section: 'Governor only' },
     { title: 'DAO Contribution Reporter', url: './report_contribution.html', section: 'Community Contributions' },
     { title: 'Content Feedback Submission', url: './submit_feedback.html', section: 'Community Contributions' },
     { title: 'Capital Injection Reporter', url: './report_capital_injection.html', section: 'Inventory & ledger' },
@@ -94,7 +95,7 @@
     if (document.getElementById('tsd-notif-script')) return;
     var s = document.createElement('script');
     s.id = 'tsd-notif-script';
-    s.src = './js/notifications.js?v=20260512e';
+    s.src = './js/notifications.js?v=20260603a';
     s.async = true;
     document.head.appendChild(s);
   });

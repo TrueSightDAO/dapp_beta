@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Review pending Lineage program-registration requests submitted via truesight.me/lineage-register.html.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Program Registrations · TrueSight DAO</title>
+
+  <meta property="og:title" content="Program Registrations — TrueSight DAO">
+  <meta property="og:description" content="Review pending Lineage program-registration requests awaiting governor approval.">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+  <meta property="og:type" content="website">
+
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260603a"></script>
+  <script src="./tdg_balance.js"></script>
+  <script src="./scripts/dao_members_cache.js"></script>
+  <script src="./scripts/permissions.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #faf8f4; color: #222; }
+    .wrap { max-width: 840px; margin: 0 auto; padding: 1rem 1rem 4rem; }
+    h1 { font-size: 1.4rem; margin: 1rem 0 0.25rem; }
+    .lead { color: #666; margin: 0 0 1rem; font-size: 0.95rem; }
+    .toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    button.btn { padding: 0.5rem 0.9rem; border: 1px solid #c9c2b5; background: #fff; border-radius: 8px; cursor: pointer; font: inherit; }
+    button.btn:hover { background: #f3efe7; }
+    .status { color: #666; font-size: 0.9rem; }
+    .status.error { color: #c0392b; }
+    .status.loading { color: #b8860b; }
+    .count-chip { background: #ffefc2; border: 1px solid #f0d486; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.85rem; font-weight: 600; }
+    .card { background: #fff; border: 1px solid #e6e0d4; border-radius: 12px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .card h2 { font-size: 1.12rem; margin: 0 0 0.15rem; display: flex; align-items: center; gap: 0.5rem; }
+    .card .sub { color: #888; font-size: 0.8rem; margin: 0 0 0.7rem; }
+    .card .desc { white-space: pre-wrap; margin: 0 0 0.8rem; line-height: 1.55; }
+    .caps { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.8rem; }
+    .cap { background: #eef5ec; border: 1px solid #cfe0c9; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.78rem; }
+    table.meta { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.meta td { padding: 0.3rem 0.4rem; border-top: 1px solid #f0ece3; vertical-align: top; }
+    table.meta td.k { color: #888; width: 150px; white-space: nowrap; }
+    table.meta td.v { word-break: break-word; }
+    table.meta a { color: #0d6efd; }
+    .mono { font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; word-break: break-all; color: #555; }
+    .empty { text-align: center; color: #888; padding: 2.5rem 1rem; }
+    .welcome { color: #2e7d32; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .note { background: #f4f8ff; border: 1px solid #cfe0ff; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: #345; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="gateContainer"></div>
+    <div id="content" style="display:none;">
+      <div id="welcome" class="welcome"></div>
+      <h1>Program Registrations</h1>
+      <p class="lead">Pending Lineage program-registration requests submitted via
+        <a href="https://truesight.me/lineage-register.html" target="_blank" rel="noreferrer">truesight.me/lineage-register.html</a>.
+        Each request auto-minted the submitter's DAO identity. Approval &amp; provisioning is still manual (see note).</p>
+      <div class="note">
+        This is a <strong>read-only review surface</strong> for now. To provision an approved program, follow
+        <code>agentic_ai_context/PROGRAM_PARTNER_ONBOARDING.md</code> (the approve→provision handler is the next build step).
+        Source of truth: the <strong>Program Registrations</strong> tab on the Telegram &amp; Submissions sheet.
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="refreshBtn">↻ Refresh</button>
+        <span class="count-chip" id="countChip">0 pending</span>
+        <span class="status" id="status"></span>
+      </div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var PROGRAM_REG_URL = (window.Routes && window.Routes.gas && window.Routes.gas.programRegistrations)
+          || 'https://script.google.com/macros/s/AKfycbyxwkIp6Yn79YIuHCPmZ36J7dwIi7K8BLiUBj4qGm5RxSKta77sXRQf1M0wKuEBRbJW/exec';
+      var PAGE_ACTION = 'governor_chat.access'; // governor-only gate (reuse existing declared action)
+
+      var publicKey = (function () { try { return localStorage.getItem('publicKey') || ''; } catch (_) { return ''; } })();
+      var statusEl, listEl, countEl;
+
+      function setStatus(msg, cls) { if (statusEl) { statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? ' ' + cls : ''); } }
+      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+
+      function renderCard(it) {
+        var caps = String(it.capabilities || '').split(',').map(function (c) { return c.trim(); }).filter(Boolean);
+        var capsHtml = caps.length ? '<div class="caps">' + caps.map(function (c) { return '<span class="cap">' + esc(c) + '</span>'; }).join('') + '</div>' : '';
+        var date = '';
+        try { date = new Date(it.submitted_date).toLocaleString(); } catch (_) { date = it.submitted_date || ''; }
+        function row(k, v) { return v ? '<tr><td class="k">' + esc(k) + '</td><td class="v">' + v + '</td></tr>' : ''; }
+        function link(u) { return u ? '<a href="' + esc(u) + '" target="_blank" rel="noreferrer">' + esc(u) + '</a>' : ''; }
+        var pkShort = it.origin_identity ? ('<span class="mono">' + esc(String(it.origin_identity).slice(0, 44)) + '…</span>') : '';
+        return '' +
+          '<div class="card">' +
+            '<h2>' + esc(it.display_name || '(no name)') + '</h2>' +
+            '<p class="sub">Submitted ' + esc(date) + ' · request ' + esc(it.registration_id) + '</p>' +
+            capsHtml +
+            (it.description ? '<p class="desc">' + esc(it.description) + '</p>' : '') +
+            '<table class="meta">' +
+              row('Organization', esc(it.partner_organization)) +
+              row('Program slug', esc(it.program_slug)) +
+              row('Website', link(it.website)) +
+              row('Logo', link(it.logo_url)) +
+              row('Roster sheet', link(it.roster_sheet_url)) +
+              row('Submitted from', link(it.submission_source)) +
+              row('Requester identity', pkShort) +
+            '</table>' +
+          '</div>';
+      }
+
+      function render(items) {
+        countEl.textContent = items.length + ' pending';
+        if (!items.length) {
+          listEl.innerHTML = '<div class="empty">No pending program registrations. 🎉<br>New requests from the Lineage form will appear here.</div>';
+          return;
+        }
+        listEl.innerHTML = items.map(renderCard).join('');
+      }
+
+      function loadQueue() {
+        setStatus('Loading…', 'loading');
+        var refresh = document.getElementById('refreshBtn'); if (refresh) refresh.disabled = true;
+        // Trigger a fresh scan first (idempotent), then read. Best-effort: ignore scan errors.
+        fetch(PROGRAM_REG_URL + '?action=processProgramRegistrationsFromTelegramChatLogs', { method: 'GET' })
+          .catch(function () {})
+          .then(function () { return fetch(PROGRAM_REG_URL + '?action=getPendingProgramRegistrations', { method: 'GET' }); })
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(function (json) {
+            if (!json || json.status !== 'success') throw new Error((json && json.message) || 'GAS error');
+            render((json.data && json.data.items) || []);
+            setStatus('');
+          })
+          .catch(function (e) { setStatus('Failed to load: ' + e.message, 'error'); })
+          .then(function () { if (refresh) refresh.disabled = false; });
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        statusEl = document.getElementById('status');
+        listEl = document.getElementById('list');
+        countEl = document.getElementById('countChip');
+        var refresh = document.getElementById('refreshBtn');
+        if (refresh) refresh.addEventListener('click', loadQueue);
+
+        if (!publicKey) {
+          document.getElementById('gateContainer').innerHTML =
+            '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+            '<h2 style="margin:0 0 0.5rem 0;">Sign in first</h2>' +
+            '<p style="margin:0;">No digital signature found. Use <a href="./create_signature.html">the Digital Signature Creator</a> first.</p></div>';
+          return;
+        }
+        window.DaoMembersCache.findByPublicKey(publicKey).then(function (lookup) {
+          if (!lookup || !lookup.contributor) {
+            document.getElementById('gateContainer').innerHTML =
+              '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+              '<h2 style="margin:0 0 0.5rem 0;">Signature not registered</h2>' +
+              '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger.</p></div>';
+            return null;
+          }
+          var w = document.getElementById('welcome');
+          if (w) w.textContent = 'Signed in as ' + (lookup.contributor.name || '(contributor)');
+          return window.Permissions.requireRole({
+            action: PAGE_ACTION, publicKey: publicKey, denyContainerId: 'gateContainer',
+            onAllowed: function () { document.getElementById('content').style.display = 'block'; loadQueue(); },
+            onDenied: function () {}
+          });
+        }).catch(function (err) { setStatus('Permission check failed: ' + err.message, 'error'); });
+      });
+    })();
+  </script>
+</body>
+</html>

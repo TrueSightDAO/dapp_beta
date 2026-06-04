@@ -468,6 +468,37 @@
     }
   });
 
+  // Pending Lineage program-registration requests (governor review surface).
+  register({
+    id: 'program_registrations',
+    fetch: function () {
+      var routes = global.Routes;
+      if (!routes || !routes.gas || !routes.gas.programRegistrations) return null;
+      var url = routes.gas.programRegistrations + '?action=getPendingProgramRegistrations';
+      return fetch(url, { method: 'GET' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (json) {
+          if (!json || json.status !== 'success' || !json.data) return null;
+          var count = Number(json.data.pending_count || 0);
+          if (!count) return null;
+          return {
+            count: count,
+            label: 'Program Registrations',
+            sublabel: count + ' pending to review',
+            link: './program_registrations_review.html',
+            items: (json.data.items || []).slice(0, 4).map(function (item) {
+              return {
+                title: item.display_name || item.program_name || 'Unknown program',
+                since: item.submitted_date || '',
+                link: './program_registrations_review.html'
+              };
+            })
+          };
+        })
+        .catch(function () { return null; });
+    }
+  });
+
   // ----- Boot ---------------------------------------------------------------
 
   function boot() {
