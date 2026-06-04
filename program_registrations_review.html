@@ -4,14 +4,23 @@
   <meta charset="UTF-8">
   <meta name="description" content="Review pending Lineage program-registration requests and submit them as DAO proposals for community voting.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Program Registrations · TrueSight DAO</title>
+  <title>Program Registrations - TrueSight DAO</title>
 
-  <meta property="og:title" content="Program Registrations — TrueSight DAO">
-  <meta property="og:description" content="Review pending Lineage program-registration requests and submit them as DAO proposals.">
+  <!-- Open Graph tags for WhatsApp, Facebook, LinkedIn, and social media previews -->
+  <meta property="og:title" content="Program Registrations - TrueSight DAO">
+  <meta property="og:description" content="Review pending Lineage program-registration requests and submit them as DAO proposals for community voting.">
   <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
-  <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+  <meta property="og:url" content="https://dapp.truesight.me/program_registrations_review.html">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TrueSight DAO">
 
+  <!-- Twitter Card tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Program Registrations - TrueSight DAO">
+  <meta name="twitter:description" content="Review pending Lineage program-registration requests and submit them as DAO proposals for community voting.">
+  <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <!-- Favicon -->
   <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
 
   <script src="./routes.js"></script>
@@ -21,18 +30,44 @@
   <script src="./scripts/permissions.js"></script>
 
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #faf8f4; color: #222; }
-    .wrap { max-width: 840px; margin: 0 auto; padding: 1rem 1rem 4rem; }
-    h1 { font-size: 1.4rem; margin: 1rem 0 0.25rem; }
-    .lead { color: #666; margin: 0 0 1rem; font-size: 0.95rem; }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 1rem;
+      padding: 1rem;
+      min-height: 100vh;
+      box-sizing: border-box;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 840px;
+      width: 100%;
+      background-color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: #333;
+      margin: 0.5rem 0 1rem;
+      text-align: center;
+    }
+    .lead {
+      color: #555;
+      margin: 0 0 1rem;
+      font-size: 0.95rem;
+      text-align: center;
+    }
     .toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
     button.btn { padding: 0.5rem 0.9rem; border: 1px solid #c9c2b5; background: #fff; border-radius: 8px; cursor: pointer; font: inherit; }
     button.btn:hover { background: #f3efe7; }
     button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .status { color: #666; font-size: 0.9rem; }
-    .status.error { color: #c0392b; }
-    .status.loading { color: #b8860b; }
-    .status.success { color: #2e7d32; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+    .status { color: #28a745; }
+    .error { color: #dc3545; }
     .count-chip { background: #ffefc2; border: 1px solid #f0d486; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.85rem; font-weight: 600; }
     .card { background: #fff; border: 1px solid #e6e0d4; border-radius: 12px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
     .card h2 { font-size: 1.12rem; margin: 0 0 0.15rem; display: flex; align-items: center; gap: 0.5rem; }
@@ -47,7 +82,7 @@
     table.meta a { color: #0d6efd; }
     .mono { font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; word-break: break-all; color: #555; }
     .empty { text-align: center; color: #888; padding: 2.5rem 1rem; }
-    .welcome { color: #2e7d32; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .welcome { color: #2e7d32; font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center; }
     .note { background: #f4f8ff; border: 1px solid #cfe0ff; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: #345; margin-bottom: 1rem; }
 
     /* Inline editor styles */
@@ -79,28 +114,63 @@
     .caps-editor { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.3rem; }
     .caps-editor label { display: flex; align-items: center; gap: 0.3rem; font-weight: normal; font-size: 0.85rem; cursor: pointer; }
     .caps-editor input { width: auto; }
+
+    /* §9b submission result rendering */
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+
+    /* §16 print stylesheet */
+    @media print {
+      textarea {
+        height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; white-space: pre-wrap;
+        page-break-inside: auto; border: 1px solid #999;
+      }
+      pre {
+        white-space: pre-wrap !important; word-break: break-word !important;
+        overflow: visible !important; max-height: none !important;
+        page-break-inside: auto;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
-    <div id="gateContainer"></div>
-    <div id="content" style="display:none;">
-      <div id="welcome" class="welcome"></div>
-      <h1>Program Registrations</h1>
-      <p class="lead">Pending Lineage program-registration requests. Review, modify, and submit as DAO proposals for community voting.
-        <br>Source: <a href="https://truesight.me/lineage-register.html" target="_blank" rel="noreferrer">truesight.me/lineage-register.html</a></p>
-      <div class="note">
-        <strong>How it works:</strong> Each request was auto-submitted by the program creator. As a governor, you can review the details,
-        make any adjustments based on offline discussion, then <strong>submit it as a DAO proposal</strong>. The proposal will appear on
-        <a href="./view_open_proposals.html">view_open_proposals.html</a> for community voting. After voting passes, you provision the program.
-      </div>
-      <div class="toolbar">
-        <button class="btn" id="refreshBtn">↻ Refresh</button>
-        <span class="count-chip" id="countChip">0 pending</span>
-        <span class="status" id="status"></span>
-      </div>
-      <div id="list"></div>
+  <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+  <div id="tdgBalanceBadge"></div>
+  <div id="gateContainer"></div>
+  <div class="container" id="content" style="display:none;">
+    <div style="text-align: center;">
+      <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+    </div>
+
+    <div id="welcome" class="welcome"></div>
+    <h1>Program Registrations</h1>
+    <p class="lead">Pending Lineage program-registration requests. Review, modify, and submit as DAO proposals for community voting.
+      <br>Source: <a href="https://truesight.me/lineage-register.html" target="_blank" rel="noreferrer">truesight.me/lineage-register.html</a></p>
+    <div class="note">
+      <strong>How it works:</strong> Each request was auto-submitted by the program creator. As a governor, you can review the details,
+      make any adjustments based on offline discussion, then <strong>submit it as a DAO proposal</strong>. The proposal will appear on
+      <a href="./view_open_proposals.html">view_open_proposals.html</a> for community voting. After voting passes, you provision the program.
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="refreshBtn">↻ Refresh</button>
+      <span class="count-chip" id="countChip">0 pending</span>
+    </div>
+    <p id="status" aria-live="polite"></p>
+    <div id="list"></div>
+
+    <!-- §9b — forensic detail. Populated on successful Edgar write. -->
+    <div id="submissionResult" style="display:none;" aria-live="polite">
+      <h3>Transaction request (signed payload sent to Edgar)</h3>
+      <pre id="requestPre"></pre>
+      <h3>Edgar response</h3>
+      <pre id="responsePre"></pre>
     </div>
   </div>
 
@@ -134,12 +204,10 @@
 
       var publicKey = (function () { try { return localStorage.getItem('publicKey') || ''; } catch (_) { return ''; } })();
       var statusEl, listEl, countEl;
-      var items = []; // cached registration items
-      var submittedIds = {}; // track which registration_ids have been submitted as proposals
+      var items = [];
+      var submittedIds = {};
 
-      // ---- helpers ----
-
-      function setStatus(msg, cls) { if (statusEl) { statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? ' ' + cls : ''); } }
+      function setStatus(msg, cls) { if (statusEl) { statusEl.textContent = msg || ''; statusEl.className = cls ? cls : ''; } }
       function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
       function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
@@ -156,8 +224,6 @@
         for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return bytes.buffer;
       }
-
-      // ---- render ----
 
       function renderCard(it) {
         var caps = String(it.capabilities || '').split(',').map(function (c) { return c.trim(); }).filter(Boolean);
@@ -200,8 +266,6 @@
         listEl.innerHTML = items.map(renderCard).join('');
       }
 
-      // ---- load ----
-
       function loadQueue() {
         setStatus('Loading…', 'loading');
         var refresh = document.getElementById('refreshBtn'); if (refresh) refresh.disabled = true;
@@ -219,8 +283,6 @@
           .then(function () { if (refresh) refresh.disabled = false; });
       }
 
-      // ---- inline editor ----
-
       var currentRegId = null;
 
       function buildEditorFields(it) {
@@ -228,7 +290,7 @@
         var selectedCaps = String(it.capabilities || '').split(',').map(function (c) { return c.trim(); }).filter(Boolean);
         var capsHtml = caps.map(function (c) {
           var checked = selectedCaps.indexOf(c) >= 0 ? 'checked' : '';
-          var label = c.replace('-', ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
+          var label = c.replace(/-/g, ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
           return '<label><input type="checkbox" class="cap-cb" value="' + esc(c) + '" ' + checked + '> ' + esc(label) + '</label>';
         }).join('');
         return '' +
@@ -321,7 +383,6 @@
         document.getElementById('editorSuccess').style.display = 'none';
 
         try {
-          // Build the proposal content as structured markdown
           var capsStr = data.capabilities.length ? data.capabilities.join(', ') : 'credentialing';
           var contentLines = [
             '**Program Registration Proposal**',
@@ -347,14 +408,12 @@
           var title = 'Lineage Program: ' + data.displayName;
           if (title.length > 100) title = title.slice(0, 97) + '...';
 
-          // Build the [PROPOSAL CREATION] payload (same format as create_proposal.html)
           var requestText = '[PROPOSAL CREATION]\n'
             + '- Type: program-registration\n'
             + '- Title: ' + title + '\n'
             + '- Content: ' + contentLines.replace(/\n/g, '\n  ') + '\n'
             + '--------';
 
-          // Sign with governor's key
           var privateKeyB64 = localStorage.getItem('privateKey');
           if (!privateKeyB64) { showEditorError('No private key found. Please create a signature first.'); btn.disabled = false; btn.textContent = '✔️ Submit as DAO Proposal'; return; }
 
@@ -376,7 +435,6 @@
             + 'This submission was generated using ' + window.location.href + '\n\n'
             + 'Verify submission here: https://dapp.truesight.me/verify_request.html';
 
-          // POST to Edgar
           var formData = new FormData();
           formData.append('text', shareText);
 
@@ -384,14 +442,16 @@
           var result = await resp.json();
 
           if (result.status === 'success') {
-            // Mark as submitted
+            // §9b — surface signed payload + Edgar's response.
+            document.getElementById('requestPre').textContent = shareText;
+            document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+            document.getElementById('submissionResult').style.display = 'block';
+
             if (currentRegId) submittedIds[currentRegId] = true;
-            document.getElementById('editorSuccess').textContent = '\u2705 Proposal submitted successfully! It will appear on view_open_proposals.html once Edgar processes it.';
+            document.getElementById('editorSuccess').textContent = '✅ Proposal submitted successfully! It will appear on view_open_proposals.html once Edgar processes it.';
             document.getElementById('editorSuccess').style.display = 'block';
             btn.textContent = '✅ Submitted';
-            // Re-render the card to show the badge
             render(items);
-            // Close after a short delay
             setTimeout(closeEditor, 2000);
           } else {
             showEditorError('Edgar error: ' + (result.error || 'Unknown error'));
@@ -411,24 +471,15 @@
         el.style.display = 'block';
       }
 
-      // ---- expose to inline onclick ----
-
-      window.SubmitAsProposal = {
-        open: openEditor,
-      };
-
-      // ---- wire up editor buttons ----
+      window.SubmitAsProposal = { open: openEditor };
 
       document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('editorCancelBtn').addEventListener('click', closeEditor);
         document.getElementById('editorSubmitBtn').addEventListener('click', submitProposal);
-        // Close on overlay click (but not panel click)
         document.getElementById('editorOverlay').addEventListener('click', function (e) {
           if (e.target === this) closeEditor();
         });
       });
-
-      // ---- init ----
 
       document.addEventListener('DOMContentLoaded', function () {
         statusEl = document.getElementById('status');
