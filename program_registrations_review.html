@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="description" content="Review pending Lineage program-registration requests submitted via truesight.me/lineage-register.html.">
+  <meta name="description" content="Review pending Lineage program-registration requests and submit them as DAO proposals for community voting.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Program Registrations · TrueSight DAO</title>
 
   <meta property="og:title" content="Program Registrations — TrueSight DAO">
-  <meta property="og:description" content="Review pending Lineage program-registration requests awaiting governor approval.">
+  <meta property="og:description" content="Review pending Lineage program-registration requests and submit them as DAO proposals.">
   <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
   <meta property="og:url" content="https://truesightdao.github.io/dapp/">
   <meta property="og:type" content="website">
@@ -28,9 +28,11 @@
     .toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
     button.btn { padding: 0.5rem 0.9rem; border: 1px solid #c9c2b5; background: #fff; border-radius: 8px; cursor: pointer; font: inherit; }
     button.btn:hover { background: #f3efe7; }
+    button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .status { color: #666; font-size: 0.9rem; }
     .status.error { color: #c0392b; }
     .status.loading { color: #b8860b; }
+    .status.success { color: #2e7d32; }
     .count-chip { background: #ffefc2; border: 1px solid #f0d486; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.85rem; font-weight: 600; }
     .card { background: #fff; border: 1px solid #e6e0d4; border-radius: 12px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
     .card h2 { font-size: 1.12rem; margin: 0 0 0.15rem; display: flex; align-items: center; gap: 0.5rem; }
@@ -47,6 +49,36 @@
     .empty { text-align: center; color: #888; padding: 2.5rem 1rem; }
     .welcome { color: #2e7d32; font-size: 0.9rem; margin-bottom: 0.5rem; }
     .note { background: #f4f8ff; border: 1px solid #cfe0ff; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: #345; margin-bottom: 1rem; }
+
+    /* Inline editor styles */
+    .editor-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .editor-panel { background: #fff; border-radius: 14px; max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 1.5rem; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .editor-panel h2 { margin: 0 0 1rem; font-size: 1.2rem; }
+    .editor-panel .field { margin-bottom: 0.9rem; }
+    .editor-panel label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.25rem; color: #444; }
+    .editor-panel input, .editor-panel textarea, .editor-panel select {
+      width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem;
+      border: 1px solid #d0cbc0; border-radius: 8px; font: inherit; font-size: 0.9rem;
+    }
+    .editor-panel textarea { min-height: 80px; resize: vertical; }
+    .editor-panel .field-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+    .editor-panel .field-row .field { flex: 1; min-width: 160px; }
+    .editor-actions { display: flex; gap: 0.6rem; margin-top: 1rem; justify-content: flex-end; }
+    .btn-primary { background: #2e7d32; color: #fff; border: none; padding: 0.55rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-primary:hover { background: #1b5e20; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-cancel { background: #fff; color: #555; border: 1px solid #ccc; padding: 0.55rem 1.2rem; border-radius: 8px; cursor: pointer; }
+    .btn-cancel:hover { background: #f5f5f5; }
+    .proposal-submitted-badge { display: inline-block; background: #e8f5e8; color: #2e7d32; border: 1px solid #a5d6a7; border-radius: 999px; padding: 0.2rem 0.7rem; font-size: 0.78rem; font-weight: 600; }
+    .card-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; }
+    .btn-proposal { background: #1565c0; color: #fff; border: none; padding: 0.45rem 0.9rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+    .btn-proposal:hover { background: #0d47a1; }
+    .btn-proposal:disabled { opacity: 0.5; cursor: not-allowed; }
+    .editor-error { color: #c0392b; font-size: 0.85rem; margin-top: 0.5rem; }
+    .editor-success { color: #2e7d32; font-size: 0.85rem; margin-top: 0.5rem; }
+    .caps-editor { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.3rem; }
+    .caps-editor label { display: flex; align-items: center; gap: 0.3rem; font-weight: normal; font-size: 0.85rem; cursor: pointer; }
+    .caps-editor input { width: auto; }
   </style>
 </head>
 <body>
@@ -56,13 +88,12 @@
     <div id="content" style="display:none;">
       <div id="welcome" class="welcome"></div>
       <h1>Program Registrations</h1>
-      <p class="lead">Pending Lineage program-registration requests submitted via
-        <a href="https://truesight.me/lineage-register.html" target="_blank" rel="noreferrer">truesight.me/lineage-register.html</a>.
-        Each request auto-minted the submitter's DAO identity. Approval &amp; provisioning is still manual (see note).</p>
+      <p class="lead">Pending Lineage program-registration requests. Review, modify, and submit as DAO proposals for community voting.
+        <br>Source: <a href="https://truesight.me/lineage-register.html" target="_blank" rel="noreferrer">truesight.me/lineage-register.html</a></p>
       <div class="note">
-        This is a <strong>read-only review surface</strong> for now. To provision an approved program, follow
-        <code>agentic_ai_context/PROGRAM_PARTNER_ONBOARDING.md</code> (the approve→provision handler is the next build step).
-        Source of truth: the <strong>Program Registrations</strong> tab on the Telegram &amp; Submissions sheet.
+        <strong>How it works:</strong> Each request was auto-submitted by the program creator. As a governor, you can review the details,
+        make any adjustments based on offline discussion, then <strong>submit it as a DAO proposal</strong>. The proposal will appear on
+        <a href="./view_open_proposals.html">view_open_proposals.html</a> for community voting. After voting passes, you provision the program.
       </div>
       <div class="toolbar">
         <button class="btn" id="refreshBtn">↻ Refresh</button>
@@ -73,17 +104,60 @@
     </div>
   </div>
 
+  <!-- Inline editor overlay (hidden by default) -->
+  <div id="editorOverlay" class="editor-overlay" style="display:none;">
+    <div class="editor-panel">
+      <h2>Submit as DAO Proposal</h2>
+      <p style="color:#666;font-size:0.85rem;margin:0 0 1rem;">
+        Review and adjust the program details below. This will be submitted as a
+        <code>[PROPOSAL CREATION]</code> event signed with <strong>your</strong> governor key,
+        and will appear on <a href="./view_open_proposals.html" target="_blank">view_open_proposals.html</a>
+        for DAO voting.
+      </p>
+      <div id="editorFields"></div>
+      <div id="editorError" class="editor-error" style="display:none;"></div>
+      <div id="editorSuccess" class="editor-success" style="display:none;"></div>
+      <div class="editor-actions">
+        <button class="btn-cancel" id="editorCancelBtn">Cancel</button>
+        <button class="btn-primary" id="editorSubmitBtn">✔️ Submit as DAO Proposal</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var PROGRAM_REG_URL = (window.Routes && window.Routes.gas && window.Routes.gas.programRegistrations)
           || 'https://script.google.com/macros/s/AKfycbyxwkIp6Yn79YIuHCPmZ36J7dwIi7K8BLiUBj4qGm5RxSKta77sXRQf1M0wKuEBRbJW/exec';
-      var PAGE_ACTION = 'governor_chat.access'; // governor-only gate (reuse existing declared action)
+      var EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+          || 'https://edgar.truesight.me/dao/submit_contribution';
+      var PAGE_ACTION = 'governor_chat.access';
 
       var publicKey = (function () { try { return localStorage.getItem('publicKey') || ''; } catch (_) { return ''; } })();
       var statusEl, listEl, countEl;
+      var items = []; // cached registration items
+      var submittedIds = {}; // track which registration_ids have been submitted as proposals
+
+      // ---- helpers ----
 
       function setStatus(msg, cls) { if (statusEl) { statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? ' ' + cls : ''); } }
-      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+      function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+      function arrayBufferToBase64(buf) {
+        var bytes = new Uint8Array(buf);
+        var binary = '';
+        for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function base64ToArrayBuffer(b64) {
+        var binary = atob(b64);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+      }
+
+      // ---- render ----
 
       function renderCard(it) {
         var caps = String(it.capabilities || '').split(',').map(function (c) { return c.trim(); }).filter(Boolean);
@@ -93,10 +167,15 @@
         function row(k, v) { return v ? '<tr><td class="k">' + esc(k) + '</td><td class="v">' + v + '</td></tr>' : ''; }
         function link(u) { return u ? '<a href="' + esc(u) + '" target="_blank" rel="noreferrer">' + esc(u) + '</a>' : ''; }
         var pkShort = it.origin_identity ? ('<span class="mono">' + esc(String(it.origin_identity).slice(0, 44)) + '…</span>') : '';
+        var regId = it.registration_id || '';
+        var alreadySubmitted = submittedIds[regId];
+        var submitBtnHtml = alreadySubmitted
+          ? '<span class="proposal-submitted-badge">✅ Proposal submitted</span>'
+          : '<button class="btn-proposal" onclick="window.SubmitAsProposal.open(\'' + escAttr(regId) + '\')">✉️ Submit as DAO Proposal</button>';
         return '' +
-          '<div class="card">' +
+          '<div class="card" id="card-' + esc(regId) + '">' +
             '<h2>' + esc(it.display_name || '(no name)') + '</h2>' +
-            '<p class="sub">Submitted ' + esc(date) + ' · request ' + esc(it.registration_id) + '</p>' +
+            '<p class="sub">Submitted ' + esc(date) + ' · request ' + esc(regId) + '</p>' +
             capsHtml +
             (it.description ? '<p class="desc">' + esc(it.description) + '</p>' : '') +
             '<table class="meta">' +
@@ -108,6 +187,7 @@
               row('Submitted from', link(it.submission_source)) +
               row('Requester identity', pkShort) +
             '</table>' +
+            '<div class="card-actions">' + submitBtnHtml + '</div>' +
           '</div>';
       }
 
@@ -120,22 +200,235 @@
         listEl.innerHTML = items.map(renderCard).join('');
       }
 
+      // ---- load ----
+
       function loadQueue() {
         setStatus('Loading…', 'loading');
         var refresh = document.getElementById('refreshBtn'); if (refresh) refresh.disabled = true;
-        // Trigger a fresh scan first (idempotent), then read. Best-effort: ignore scan errors.
         fetch(PROGRAM_REG_URL + '?action=processProgramRegistrationsFromTelegramChatLogs', { method: 'GET' })
           .catch(function () {})
           .then(function () { return fetch(PROGRAM_REG_URL + '?action=getPendingProgramRegistrations', { method: 'GET' }); })
           .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
           .then(function (json) {
             if (!json || json.status !== 'success') throw new Error((json && json.message) || 'GAS error');
-            render((json.data && json.data.items) || []);
+            items = (json.data && json.data.items) || [];
+            render(items);
             setStatus('');
           })
           .catch(function (e) { setStatus('Failed to load: ' + e.message, 'error'); })
           .then(function () { if (refresh) refresh.disabled = false; });
       }
+
+      // ---- inline editor ----
+
+      var currentRegId = null;
+
+      function buildEditorFields(it) {
+        var caps = ['credentialing', 'activity-reporting', 'trees', 'donations'];
+        var selectedCaps = String(it.capabilities || '').split(',').map(function (c) { return c.trim(); }).filter(Boolean);
+        var capsHtml = caps.map(function (c) {
+          var checked = selectedCaps.indexOf(c) >= 0 ? 'checked' : '';
+          var label = c.replace('-', ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
+          return '<label><input type="checkbox" class="cap-cb" value="' + esc(c) + '" ' + checked + '> ' + esc(label) + '</label>';
+        }).join('');
+        return '' +
+          '<div class="field">' +
+            '<label>Program name *</label>' +
+            '<input type="text" id="edDisplayName" value="' + escAttr(it.display_name || '') + '" required>' +
+          '</div>' +
+          '<div class="field-row">' +
+            '<div class="field">' +
+              '<label>Organization</label>' +
+              '<input type="text" id="edOrg" value="' + escAttr(it.partner_organization || '') + '">' +
+            '</div>' +
+            '<div class="field">' +
+              '<label>Program slug</label>' +
+              '<input type="text" id="edSlug" value="' + escAttr(it.program_slug || '') + '">' +
+            '</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>Description *</label>' +
+            '<textarea id="edDescription" rows="4" required>' + esc(it.description || '') + '</textarea>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>Capabilities</label>' +
+            '<div class="caps-editor">' + capsHtml + '</div>' +
+          '</div>' +
+          '<div class="field-row">' +
+            '<div class="field">' +
+              '<label>Website</label>' +
+              '<input type="url" id="edWebsite" value="' + escAttr(it.website || '') + '">' +
+            '</div>' +
+            '<div class="field">' +
+              '<label>Logo URL</label>' +
+              '<input type="url" id="edLogoUrl" value="' + escAttr(it.logo_url || '') + '">' +
+            '</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>Roster Sheet URL</label>' +
+            '<input type="url" id="edRosterUrl" value="' + escAttr(it.roster_sheet_url || '') + '">' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>Proposed price per tree</label>' +
+            '<input type="text" id="edPrice" value="' + escAttr(it.proposed_price || '') + '">' +
+          '</div>';
+      }
+
+      function collectEditorData() {
+        var caps = Array.prototype.slice.call(document.querySelectorAll('.cap-cb:checked')).map(function (cb) { return cb.value; });
+        return {
+          displayName: document.getElementById('edDisplayName').value.trim(),
+          org: document.getElementById('edOrg').value.trim(),
+          slug: document.getElementById('edSlug').value.trim(),
+          description: document.getElementById('edDescription').value.trim(),
+          capabilities: caps,
+          website: document.getElementById('edWebsite').value.trim(),
+          logoUrl: document.getElementById('edLogoUrl').value.trim(),
+          rosterUrl: document.getElementById('edRosterUrl').value.trim(),
+          price: document.getElementById('edPrice').value.trim(),
+        };
+      }
+
+      function openEditor(regId) {
+        var it = null;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].registration_id === regId) { it = items[i]; break; }
+        }
+        if (!it) { setStatus('Registration not found', 'error'); return; }
+        currentRegId = regId;
+        document.getElementById('editorFields').innerHTML = buildEditorFields(it);
+        document.getElementById('editorError').style.display = 'none';
+        document.getElementById('editorSuccess').style.display = 'none';
+        document.getElementById('editorOverlay').style.display = 'flex';
+        document.getElementById('editorSubmitBtn').disabled = false;
+        document.getElementById('editorSubmitBtn').textContent = '✔️ Submit as DAO Proposal';
+      }
+
+      function closeEditor() {
+        document.getElementById('editorOverlay').style.display = 'none';
+        currentRegId = null;
+      }
+
+      async function submitProposal() {
+        var data = collectEditorData();
+        if (!data.displayName) { showEditorError('Program name is required.'); return; }
+        if (!data.description) { showEditorError('Description is required.'); return; }
+
+        var btn = document.getElementById('editorSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        document.getElementById('editorError').style.display = 'none';
+        document.getElementById('editorSuccess').style.display = 'none';
+
+        try {
+          // Build the proposal content as structured markdown
+          var capsStr = data.capabilities.length ? data.capabilities.join(', ') : 'credentialing';
+          var contentLines = [
+            '**Program Registration Proposal**',
+            '',
+            '**Program Name:** ' + data.displayName,
+            data.org ? '**Organization:** ' + data.org : '',
+            data.slug ? '**Program Slug:** ' + data.slug : '',
+            '',
+            '**Description:**',
+            data.description,
+            '',
+            '**Capabilities:** ' + capsStr,
+            data.website ? '**Website:** ' + data.website : '',
+            data.logoUrl ? '**Logo:** ' + data.logoUrl : '',
+            data.rosterUrl ? '**Roster Sheet:** ' + data.rosterUrl : '',
+            data.price ? '**Proposed Price:** ' + data.price : '',
+            '',
+            '---',
+            '**Registration Request ID:** ' + (currentRegId || 'N/A'),
+            '**Submitted by Governor:** ' + publicKey.slice(0, 32) + '…',
+          ].filter(Boolean).join('\n');
+
+          var title = 'Lineage Program: ' + data.displayName;
+          if (title.length > 100) title = title.slice(0, 97) + '...';
+
+          // Build the [PROPOSAL CREATION] payload (same format as create_proposal.html)
+          var requestText = '[PROPOSAL CREATION]\n'
+            + '- Type: program-registration\n'
+            + '- Title: ' + title + '\n'
+            + '- Content: ' + contentLines.replace(/\n/g, '\n  ') + '\n'
+            + '--------';
+
+          // Sign with governor's key
+          var privateKeyB64 = localStorage.getItem('privateKey');
+          if (!privateKeyB64) { showEditorError('No private key found. Please create a signature first.'); btn.disabled = false; btn.textContent = '✔️ Submit as DAO Proposal'; return; }
+
+          var privateKeyObj = await window.crypto.subtle.importKey(
+            'pkcs8', base64ToArrayBuffer(privateKeyB64),
+            { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+            false, ['sign']
+          );
+
+          var encoder = new TextEncoder();
+          var signature = await window.crypto.subtle.sign(
+            'RSASSA-PKCS1-v1_5', privateKeyObj, encoder.encode(requestText)
+          );
+          var requestHash = arrayBufferToBase64(signature);
+
+          var shareText = requestText + '\n\n'
+            + 'My Digital Signature: ' + publicKey + '\n\n'
+            + 'Request Transaction ID: ' + requestHash + '\n\n'
+            + 'This submission was generated using ' + window.location.href + '\n\n'
+            + 'Verify submission here: https://dapp.truesight.me/verify_request.html';
+
+          // POST to Edgar
+          var formData = new FormData();
+          formData.append('text', shareText);
+
+          var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+          var result = await resp.json();
+
+          if (result.status === 'success') {
+            // Mark as submitted
+            if (currentRegId) submittedIds[currentRegId] = true;
+            document.getElementById('editorSuccess').textContent = '\u2705 Proposal submitted successfully! It will appear on view_open_proposals.html once Edgar processes it.';
+            document.getElementById('editorSuccess').style.display = 'block';
+            btn.textContent = '✅ Submitted';
+            // Re-render the card to show the badge
+            render(items);
+            // Close after a short delay
+            setTimeout(closeEditor, 2000);
+          } else {
+            showEditorError('Edgar error: ' + (result.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = '✔️ Submit as DAO Proposal';
+          }
+        } catch (err) {
+          showEditorError('Submission failed: ' + (err.message || err));
+          btn.disabled = false;
+          btn.textContent = '✔️ Submit as DAO Proposal';
+        }
+      }
+
+      function showEditorError(msg) {
+        var el = document.getElementById('editorError');
+        el.textContent = msg;
+        el.style.display = 'block';
+      }
+
+      // ---- expose to inline onclick ----
+
+      window.SubmitAsProposal = {
+        open: openEditor,
+      };
+
+      // ---- wire up editor buttons ----
+
+      document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('editorCancelBtn').addEventListener('click', closeEditor);
+        document.getElementById('editorSubmitBtn').addEventListener('click', submitProposal);
+        // Close on overlay click (but not panel click)
+        document.getElementById('editorOverlay').addEventListener('click', function (e) {
+          if (e.target === this) closeEditor();
+        });
+      });
+
+      // ---- init ----
 
       document.addEventListener('DOMContentLoaded', function () {
         statusEl = document.getElementById('status');
