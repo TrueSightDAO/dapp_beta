@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Fulfill subscription obligations by scanning QR codes and submitting batch sales to the TrueSight DAO ledger.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fulfill Subscriptions</title>
+    <meta property="og:title" content="Fulfill Subscriptions">
+    <meta property="og:description" content="Fulfill subscription obligations by scanning QR codes and submitting batch sales.">
+    <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260603a"></script>
+    <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 1rem;
+            padding: 1rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; text-align: center; }
+        h2 { font-size: 1.3rem; margin: 1.5rem 0 0.75rem; color: #333; }
+        h3 { font-size: 1.1rem; margin: 1rem 0 0.5rem; color: #555; }
+        #status {
+            margin: 1rem 0;
+            font-weight: bold;
+            min-height: 24px;
+            font-size: 1rem;
+            text-align: center;
+        }
+        .status { color: #28a745; }
+        .error { color: #dc3545; }
+        .loading { color: #6c757d; font-style: italic; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .obligation-card {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .obligation-card:hover { border-color: #007bff; background: #f8f9ff; }
+        .obligation-card.selected { border-color: #28a745; background: #f0fff4; }
+        .obligation-card .row { display: flex; justify-content: space-between; margin: 0.25rem 0; font-size: 0.95rem; }
+        .obligation-card .label { color: #666; font-weight: bold; }
+        .obligation-card .value { color: #333; }
+        .obligation-card .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .badge-pending { background: #fff3cd; color: #856404; }
+        .badge-fulfilled { background: #d4edda; color: #155724; }
+
+        .detail-section {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .detail-section .row { margin: 0.4rem 0; font-size: 0.95rem; }
+        .detail-section .label { font-weight: bold; color: #555; display: inline-block; width: 120px; }
+        .detail-section .value { color: #333; }
+
+        .qr-input-area {
+            margin: 1rem 0;
+        }
+        .qr-input-area textarea {
+            width: 100%;
+            padding: 0.8rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: monospace;
+            min-height: 80px;
+        }
+        .qr-count {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 0.3rem;
+        }
+        .qr-count .ok { color: #28a745; font-weight: bold; }
+        .qr-count .not-enough { color: #dc3545; font-weight: bold; }
+
+        .form-row {
+            margin: 1rem 0;
+        }
+        .form-row label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .form-row input, .form-row select {
+            width: 100%;
+            padding: 0.8rem;
+            font-size: 1rem;
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+        input[type="button"] {
+            padding: 0.8rem 2rem;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        input[type="button"]:disabled {
+            background-color: #cccccc !important;
+            cursor: not-allowed;
+        }
+        #submit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        #submit-btn:hover:not(:disabled) { background-color: #218838; }
+        #reset-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        #reset-btn:hover:not(:disabled) { background-color: #5a6268; }
+
+        #output {
+            margin: 1rem 0;
+            padding: 1rem;
+            font-size: 1rem;
+            text-align: center;
+            word-wrap: break-word;
+        }
+
+        #submissionResult { margin-top: 1.5rem; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 600px) {
+            body { margin: 0.5rem; padding: 0.5rem; }
+            .container { padding: 1rem; }
+            h1 { font-size: 1.5rem; }
+            .button-row { flex-direction: column; }
+            input[type="button"] { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
+    <div class="container">
+        <div style="text-align: center;">
+            <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
+        <h1>Fulfill Subscriptions</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 1.5rem;">
+            Select a pending obligation, scan the QR codes on each bar, enter tracking, and submit.
+        </p>
+
+        <div id="status" class="fade-in" aria-live="polite">Verifying your digital signature...</div>
+        <div id="welcome" style="display: none; text-align: center; font-weight: bold; margin: 0.8rem 0;"></div>
+
+        <div id="main-content" style="display: none;">
+            <!-- Step 1: Select obligation -->
+            <h2>1. Select a pending obligation</h2>
+            <div id="obligation-list">
+                <p style="color: #999; text-align: center;">Loading pending obligations...</p>
+            </div>
+
+            <!-- Step 2: Obligation detail + QR entry -->
+            <div id="fulfillment-section" style="display: none;">
+                <h2>2. Fulfill this obligation</h2>
+                <div id="obligation-detail" class="detail-section"></div>
+
+                <div class="qr-input-area">
+                    <label for="qr-input" style="font-weight: bold; display: block; margin-bottom: 0.3rem;">
+                        QR Codes (one per line, enter <span id="qty-needed">0</span> codes)
+                    </label>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">
+                        Scan each bar's QR code and paste it here, one per line.
+                        You can also use the camera or upload an image below.
+                    </p>
+                    <textarea id="qr-input" placeholder="Paste QR codes here, one per line...&#10;e.g. 2024OSCAR_20260121_12&#10;2024OSCAR_20260121_13"></textarea>
+                    <div class="qr-count" id="qr-count-display">
+                        <span id="qr-count-value">0</span> codes entered — need <span id="qty-needed-display">0</span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="tracking-input">Tracking Number</label>
+                    <input type="text" id="tracking-input" placeholder="e.g. 9400 1234 5678 9012 3456 78">
+                </div>
+
+                <div class="form-row">
+                    <label for="fulfilled-by-input">Fulfilled by</label>
+                    <select id="fulfilled-by-input">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+
+                <div id="output"></div>
+
+                <div class="button-row">
+                    <input type="button" id="submit-btn" value="Submit Fulfillment" disabled>
+                    <input type="button" id="reset-btn" value="Clear &amp; Start Over">
+                </div>
+
+                <div id="submissionResult" style="display:none;" aria-live="polite">
+                    <h3>Fulfillment Summary</h3>
+                    <pre id="summaryPre"></pre>
+                    <h3>Transaction details</h3>
+                    <pre id="detailPre"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js', { scope: './' })
+                .then(reg => console.log('Service Worker registered with scope:', reg.scope))
+                .catch(err => console.warn('Service Worker registration failed:', err));
+        }
+
+        const DAO_PROTOCOL_BASE = 'https://edgar.truesight.me';
+        const OBLIGATIONS_ENDPOINT = DAO_PROTOCOL_BASE + '/subscription/obligations';
+        const FULFILL_ENDPOINT = DAO_PROTOCOL_BASE + '/subscription/fulfill';
+        const EDGAR_PING = (window.Routes && window.Routes.edgar && window.Routes.edgar.ping)
+            || 'https://edgar.truesight.me/ping';
+        const EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+            || 'https://edgar.truesight.me/dao/submit_contribution';
+
+        let contributorName = '';
+        let allContributors = [];
+        let obligations = [];
+        let selectedObligation = null;
+        let isSubmitting = false;
+
+        function arrayBufferToBase64(buffer) {
+            return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes.buffer;
+        }
+
+        async function isOnline() {
+            if (!navigator.onLine) return false;
+            try {
+                const response = await fetch(EDGAR_PING, { method: 'HEAD' });
+                return response.ok;
+            } catch { return false; }
+        }
+
+        async function loadObligations() {
+            const statusEl = document.getElementById('obligation-list');
+            statusEl.innerHTML = '<p style="color: #999; text-align: center;">Loading pending obligations...</p>';
+            try {
+                const res = await fetch(OBLIGATIONS_ENDPOINT);
+                if (!res.ok) throw new Error('Failed to load obligations');
+                const data = await res.json();
+                if (data.status === 'error') throw new Error(data.error || 'Unknown error');
+                obligations = Array.isArray(data.obligations) ? data.obligations : [];
+                renderObligationList();
+            } catch (err) {
+                console.error('Error loading obligations:', err);
+                statusEl.innerHTML = '<p class="error">Failed to load obligations. Is dao_protocol running?</p>';
+            }
+        }
+
+        function renderObligationList() {
+            const container = document.getElementById('obligation-list');
+            if (obligations.length === 0) {
+                container.innerHTML = '<p style="color: #999; text-align: center;">No pending obligations. 🎉</p>';
+                return;
+            }
+            let html = '';
+            obligations.forEach(function(obl, idx) {
+                var selected = selectedObligation && selectedObligation.invoice_id === obl.invoice_id;
+                html += '<div class="obligation-card' + (selected ? ' selected' : '') + '" data-index="' + idx + '">' +
+                    '<div class="row"><span class="label">Subscriber:</span><span class="value">' + escapeHtml(obl.subscriber_name || obl.email || 'Unknown') + '</span></div>' +
+                    '<div class="row"><span class="label">SKU:</span><span class="value">' + escapeHtml(obl.sku || 'N/A') + '</span></div>' +
+                    '<div class="row"><span class="label">Qty:</span><span class="value">' + (obl.qty || 0) + ' bars</span></div>' +
+                    '<div class="row"><span class="label">Period:</span><span class="value">' + escapeHtml(obl.period_start || '?') + ' → ' + escapeHtml(obl.period_end || '?') + '</span></div>' +
+                    '<div class="row"><span class="label">Invoice:</span><span class="value" style="font-family: monospace; font-size: 0.85rem;">' + escapeHtml(obl.invoice_id || '') + '</span></div>' +
+                    '<div class="row"><span class="badge badge-pending">PENDING</span></div>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+
+            // Attach click handlers
+            container.querySelectorAll('.obligation-card').forEach(function(card) {
+                card.addEventListener('click', function() {
+                    var idx = parseInt(this.getAttribute('data-index'), 10);
+                    selectObligation(obligations[idx]);
+                });
+            });
+        }
+
+        function selectObligation(obl) {
+            selectedObligation = obl;
+            renderObligationList();
+
+            var detail = document.getElementById('obligation-detail');
+            detail.innerHTML =
+                '<div class="row"><span class="label">Subscriber:</span><span class="value">' + escapeHtml(obl.subscriber_name || 'Unknown') + '</span></div>' +
+                '<div class="row"><span class="label">Email:</span><span class="value">' + escapeHtml(obl.email || '') + '</span></div>' +
+                '<div class="row"><span class="label">Address:</span><span class="value">' + escapeHtml(obl.address || '') + '</span></div>' +
+                '<div class="row"><span class="label">SKU:</span><span class="value">' + escapeHtml(obl.sku || 'N/A') + '</span></div>' +
+                '<div class="row"><span class="label">Quantity:</span><span class="value">' + (obl.qty || 0) + ' bars</span></div>' +
+                '<div class="row"><span class="label">Period:</span><span class="value">' + escapeHtml(obl.period_start || '?') + ' → ' + escapeHtml(obl.period_end || '?') + '</span></div>' +
+                '<div class="row"><span class="label">Invoice:</span><span class="value" style="font-family: monospace; font-size: 0.85rem;">' + escapeHtml(obl.invoice_id || '') + '</span></div>';
+
+            document.getElementById('qty-needed').textContent = obl.qty || 0;
+            document.getElementById('qty-needed-display').textContent = obl.qty || 0;
+            document.getElementById('fulfillment-section').style.display = 'block';
+            updateQrCount();
+            updateSubmitButton();
+        }
+
+        function updateQrCount() {
+            var input = document.getElementById('qr-input');
+            var codes = input.value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+            var needed = selectedObligation ? (selectedObligation.qty || 0) : 0;
+            document.getElementById('qr-count-value').textContent = codes.length;
+            var display = document.getElementById('qr-count-display');
+            if (codes.length >= needed) {
+                display.innerHTML = '<span class="ok">' + codes.length + ' codes entered ✓</span> — need ' + needed;
+            } else {
+                display.innerHTML = '<span class="not-enough">' + codes.length + '</span> codes entered — need <span class="not-enough">' + needed + '</span>';
+            }
+            updateSubmitButton();
+        }
+
+        function updateSubmitButton() {
+            var btn = document.getElementById('submit-btn');
+            if (!selectedObligation || isSubmitting) {
+                btn.disabled = true;
+                return;
+            }
+            var input = document.getElementById('qr-input');
+            var codes = input.value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+            var needed = selectedObligation.qty || 0;
+            var tracking = document.getElementById('tracking-input').value.trim();
+            var fulfilledBy = document.getElementById('fulfilled-by-input').value;
+            btn.disabled = !(codes.length >= needed && tracking.length > 0 && fulfilledBy);
+        }
+
+        async function loadContributors() {
+            try {
+                var publicKey = localStorage.getItem('publicKey');
+                if (!publicKey) return;
+                var lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                if (lookup && lookup.contributor) {
+                    contributorName = lookup.contributor.name;
+                }
+            } catch (err) {
+                console.error('Error loading contributor info:', err);
+            }
+
+            // Populate fulfilled-by dropdown with known contributors
+            var select = document.getElementById('fulfilled-by-input');
+            try {
+                var res = await fetch('https://script.google.com/macros/s/AKfycbxigq4-J0izShubqIC5k6Z7fgNRyVJLakfQ34HPuENiSpxuCG-wSq0g-wOAedZzzgaL/exec?list_with_members=true');
+                var data = await res.json();
+                if (data.status !== 'error' && Array.isArray(data.items)) {
+                    var names = new Set();
+                    data.items.forEach(function(item) {
+                        if (item.contributor_name && item.contributor_name.trim()) {
+                            names.add(item.contributor_name.trim());
+                        }
+                    });
+                    names.forEach(function(name) {
+                        var opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading contributors:', err);
+            }
+
+            // Pre-select current user
+            if (contributorName) {
+                var opts = select.querySelectorAll('option');
+                for (var i = 0; i < opts.length; i++) {
+                    if (opts[i].value === contributorName) {
+                        select.value = contributorName;
+                        break;
+                    }
+                }
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(String(str)));
+            return div.innerHTML;
+        }
+
+        async function handleSubmit() {
+            if (isSubmitting || !selectedObligation) return;
+
+            var input = document.getElementById('qr-input');
+            var qrCodes = input.value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+            var needed = selectedObligation.qty || 0;
+            var tracking = document.getElementById('tracking-input').value.trim();
+            var fulfilledBy = document.getElementById('fulfilled-by-input').value;
+
+            if (qrCodes.length < needed) {
+                document.getElementById('output').innerHTML = '<span class="error">Need ' + needed + ' QR codes, got ' + qrCodes.length + '</span>';
+                return;
+            }
+            if (!tracking) {
+                document.getElementById('output').innerHTML = '<span class="error">Tracking number is required</span>';
+                return;
+            }
+            if (!fulfilledBy) {
+                document.getElementById('output').innerHTML = '<span class="error">Please select who fulfilled this</span>';
+                return;
+            }
+
+            isSubmitting = true;
+            var btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.value = 'Submitting...';
+            document.getElementById('output').innerHTML = '<span class="loading">Submitting ' + qrCodes.length + ' sales to Edgar...</span>';
+
+            var publicKey = localStorage.getItem('publicKey');
+            var privateKey = localStorage.getItem('privateKey');
+
+            if (!publicKey || !privateKey) {
+                document.getElementById('output').innerHTML = '<span class="error">No digital signature found. Please create one first.</span>';
+                isSubmitting = false;
+                btn.value = 'Submit Fulfillment';
+                return;
+            }
+
+            try {
+                var privateKeyObj = await window.crypto.subtle.importKey(
+                    "pkcs8",
+                    base64ToArrayBuffer(privateKey),
+                    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+                    false,
+                    ["sign"]
+                );
+                var encoder = new TextEncoder();
+
+                var results = [];
+                var errors = [];
+
+                // Submit one [SALES EVENT] per QR code
+                for (var i = 0; i < qrCodes.length; i++) {
+                    var qrCode = qrCodes[i];
+                    var salePrice = 10.00; // Unit price from products.js
+
+                    var requestText = '[SALES EVENT]\n' +
+                        '- Item: ' + qrCode + '\n' +
+                        '- Sales price: $' + salePrice.toFixed(2) + '\n' +
+                        '- Sold by: ' + fulfilledBy + '\n' +
+                        '- Cash proceeds collected by: Gary Teh\n' +
+                        '- Owner email: ' + (selectedObligation.email || '') + '\n' +
+                        '- Stripe Session ID: ' + (selectedObligation.invoice_id || '') + '\n' +
+                        '- Tracking number: ' + tracking + '\n' +
+                        '- Subscription fulfillment: true\n' +
+                        '- Submission Source: ' + window.location.href + '\n' +
+                        '--------';
+
+                    var signature = await window.crypto.subtle.sign(
+                        "RSASSA-PKCS1-v1_5",
+                        privateKeyObj,
+                        encoder.encode(requestText)
+                    );
+                    var requestHash = arrayBufferToBase64(signature);
+
+                    var shareText = requestText + '\n\n' +
+                        'My Digital Signature: ' + publicKey + '\n\n' +
+                        'Request Transaction ID: ' + requestHash + '\n\n' +
+                        'This submission was generated using ' + window.location.href;
+
+                    if (await isOnline()) {
+                        var formData = new FormData();
+                        formData.append('text', shareText);
+
+                        var resp = await fetch(EDGAR_SUBMIT, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (resp.ok) {
+                            results.push({ qr: qrCode, hash: requestHash, status: 'submitted' });
+                        } else {
+                            var errText = await resp.text();
+                            errors.push({ qr: qrCode, error: errText });
+                        }
+                    } else {
+                        errors.push({ qr: qrCode, error: 'Offline' });
+                    }
+
+                    // Update progress
+                    var progress = Math.round(((i + 1) / qrCodes.length) * 100);
+                    document.getElementById('output').innerHTML = '<span class="loading">Submitted ' + (i + 1) + ' of ' + qrCodes.length + '...</span>' +
+                        '<div class="progress-bar"><div class="fill" style="width: ' + progress + '%"></div></div>';
+                }
+
+                // Mark obligation as fulfilled via dao_protocol
+                var fulfillBody = new URLSearchParams();
+                fulfillBody.append('invoice_id', selectedObligation.invoice_id);
+                fulfillBody.append('fulfilled_by', fulfilledBy);
+                fulfillBody.append('tracking_number', tracking);
+
+                try {
+                    await fetch(FULFILL_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: fulfillBody.toString()
+                    });
+                } catch (fulfillErr) {
+                    console.error('Error marking obligation as fulfilled:', fulfillErr);
+                }
+
+                // Show results
+                var summary = '✅ Fulfillment Complete\n' +
+                    'Obligation: ' + selectedObligation.invoice_id + '\n' +
+                    'QR codes submitted: ' + results.length + ' / ' + qrCodes.length + '\n' +
+                    'Tracking: ' + tracking + '\n' +
+                    'Fulfilled by: ' + fulfilledBy + '\n';
+
+                if (errors.length > 0) {
+                    summary += '\n⚠️ Errors:\n';
+                    errors.forEach(function(e) {
+                        summary += '  - ' + e.qr + ': ' + e.error + '\n';
+                    });
+                }
+
+                document.getElementById('summaryPre').textContent = summary;
+                document.getElementById('detailPre').textContent = JSON.stringify(results, null, 2);
+                document.getElementById('submissionResult').style.display = 'block';
+                document.getElementById('output').innerHTML = '<span class="status">✅ All ' + results.length + ' sales submitted!</span>';
+
+                // Reload obligations to refresh the list
+                setTimeout(loadObligations, 1000);
+
+            } catch (err) {
+                console.error('Fulfillment error:', err);
+                document.getElementById('output').innerHTML = '<span class="error">Error: ' + escapeHtml(err.message) + '</span>';
+            } finally {
+                isSubmitting = false;
+                btn.value = 'Submit Fulfillment';
+                updateSubmitButton();
+            }
+        }
+
+        function resetForm() {
+            selectedObligation = null;
+            document.getElementById('qr-input').value = '';
+            document.getElementById('tracking-input').value = '';
+            document.getElementById('fulfillment-section').style.display = 'none';
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('submissionResult').style.display = 'none';
+            renderObligationList();
+            updateSubmitButton();
+        }
+
+        window.onload = async function() {
+            var statusEl = document.getElementById('status');
+            statusEl.textContent = 'Verifying your digital signature...';
+            statusEl.className = 'loading fade-in';
+
+            var publicKey = localStorage.getItem('publicKey');
+            if (!publicKey) {
+                statusEl.innerHTML = 'No digital signature found. <a href="./create_signature.html">Please create one first</a>.';
+                statusEl.className = 'error fade-in';
+                return;
+            }
+
+            try {
+                var lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                if (!lookup || !lookup.contributor) {
+                    statusEl.innerHTML = 'Your digital signature is not registered. <a href="./create_signature.html">Please register it first</a>.';
+                    statusEl.className = 'error fade-in';
+                    return;
+                }
+
+                contributorName = lookup.contributor.name;
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('welcome').textContent = 'Welcome back, ' + contributorName + '!';
+                document.getElementById('welcome').style.display = 'block';
+                statusEl.textContent = 'Signature verified successfully';
+                statusEl.className = 'status fade-in';
+
+                await loadContributors();
+                await loadObligations();
+
+                // Event listeners
+                document.getElementById('qr-input').addEventListener('input', function() {
+                    updateQrCount();
+                });
+                document.getElementById('tracking-input').addEventListener('input', function() {
+                    updateSubmitButton();
+                });
+                document.getElementById('fulfilled-by-input').addEventListener('change', function() {
+                    updateSubmitButton();
+                });
+                document.getElementById('submit-btn').addEventListener('click', handleSubmit);
+                document.getElementById('reset-btn').addEventListener('click', resetForm);
+
+            } catch (error) {
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.className = 'error fade-in';
+            }
+        };
+    </script>
+    <script src="./js/dapp_footer_links.js?v=1"></script>
+</body>
+</html>
