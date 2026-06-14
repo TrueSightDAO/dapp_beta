@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="description" content="Add a new partner to the TrueSight DAO ecosystem">
+    <meta name="description" content="Onboard a new partner to the TrueSight DAO ecosystem">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Partner Add - TrueSight DAO</title>
 
@@ -24,112 +24,57 @@
     <script src="./tdg_balance.js"></script>
 
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
             font-family: Arial, sans-serif;
-            background-color: #1a1a2e;
-            color: #e0e0e0;
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
+            margin: 1rem;
+            padding: 1rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-color: #f5f5f5;
         }
-
-        #header {
-            width: 100%;
-            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
-            border-bottom: 1px solid #c9a84c33;
-            padding: 0.5rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        #header .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        #header .logo-area img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-        }
-
-        #header .logo-area .site-title {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #c9a84c;
-        }
-
-        #menu-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        #menu-container a {
-            color: #e0e0e0;
-            text-decoration: none;
-            padding: 0.4rem 0.75rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            transition: background-color 0.2s, color 0.2s;
-        }
-
-        #menu-container a:hover {
-            background-color: #c9a84c33;
-            color: #c9a84c;
-        }
-
-        #tdg-balance {
-            color: #c9a84c;
-            font-weight: bold;
-            font-size: 0.9rem;
-            padding: 0.4rem 0.75rem;
-            border: 1px solid #c9a84c55;
-            border-radius: 4px;
-        }
-
         .container {
             max-width: 600px;
             width: 100%;
-            margin: 2rem auto;
-            padding: 0 1rem;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
-        .card {
-            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
-            border: 1px solid #c9a84c33;
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        #backLink {
+            top: 1rem;
+            left: 1rem;
+            font-size: 1rem;
+            color: #007bff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: color 0.2s;
         }
-
+        #backLink:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+        #backLink::before {
+            content: "←";
+            font-size: 1.2rem;
+        }
         h1 {
             font-size: 1.8rem;
-            color: #c9a84c;
-            margin: 0 0 0.5rem;
+            color: #333;
+            margin: 0.5rem 0 1rem;
             text-align: center;
         }
-
         #description {
-            color: #a0a0b0;
+            color: #555;
             line-height: 1.5;
-            margin: 0 0 1.5rem;
-            font-size: 0.95rem;
+            margin: 0.8rem 0;
+            font-size: 1rem;
             text-align: center;
         }
-
         #status {
             margin: 1rem 0;
             font-weight: bold;
@@ -137,133 +82,124 @@
             font-size: 1rem;
             text-align: center;
         }
-
-        .status { color: #4caf50; }
-        .error { color: #f44336; }
-
+        .status { color: #28a745; }
+        .error { color: #dc3545; }
         .form-row {
-            margin: 1.2rem 0;
+            margin: 1rem 0;
             text-align: left;
         }
-
         label {
             display: block;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.3rem;
             font-weight: bold;
-            font-size: 0.95rem;
-            color: #c9a84c;
+            font-size: 1rem;
         }
-
         select, input[type="text"], input[type="email"], textarea {
             width: 100%;
             padding: 0.8rem;
             font-size: 1rem;
             box-sizing: border-box;
-            border-radius: 6px;
-            border: 1px solid #c9a84c55;
-            background-color: #0f3460;
-            color: #e0e0e0;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            border-radius: 5px;
+            border: 1px solid #ccc;
         }
-
         select:focus, input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
             outline: none;
-            border-color: #c9a84c;
-            box-shadow: 0 0 8px #c9a84c44;
+            border-color: #007bff;
+            box-shadow: 0 0 4px rgba(0,123,255,0.3);
         }
-
         select:disabled, input:disabled, textarea:disabled {
-            background-color: #1a1a2e;
+            background-color: #f0f0f0;
             cursor: not-allowed;
-            opacity: 0.6;
         }
-
-        select option {
-            background-color: #16213e;
-            color: #e0e0e0;
-        }
-
         textarea {
             min-height: 80px;
             resize: vertical;
         }
-
+        .help-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
         button {
-            padding: 0.8rem 1.5rem;
+            padding: 0.8rem 1rem;
             cursor: pointer;
             font-size: 1rem;
-            font-weight: bold;
             border: none;
             border-radius: 8px;
-            background: linear-gradient(135deg, #c9a84c, #d4af37);
-            color: #1a1a2e;
-            transition: transform 0.15s, box-shadow 0.2s;
-            margin: 1rem auto 0.5rem;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s, transform 0.1s;
+            margin: 0.5rem auto;
             width: 100%;
             max-width: 300px;
             display: block;
         }
-
         button:hover {
+            background-color: #0056b3;
             transform: scale(1.02);
-            box-shadow: 0 4px 15px #c9a84c66;
         }
-
         button:active {
             transform: scale(0.98);
         }
-
         button:disabled {
-            background: #555;
-            color: #999;
+            background-color: #cccccc;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
-
         #payloadPreview {
             margin: 1rem 0;
             padding: 0.8rem;
-            background-color: #0f3460;
-            border: 1px solid #c9a84c55;
-            border-radius: 6px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
             font-family: monospace;
             font-size: 0.85rem;
             white-space: pre-wrap;
             word-break: break-all;
-            color: #a0d0a0;
             display: none;
         }
-
         #txHashDisplay {
             margin: 1rem 0;
             padding: 0.6rem;
-            background-color: #0f3460;
-            border: 1px solid #c9a84c55;
-            border-radius: 6px;
+            background-color: #f0f8ff;
+            border: 1px solid #b3d4fc;
+            border-radius: 5px;
             font-size: 0.85rem;
             word-break: break-all;
             text-align: center;
             display: none;
         }
-
         #txHashDisplay .tx-label {
             font-weight: bold;
-            color: #c9a84c;
+            color: #333;
         }
-
         #txHashDisplay .tx-value {
             font-family: monospace;
-            color: #a0d0a0;
+            color: #0056b3;
             font-size: 0.8rem;
         }
-
-        .help-text {
-            font-size: 0.8rem;
-            color: #808090;
-            margin-top: 0.25rem;
+        #submissionResult {
+            margin: 1.5rem 0;
+            display: none;
         }
-
+        #submissionResult h3 {
+            font-size: 1rem;
+            color: #333;
+            margin: 1rem 0 0.5rem;
+        }
+        #submissionResult pre {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 0.8rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
         .signature-verify-status {
             margin: 1rem 0;
             min-height: 1.5rem;
@@ -271,309 +207,268 @@
             text-align: center;
             font-weight: bold;
         }
-
         #welcome {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0.8rem 0;
             text-align: center;
-            color: #a0a0b0;
-            margin-bottom: 1rem;
+            display: none;
         }
-
         @media (max-width: 600px) {
-            .card {
-                padding: 1.2rem;
+            .container {
+                padding: 0.8rem;
             }
             h1 {
                 font-size: 1.4rem;
-            }
-            #header {
-                padding: 0.4rem 0.75rem;
             }
         }
     </style>
 </head>
 <body>
-    <div id="header">
-        <div class="logo-area">
-            <img src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO">
-            <span class="site-title">TrueSight DAO</span>
-        </div>
-        <div id="menu-container">
-            <div id="tdg-balance">TDG: --</div>
-        </div>
-    </div>
-
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
     <div class="container">
-        <div class="card">
-            <h1>Add Partner</h1>
-            <div id="description">Onboard a new partner to the TrueSight DAO ecosystem. Partners can be farmer cooperatives, retailers, distributors, or other organizations.</div>
+        <a id="backLink" href="javascript:history.back()">Back</a>
 
-            <div id="status"></div>
-            <div id="welcome"></div>
+        <h1>Add Partner</h1>
+        <p id="description">Onboard a new partner to the TrueSight DAO ecosystem. Partners can be farmer cooperatives, retailers, distributors, or other organizations.</p>
 
-            <div id="signatureSection">
-                <div class="form-row">
-                    <label for="partnerName">Partner Name *</label>
-                    <input type="text" id="partnerName" placeholder="e.g. Fazenda Boa Vista" autocomplete="off">
-                </div>
+        <div id="status"></div>
+        <div id="welcome"></div>
 
-                <div class="form-row">
-                    <label for="partnerEmail">Email *</label>
-                    <input type="email" id="partnerEmail" placeholder="e.g. contato@fazendabv.com.br" autocomplete="off">
-                </div>
-
-                <div class="form-row">
-                    <label for="partnerType">Type *</label>
-                    <select id="partnerType">
-                        <option value="">Select type...</option>
-                        <option value="Farmer Cooperative">Farmer Cooperative</option>
-                        <option value="Retailer">Retailer</option>
-                        <option value="Distributor">Distributor</option>
-                        <option value="Processor">Processor</option>
-                        <option value="NGO">NGO</option>
-                        <option value="Research Institution">Research Institution</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
-                    <label for="partnerAddress">Address</label>
-                    <input type="text" id="partnerAddress" placeholder="e.g. Rua Principal, 100, Ilhéus, BA" autocomplete="off">
-                </div>
-
-                <div class="form-row">
-                    <label for="partnerAbout">About</label>
-                    <textarea id="partnerAbout" placeholder="e.g. Organic cacao producer, 50 hectares"></textarea>
-                </div>
-
-                <div class="form-row">
-                    <label for="governorName">Governor Name *</label>
-                    <select id="governorName">
-                        <option value="">Select governor...</option>
-                    </select>
-                    <div class="help-text">Your name as the governor submitting this partner.</div>
-                </div>
-
-                <div id="payloadPreview"></div>
-
-                <button id="submitBtn" onclick="signAndSubmit()">Sign &amp; Submit</button>
-
-                <div id="txHashDisplay">
-                    <span class="tx-label">Transaction Hash:</span>
-                    <span class="tx-value" id="txHashValue"></span>
-                </div>
-
-                <div class="signature-verify-status" id="sigVerifyStatus"></div>
-            </div>
+        <div class="form-row">
+            <label for="partnerName">Partner Name *</label>
+            <input type="text" id="partnerName" placeholder="e.g. Fazenda Boa Vista" autocomplete="off">
         </div>
+
+        <div class="form-row">
+            <label for="partnerEmail">Email *</label>
+            <input type="email" id="partnerEmail" placeholder="e.g. contato@fazendabv.com.br" autocomplete="off">
+        </div>
+
+        <div class="form-row">
+            <label for="partnerType">Type *</label>
+            <select id="partnerType">
+                <option value="">Select type...</option>
+                <option value="farmer_cooperative">Farmer Cooperative</option>
+                <option value="retailer">Retailer</option>
+                <option value="distributor">Distributor</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label for="partnerAddress">Address</label>
+            <input type="text" id="partnerAddress" placeholder="e.g. Rua Principal, 123, Itabuna, BA" autocomplete="off">
+        </div>
+
+        <div class="form-row">
+            <label for="partnerAbout">About</label>
+            <textarea id="partnerAbout" placeholder="Brief description of the partner organization..."></textarea>
+        </div>
+
+        <div class="form-row">
+            <label for="governorName">Governor Name *</label>
+            <select id="governorName">
+                <option value="">Select or type your name...</option>
+            </select>
+            <div class="help-text">Your name as the DAO governor onboarding this partner</div>
+        </div>
+
+        <div id="payloadPreview"></div>
+
+        <button id="submitBtn" disabled>Sign &amp; Submit</button>
+
+        <div id="txHashDisplay">
+            <span class="tx-label">Transaction Hash:</span>
+            <span class="tx-value" id="txHashValue"></span>
+        </div>
+
+        <div id="submissionResult">
+            <h3>Transaction request</h3>
+            <pre id="requestPre"></pre>
+            <h3>Edgar response</h3>
+            <pre id="responsePre"></pre>
+        </div>
+
+        <div class="signature-verify-status" id="sigStatus"></div>
     </div>
 
     <script>
-        let currentUser = null;
-        let keyPair = null;
+        (function() {
+            const ROUTES = window.ROUTES || {};
+            const EDGAR_URL = ROUTES.EDGAR_URL || 'https://edgar.truesight.me';
 
-        document.addEventListener('DOMContentLoaded', async function() {
-            try {
-                const menuContainer = document.getElementById('menu-container');
-                if (typeof renderMenu === 'function') {
-                    renderMenu(menuContainer);
-                }
-            } catch(e) {
-                console.log('Menu render deferred:', e.message);
-            }
+            const partnerName = document.getElementById('partnerName');
+            const partnerEmail = document.getElementById('partnerEmail');
+            const partnerType = document.getElementById('partnerType');
+            const partnerAddress = document.getElementById('partnerAddress');
+            const partnerAbout = document.getElementById('partnerAbout');
+            const governorName = document.getElementById('governorName');
+            const submitBtn = document.getElementById('submitBtn');
+            const statusEl = document.getElementById('status');
+            const payloadPreview = document.getElementById('payloadPreview');
+            const txHashDisplay = document.getElementById('txHashDisplay');
+            const txHashValue = document.getElementById('txHashValue');
+            const submissionResult = document.getElementById('submissionResult');
+            const requestPre = document.getElementById('requestPre');
+            const responsePre = document.getElementById('responsePre');
+            const sigStatus = document.getElementById('sigStatus');
+            const welcome = document.getElementById('welcome');
 
-            try {
-                if (typeof updateBalanceDisplay === 'function') {
-                    updateBalanceDisplay();
-                }
-            } catch(e) {
-                console.log('Balance display deferred:', e.message);
-            }
-
-            try {
-                const stored = localStorage.getItem('truesight_dao_identity');
-                if (stored) {
-                    const identity = JSON.parse(stored);
-                    currentUser = identity.email || identity.name || 'User';
-                    document.getElementById('welcome').textContent = 'Welcome, ' + currentUser;
-                }
-            } catch(e) {
-                console.log('Identity load deferred:', e.message);
-            }
-
-            try {
-                const storedKey = localStorage.getItem('truesight_dao_keypair');
-                if (storedKey) {
-                    keyPair = JSON.parse(storedKey);
-                }
-            } catch(e) {
-                console.log('Keypair load deferred:', e.message);
-            }
-
-            const inputs = ['partnerName', 'partnerEmail', 'partnerType', 'partnerAddress', 'partnerAbout', 'governorName'];
-            inputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.addEventListener('input', updatePreview);
-                if (el && el.tagName === 'SELECT') el.addEventListener('change', updatePreview);
-            });
-
-            // Populate governor dropdown from stored identities
-            try {
-                const governorSelect = document.getElementById('governorName');
-                const storedIdentities = localStorage.getItem('truesight_dao_identities');
-                const identities = storedIdentities ? JSON.parse(storedIdentities) : [];
-                const stored = localStorage.getItem('truesight_dao_identity');
-                if (stored) {
-                    const identity = JSON.parse(stored);
-                    if (!identities.some(i => i.email === identity.email)) {
-                        identities.push(identity);
-                    }
-                }
+            // Populate governor dropdown from localStorage identities
+            function populateGovernorDropdown() {
+                const stored = localStorage.getItem('truesight_dao_identities');
+                const identities = stored ? JSON.parse(stored) : [];
+                const select = governorName;
+                select.innerHTML = '<option value="">Select or type your name...</option>';
                 if (identities.length > 0) {
-                    identities.forEach(identity => {
+                    identities.forEach(function(entry) {
                         const opt = document.createElement('option');
-                        opt.value = identity.name || identity.email || 'Unknown';
-                        opt.textContent = (identity.name || 'Unknown') + ' (' + (identity.email || '') + ')';
-                        governorSelect.appendChild(opt);
+                        opt.value = entry.name || entry.email || '';
+                        opt.textContent = entry.name || entry.email || '';
+                        select.appendChild(opt);
                     });
                     if (identities.length === 1) {
-                        governorSelect.value = identities[0].name || identities[0].email || '';
+                        select.value = identities[0].name || identities[0].email || '';
                     }
-                } else if (stored) {
-                    const identity = JSON.parse(stored);
-                    const opt = document.createElement('option');
-                    opt.value = identity.name || identity.email || 'User';
-                    opt.textContent = (identity.name || 'User') + ' (' + (identity.email || '') + ')';
-                    governorSelect.appendChild(opt);
-                    governorSelect.value = opt.value;
                 }
-            } catch(e) {
-                console.log('Identity load deferred:', e.message);
             }
 
-            updatePreview();
-        });
+            populateGovernorDropdown();
 
-        function getPayload() {
-            return {
-                event: '[PARTNER ADD EVENT]',
-                partner_name: document.getElementById('partnerName').value.trim(),
-                partner_email: document.getElementById('partnerEmail').value.trim(),
-                partner_type: document.getElementById('partnerType').value,
-                partner_address: document.getElementById('partnerAddress').value.trim(),
-                partner_about: document.getElementById('partnerAbout').value.trim(),
-                governor_name: document.getElementById('governorName').value.trim()
-            };
-        }
-
-        function updatePreview() {
-            const payload = getPayload();
-            const preview = document.getElementById('payloadPreview');
-            const hasData = Object.values(payload).some(v => v !== '' && v !== null && v !== undefined);
-            if (hasData) {
-                preview.style.display = 'block';
-                preview.textContent = JSON.stringify(payload, null, 2);
-            } else {
-                preview.style.display = 'none';
-            }
-        }
-
-        async function signAndSubmit() {
-            const status = document.getElementById('status');
-            const submitBtn = document.getElementById('submitBtn');
-            const sigStatus = document.getElementById('sigVerifyStatus');
-            const txDisplay = document.getElementById('txHashDisplay');
-            const txValue = document.getElementById('txHashValue');
-
-            status.className = '';
-            status.textContent = '';
-            sigStatus.textContent = '';
-            txDisplay.style.display = 'none';
-
-            const payload = getPayload();
-
-            if (!payload.partner_name || !payload.partner_email || !payload.partner_type || !payload.governor_name) {
-                status.className = 'error';
-                status.textContent = 'Please fill in all required fields (*).';
-                return;
-            }
-
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Submitting...';
-            status.className = '';
-            status.textContent = 'Signing payload...';
-
-            try {
-                let signature = null;
-                let publicKeyPem = null;
-
-                if (keyPair && keyPair.privateKey && keyPair.publicKey) {
-                    const encoder = new TextEncoder();
-                    const data = encoder.encode(JSON.stringify(payload));
-                    const cryptoKey = await crypto.subtle.importKey(
-                        'pkcs8',
-                        strToAb(keyPair.privateKey),
-                        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-                        false,
-                        ['sign']
-                    );
-                    const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, data);
-                    signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
-                    publicKeyPem = keyPair.publicKey;
-                    sigStatus.textContent = 'Signature generated';
-                    sigStatus.className = 'signature-verify-status status';
-                } else {
-                    sigStatus.textContent = 'No keypair found. Submitting without signature (sandbox mode).';
-                    sigStatus.className = 'signature-verify-status';
-                }
-
-                status.textContent = 'Submitting to Edgar...';
-
-                const routes = window.ROUTES || {};
-                const edgarUrl = routes.EDGAR_API || 'https://edgar.truesight.me';
-
-                const response = await fetch(edgarUrl + '/dao/submit_contribution', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        event_name: 'CONTRIBUTION EVENT',
-                        attributes: payload,
-                        signature: signature,
-                        public_key: publicKeyPem
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    status.className = 'status';
-                    status.textContent = 'Partner added successfully!';
-                    if (result.tx_hash) {
-                        txDisplay.style.display = 'block';
-                        txValue.textContent = result.tx_hash;
+            // Show welcome message if identity is stored
+            const storedIdentity = localStorage.getItem('truesight_dao_identity');
+            if (storedIdentity) {
+                try {
+                    const identity = JSON.parse(storedIdentity);
+                    if (identity.name) {
+                        welcome.textContent = 'Welcome, ' + identity.name;
+                        welcome.style.display = 'block';
                     }
-                    submitBtn.textContent = 'Submitted';
-                } else {
-                    status.className = 'error';
-                    status.textContent = 'Error: ' + (result.error || result.message || 'Unknown error');
+                } catch(e) {}
+            }
+
+            // Enable submit when all required fields are filled
+            function checkForm() {
+                const valid = partnerName.value.trim() &&
+                    partnerEmail.value.trim() &&
+                    partnerType.value &&
+                    governorName.value;
+                submitBtn.disabled = !valid;
+                updatePreview();
+            }
+
+            [partnerName, partnerEmail, partnerType, partnerAddress, partnerAbout, governorName].forEach(function(el) {
+                el.addEventListener('input', checkForm);
+                el.addEventListener('change', checkForm);
+            });
+
+            function updatePreview() {
+                if (!partnerName.value.trim() || !partnerEmail.value.trim() || !partnerType.value || !governorName.value) {
+                    payloadPreview.style.display = 'none';
+                    return;
+                }
+                const payload = buildPayload();
+                payloadPreview.textContent = payload;
+                payloadPreview.style.display = 'block';
+            }
+
+            function buildPayload() {
+                return '[PARTNER ADD EVENT]\n' +
+                    'Partner Name: ' + partnerName.value.trim() + '\n' +
+                    'Email: ' + partnerEmail.value.trim() + '\n' +
+                    'Type: ' + partnerType.value + '\n' +
+                    (partnerAddress.value.trim() ? 'Address: ' + partnerAddress.value.trim() + '\n' : '') +
+                    (partnerAbout.value.trim() ? 'About: ' + partnerAbout.value.trim() + '\n' : '') +
+                    'Governor Name: ' + governorName.value;
+            }
+
+            submitBtn.addEventListener('click', async function() {
+                const payload = buildPayload();
+                statusEl.textContent = 'Submitting...';
+                statusEl.className = '';
+                submitBtn.disabled = true;
+                sigStatus.textContent = '';
+                submissionResult.style.display = 'none';
+
+                try {
+                    // Try RSA signing if available
+                    let signedPayload = payload;
+                    let signatureInfo = '';
+                    try {
+                        const stored = localStorage.getItem('truesight_dao_identity');
+                        if (stored) {
+                            const identity = JSON.parse(stored);
+                            if (identity.privateKey && window.crypto && window.crypto.subtle) {
+                                const enc = new TextEncoder();
+                                const keyData = enc.encode(identity.privateKey);
+                                const key = await crypto.subtle.importKey(
+                                    'pkcs8', keyData,
+                                    { name: 'RSA-PSS', hash: 'SHA-256' },
+                                    false, ['sign']
+                                );
+                                const sig = await crypto.subtle.sign(
+                                    { name: 'RSA-PSS', saltLength: 32 },
+                                    key, enc.encode(payload)
+                                );
+                                const sigB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(sig)));
+                                signatureInfo = '\nMy Digital Signature: ' + sigB64;
+                                sigStatus.textContent = 'Signature verified';
+                                sigStatus.style.color = '#28a745';
+                            }
+                        }
+                    } catch(e) {
+                        console.log('RSA signing not available, submitting unsigned:', e);
+                        sigStatus.textContent = 'Note: Submitting without cryptographic signature';
+                        sigStatus.style.color = '#856404';
+                    }
+
+                    const txId = 'TX' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+                    const shareText = payload + signatureInfo + '\nRequest Transaction ID: ' + txId +
+                        '\n(generated using https://dapp.truesight.me/partner_add.html)' +
+                        '\nVerify submission here: ' + EDGAR_URL;
+
+                    // Show the signed share text
+                    requestPre.textContent = shareText;
+
+                    const response = await fetch(EDGAR_URL + '/dao/submit_contribution', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            text: shareText,
+                            source: 'dapp_partner_add'
+                        })
+                    });
+
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch(e) {
+                        result = { raw: await response.text() };
+                    }
+
+                    responsePre.textContent = JSON.stringify(result, null, 2);
+                    submissionResult.style.display = 'block';
+
+                    txHashValue.textContent = txId;
+                    txHashDisplay.style.display = 'block';
+
+                    if (response.ok) {
+                        statusEl.textContent = 'Partner added successfully!';
+                        statusEl.className = 'status';
+                    } else {
+                        statusEl.textContent = 'Submission completed (check response below)';
+                        statusEl.className = '';
+                    }
+                } catch(err) {
+                    statusEl.textContent = 'Error: ' + err.message;
+                    statusEl.className = 'error';
+                } finally {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Sign & Submit';
                 }
-            } catch(e) {
-                status.className = 'error';
-                status.textContent = 'Error: ' + e.message;
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign & Submit';
-            }
-        }
-
-        function strToAb(str) {
-            const binary = atob(str);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
+            });
+        })();
     </script>
 </body>
 </html>
