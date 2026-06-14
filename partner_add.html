@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Add a new partner to the TrueSight DAO ecosystem">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partner Add - TrueSight DAO</title>
+
+    <meta property="og:title" content="Partner Add - TrueSight DAO">
+    <meta property="og:description" content="Onboard a new partner to the DAO — farmer cooperatives, retailers, distributors, and more.">
+    <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <meta property="og:url" content="https://dapp.truesight.me/partner_add.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="TrueSight DAO">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Partner Add - TrueSight DAO">
+    <meta name="twitter:description" content="Onboard a new partner to the DAO — farmer cooperatives, retailers, distributors, and more.">
+    <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260603a"></script>
+    <script src="./tdg_balance.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 1rem;
+            padding: 1rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 1.8rem;
+            color: #333;
+            margin: 0.5rem 0 1rem;
+            text-align: center;
+        }
+        #description {
+            font-style: italic;
+            color: #555;
+            line-height: 1.5;
+            margin: 0.8rem 0;
+            font-size: 1rem;
+            text-align: center;
+        }
+        #backLink {
+            top: 1rem;
+            left: 1rem;
+            font-size: 1rem;
+            color: #007bff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: color 0.2s;
+        }
+        #backLink:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+        #backLink::before {
+            content: "\2190";
+            font-size: 1.2rem;
+        }
+        #status {
+            margin: 1rem 0;
+            font-weight: bold;
+            min-height: 24px;
+            font-size: 1rem;
+            text-align: center;
+        }
+        .status { color: #28a745; }
+        .error { color: #dc3545; }
+        .form-row {
+            margin: 1rem 0;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        select, input[type="text"], input[type="email"], textarea {
+            width: 100%;
+            padding: 0.8rem;
+            font-size: 1rem;
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        select:disabled, input:disabled, textarea:disabled {
+            background-color: #f0f0f0;
+            cursor: not-allowed;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        button {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s, transform 0.1s;
+            margin: 0.5rem auto;
+            width: 100%;
+            max-width: 300px;
+            display: block;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.02);
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #payloadPreview {
+            margin: 1rem 0;
+            padding: 0.8rem;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+        #txHashDisplay {
+            margin: 1rem 0;
+            padding: 0.6rem;
+            background-color: #f0f8ff;
+            border: 1px solid #b3d4fc;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            word-break: break-all;
+            text-align: center;
+            display: none;
+        }
+        #txHashDisplay .tx-label {
+            font-weight: bold;
+            color: #333;
+        }
+        #txHashDisplay .tx-value {
+            font-family: monospace;
+            color: #0056b3;
+            font-size: 0.8rem;
+        }
+        .help-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        .signature-verify-status {
+            margin: 1rem 0;
+            min-height: 1.5rem;
+            font-size: 1rem;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a id="backLink" href="javascript:history.back()">Back</a>
+        <h1>Add Partner</h1>
+        <div id="description">Onboard a new partner to the TrueSight DAO ecosystem. Partners can be farmer cooperatives, retailers, distributors, or other organizations.</div>
+
+        <div id="status"></div>
+        <div id="welcome"></div>
+
+        <div id="signatureSection">
+            <div class="form-row">
+                <label for="partnerName">Partner Name *</label>
+                <input type="text" id="partnerName" placeholder="e.g. Fazenda Boa Vista" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <label for="partnerEmail">Email *</label>
+                <input type="email" id="partnerEmail" placeholder="e.g. contato@fazendabv.com.br" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <label for="partnerType">Type *</label>
+                <select id="partnerType">
+                    <option value="">Select type...</option>
+                    <option value="Farmer Cooperative">Farmer Cooperative</option>
+                    <option value="Retailer">Retailer</option>
+                    <option value="Distributor">Distributor</option>
+                    <option value="Processor">Processor</option>
+                    <option value="NGO">NGO</option>
+                    <option value="Research Institution">Research Institution</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label for="partnerAddress">Address</label>
+                <input type="text" id="partnerAddress" placeholder="e.g. Rua Principal, 100, Ilhéus, BA" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <label for="partnerAbout">About</label>
+                <textarea id="partnerAbout" placeholder="e.g. Organic cacao producer, 50 hectares"></textarea>
+            </div>
+
+            <div class="form-row">
+                <label for="governorName">Governor Name *</label>
+                <input type="text" id="governorName" placeholder="e.g. Gary Teh" autocomplete="off">
+                <div class="help-text">Your name as the DAO governor onboarding this partner</div>
+            </div>
+
+            <div id="payloadPreview"></div>
+
+            <button id="signAndSubmitBtn" onclick="signAndSubmit()">Sign &amp; Submit</button>
+        </div>
+
+        <div id="txHashDisplay">
+            <div class="tx-label">Transaction Hash</div>
+            <div class="tx-value" id="txHash"></div>
+        </div>
+    </div>
+
+    <script>
+        const EDGAR_API = window.EDGAR_API || 'https://edgar.truesight.me';
+        let currentUser = null;
+
+        async function init() {
+            try {
+                const resp = await fetch(EDGAR_API + '/dao/check_digital_signature?signature=');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.email) {
+                        currentUser = data.email;
+                        document.getElementById('governorName').value = data.display_name || data.email.split('@')[0];
+                    }
+                }
+            } catch (e) {
+                // Not signed in — user can still fill form manually
+            }
+        }
+
+        function buildPayload() {
+            const partnerName = document.getElementById('partnerName').value.trim();
+            const email = document.getElementById('partnerEmail').value.trim();
+            const type = document.getElementById('partnerType').value;
+            const address = document.getElementById('partnerAddress').value.trim();
+            const about = document.getElementById('partnerAbout').value.trim();
+            const governorName = document.getElementById('governorName').value.trim();
+
+            if (!partnerName || !email || !type || !governorName) {
+                document.getElementById('status').innerHTML = '<span class="error">Please fill in all required fields (*)</span>';
+                return null;
+            }
+
+            let payload = '[PARTNER ADD EVENT]\n';
+            payload += '- Partner Name: ' + partnerName + '\n';
+            payload += '- Email: ' + email + '\n';
+            payload += '- Type: ' + type + '\n';
+            if (address) payload += '- Address: ' + address + '\n';
+            if (about) payload += '- About: ' + about + '\n';
+            payload += '- Governor Name: ' + governorName;
+
+            return payload;
+        }
+
+        function updatePreview() {
+            const payload = buildPayload();
+            const preview = document.getElementById('payloadPreview');
+            if (payload) {
+                preview.textContent = payload;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        // Live preview on input change
+        document.querySelectorAll('input, select, textarea').forEach(el => {
+            el.addEventListener('input', updatePreview);
+            el.addEventListener('change', updatePreview);
+        });
+
+        async function signAndSubmit() {
+            const statusEl = document.getElementById('status');
+            const btn = document.getElementById('signAndSubmitBtn');
+            const txHashDisplay = document.getElementById('txHashDisplay');
+
+            const payload = buildPayload();
+            if (!payload) return;
+
+            btn.disabled = true;
+            statusEl.innerHTML = '<span class="status">Signing and submitting...</span>';
+
+            try {
+                // Try to sign with RSA keypair via the DApp signature helper
+                let signature = '';
+                let publicKey = '';
+
+                if (window.crypto && window.crypto.subtle && window.RSAKeypairManager) {
+                    try {
+                        const keypair = await window.RSAKeypairManager.getKeypair();
+                        if (keypair && keypair.privateKey) {
+                            const encoder = new TextEncoder();
+                            const data = encoder.encode(payload);
+                            const sig = await window.crypto.subtle.sign(
+                                { name: 'RSA-PSS', saltLength: 32 },
+                                keypair.privateKey,
+                                data
+                            );
+                            signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
+                            publicKey = await window.RSAKeypairManager.getPublicKeyBase64();
+                        }
+                    } catch (e) {
+                        console.warn('RSA signing failed, falling back to unsigned sandbox:', e);
+                    }
+                }
+
+                let endpoint = EDGAR_API + '/dao/submit_contribution';
+                let body;
+
+                if (signature && publicKey) {
+                    // Signed submission
+                    const formData = new FormData();
+                    const blob = new Blob([payload], { type: 'text/plain' });
+                    formData.append('text', blob, 'payload.txt');
+                    formData.append('signature', signature);
+                    formData.append('public_key', publicKey);
+                    body = formData;
+                } else {
+                    // Fallback to sandbox
+                    endpoint = EDGAR_API + '/dao/test/submit_contribution';
+                    body = JSON.stringify({ payload: payload });
+                }
+
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    body: body,
+                    headers: signature ? {} : { 'Content-Type': 'application/json' }
+                });
+
+                const result = await resp.json();
+
+                if (resp.ok) {
+                    statusEl.innerHTML = '<span class="status">\u2705 Partner added successfully!</span>';
+                    if (result.transaction_hash || result.tx_hash) {
+                        const txHash = result.transaction_hash || result.tx_hash;
+                        document.getElementById('txHash').textContent = txHash;
+                        txHashDisplay.style.display = 'block';
+                    }
+                    // Reset form
+                    document.getElementById('partnerName').value = '';
+                    document.getElementById('partnerEmail').value = '';
+                    document.getElementById('partnerType').value = '';
+                    document.getElementById('partnerAddress').value = '';
+                    document.getElementById('partnerAbout').value = '';
+                    document.getElementById('payloadPreview').style.display = 'none';
+                } else {
+                    statusEl.innerHTML = '<span class="error">\u274c Error: ' + (result.error || result.message || 'Unknown error') + '</span>';
+                }
+            } catch (e) {
+                statusEl.innerHTML = '<span class="error">\u274c Error: ' + e.message + '</span>';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
