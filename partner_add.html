@@ -287,14 +287,6 @@
             <textarea id="partnerAbout" placeholder="Brief description of the partner organization..."></textarea>
         </div>
 
-        <div class="form-row">
-            <label for="governorName">Governor Name *</label>
-            <select id="governorName">
-                <option value="">Select or type your name...</option>
-            </select>
-            <div class="help-text">Your name as the DAO governor onboarding this partner</div>
-        </div>
-
         <div id="payloadPreview"></div>
 
         <button id="submitBtn" disabled>Sign &amp; Submit</button>
@@ -324,7 +316,6 @@
             const partnerType = document.getElementById('partnerType');
             const partnerAddress = document.getElementById('partnerAddress');
             const partnerAbout = document.getElementById('partnerAbout');
-            const governorName = document.getElementById('governorName');
             const submitBtn = document.getElementById('submitBtn');
             const statusEl = document.getElementById('status');
             const payloadPreview = document.getElementById('payloadPreview');
@@ -336,26 +327,7 @@
             const sigStatus = document.getElementById('sigStatus');
             const welcome = document.getElementById('welcome');
 
-            // Populate governor dropdown from localStorage identities
-            function populateGovernorDropdown() {
-                const stored = localStorage.getItem('truesight_dao_identities');
-                const identities = stored ? JSON.parse(stored) : [];
-                const select = governorName;
-                select.innerHTML = '<option value="">Select or type your name...</option>';
-                if (identities.length > 0) {
-                    identities.forEach(function(entry) {
-                        const opt = document.createElement('option');
-                        opt.value = entry.name || entry.email || '';
-                        opt.textContent = entry.name || entry.email || '';
-                        select.appendChild(opt);
-                    });
-                    if (identities.length === 1) {
-                        select.value = identities[0].name || identities[0].email || '';
-                    }
-                }
-            }
-
-            populateGovernorDropdown();
+            // Resolve governor name from stored identity
 
             // Show welcome message if identity is stored
             const storedIdentity = localStorage.getItem('truesight_dao_identity');
@@ -369,23 +341,35 @@
                 } catch(e) {}
             }
 
+            // Resolve governor name from stored identity
+            function getGovernorName() {
+                try {
+                    const stored = localStorage.getItem('truesight_dao_identity');
+                    if (stored) {
+                        const identity = JSON.parse(stored);
+                        return identity.name || identity.email || '';
+                    }
+                } catch(e) {}
+                return '';
+            }
+
             // Enable submit when all required fields are filled
             function checkForm() {
                 const valid = partnerName.value.trim() &&
                     partnerEmail.value.trim() &&
                     partnerType.value &&
-                    governorName.value;
+                    getGovernorName();
                 submitBtn.disabled = !valid;
                 updatePreview();
             }
 
-            [partnerName, partnerEmail, partnerType, partnerAddress, partnerAbout, governorName].forEach(function(el) {
+            [partnerName, partnerEmail, partnerType, partnerAddress, partnerAbout].forEach(function(el) {
                 el.addEventListener('input', checkForm);
                 el.addEventListener('change', checkForm);
             });
 
             function updatePreview() {
-                if (!partnerName.value.trim() || !partnerEmail.value.trim() || !partnerType.value || !governorName.value) {
+                if (!partnerName.value.trim() || !partnerEmail.value.trim() || !partnerType.value || !getGovernorName()) {
                     payloadPreview.style.display = 'none';
                     return;
                 }
@@ -401,7 +385,7 @@
                     'Type: ' + partnerType.value + '\n' +
                     (partnerAddress.value.trim() ? 'Address: ' + partnerAddress.value.trim() + '\n' : '') +
                     (partnerAbout.value.trim() ? 'About: ' + partnerAbout.value.trim() + '\n' : '') +
-                    'Governor Name: ' + governorName.value;
+                    'Governor Name: ' + getGovernorName();
             }
 
             submitBtn.addEventListener('click', async function() {
