@@ -20,7 +20,7 @@
 
     <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
     <script src="./routes.js"></script>
-    <script src="./menu.js?v=20260603a"></script>
+    <script src="./menu.js?v=20260614a"></script>
     <script src="./tdg_balance.js"></script>
 
     <style>
@@ -222,18 +222,38 @@
                 font-size: 1.4rem;
             }
         }
+
+        @media print {
+            textarea {
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                white-space: pre-wrap;
+                page-break-inside: auto;
+                border: 1px solid #999;
+            }
+            pre {
+                white-space: pre-wrap !important;
+                word-break: break-word !important;
+                overflow: visible !important;
+                page-break-inside: auto;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
     <div id="tdgBalanceBadge"></div>
     <div class="container">
-        <a id="backLink" href="javascript:history.back()">Back</a>
+        <div style="text-align: center;">
+            <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
 
         <h1>Add Partner</h1>
         <p id="description">Onboard a new partner to the TrueSight DAO ecosystem. Partners can be farmer cooperatives, retailers, distributors, or other organizations.</p>
 
-        <div id="status"></div>
+        <div id="status" aria-live="polite"></div>
         <div id="welcome"></div>
 
         <div class="form-row">
