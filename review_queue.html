@@ -329,9 +329,12 @@
 
   <script>
     // ─── Configuration ───────────────────────────────────────────────────────
-    const IS_BETA = window.location.hostname === 'beta.dapp.truesight.me';
-    const EDGAR_BASE = IS_BETA ? 'https://beta.edgar.truesight.me' : 'https://edgar.truesight.me';
-    const DAO_PROTOCOL_BASE = EDGAR_BASE + '/api/v1';
+    // This feature has no beta backend (beta.edgar lacks the review routes) and all data
+    // (Scored Chatlogs, treasury-cache) is prod — so always talk to prod Edgar.
+    // Edgar serves the review routes at /dao/* (NO /api/v1 prefix).
+    const EDGAR_BASE = 'https://edgar.truesight.me';
+    const DAO_PROTOCOL_BASE = EDGAR_BASE;
+    const DAO_MEMBERS_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_members.json';
     const PAGE_SIZE = 10;
 
     // ─── State ──────────────────────────────────────────────────────────────
@@ -362,20 +365,23 @@
     // ─── Auth ───────────────────────────────────────────────────────────────
     async function checkAuth() {
       try {
-        // Try to load the RSA keypair from localStorage (same as other DApp pages)
-        const stored = localStorage.getItem('truesight_keypair');
-        if (stored) {
-          keypair = JSON.parse(stored);
-          // Verify with Edgar
-          const resp = await fetch(EDGAR_BASE + '/dao/verify_identity', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ publicKey: keypair.publicKey })
-          });
+        // Standard DApp identity: publicKey/privateKey in localStorage (same keys as other pages).
+        const publicKey = localStorage.getItem('publicKey') || '';
+        const privateKey = localStorage.getItem('privateKey') || '';
+        if (publicKey && privateKey) {
+          keypair = { publicKey, privateKey };
+          // Governor/Sentinel status + contributor list come from treasury-cache dao_members.json
+          // (the same source the rest of the DApp uses). Edgar re-verifies the signer server-side
+          // on submit, so this is just for showing/hiding the action buttons + the resolve dropdown.
+          const resp = await fetch(DAO_MEMBERS_URL);
           if (resp.ok) {
-            const data = await resp.json();
-            isGovernor = data.isGovernor === true;
-            isSentinel = data.isSentinel === true;
+            const snap = await resp.json();
+            const members = (snap && snap.contributors) || [];
+            const me = members.find(c => ((c && c.public_keys) || []).some(k => k && k.public_key === publicKey));
+            const roles = (me && me.roles) || [];
+            isGovernor = roles.indexOf('governor') !== -1;
+            isSentinel = roles.indexOf('sentinel') !== -1;
+            contributorList = members.map(c => c && c.name).filter(Boolean).sort();
           }
         }
       } catch (e) {
@@ -395,12 +401,15 @@
     }
 
     // ─── Contributor list ───────────────────────────────────────────────────
+    // Populated in checkAuth() from treasury-cache dao_members.json (no Edgar
+    // /dao/contributors endpoint exists). Kept as a no-op so the call site is unchanged.
     async function loadContributorList() {
+      if (contributorList.length) return;
       try {
-        const resp = await fetch(DAO_PROTOCOL_BASE + '/dao/contributors');
+        const resp = await fetch(DAO_MEMBERS_URL);
         if (resp.ok) {
-          const data = await resp.json();
-          contributorList = data.contributors || [];
+          const snap = await resp.json();
+          contributorList = ((snap && snap.contributors) || []).map(c => c && c.name).filter(Boolean).sort();
         }
       } catch (e) {
         console.warn('Failed to load contributor list:', e);
@@ -434,7 +443,19 @@
         }
 
         const data = await resp.json();
-        const newRecords = data.records || [];
+        // Edgar returns { items, has_more, next_filename }. Each item is the canonical
+        // snake_case cache schema (treasury-cache generate_review_cache.py) — map to the
+        // shape renderRecords() expects.
+        const newRecords = (data.items || []).map(it => ({
+          hashKey: it.scoring_hash_key || '',
+          contributorName: it.contributor_name || '',
+          foundInContributors: it.found_in_contributors || '',
+          description: it.contribution_description || '',
+          contributionType: it.contribution_type || '',
+          tdgsProvisioned: it.tdgs_provisioned || '0.00',
+          contributorEmail: it.contributor_email || '',
+          timestamp: it.contribution_date || it.generated_at || ''
+        }));
         afterFilename = data.next_filename || null;
         hasMore = data.has_more === true;
 
