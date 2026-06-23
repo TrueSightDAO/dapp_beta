@@ -345,11 +345,13 @@
 
     <div id="errorBanner" class="error-banner" style="display:none;"></div>
 
-    <div id="queueContainer">
-      <div class="loading" id="loadingIndicator">
-        <div class="spinner"></div>
-        <div>Loading review queue...</div>
-      </div>
+    <div id="queueContainer"></div>
+
+    <!-- Loading spinner — sits below the records so it shows "loading more" during infinite
+         scroll, and isn't wiped when queueContainer is cleared on refresh. -->
+    <div class="loading" id="loadingIndicator" style="display:none;">
+      <div class="spinner"></div>
+      <div>Loading…</div>
     </div>
 
     <div id="sentinel" style="height: 20px;"></div>
@@ -456,8 +458,9 @@
         afterFilename = null;
         hasMore = true;
         queueContainer.innerHTML = '';
-        loadingIndicator.style.display = 'block';
       }
+      // Show the spinner for the initial load, a refresh, AND each infinite-scroll page.
+      loadingIndicator.style.display = 'block';
 
       try {
         let url = DAO_PROTOCOL_BASE + '/dao/review_queue?limit=' + PAGE_SIZE;
