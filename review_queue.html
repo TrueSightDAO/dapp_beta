@@ -604,29 +604,33 @@
         const contributorSelect = document.getElementById('contrib-select-' + hashKey);
         const contributorName = contributorSelect ? contributorSelect.value : '';
 
-        let eventText = `[CONTRIBUTION REVIEW EVENT]\n`;
-        eventText += `- Action: ${action}\n`;
-        eventText += `- Scoring Hash Key: ${hashKey}\n`;
+        // Canonical signed payload (identical shape to report_contribution.html / dao_client):
+        // sign the event header that ends with "--------", then append the PUBLIC KEY as
+        // "My Digital Signature" and the SIGNATURE as "Request Transaction ID".
+        let requestText = `[CONTRIBUTION REVIEW EVENT]\n`;
+        requestText += `- Action: ${action}\n`;
+        requestText += `- Scoring Hash Key: ${hashKey}\n`;
         if (action === 'Approve') {
-          eventText += `- TDGs Issued: ${tdgIssued}\n`;
+          requestText += `- TDGs Issued: ${tdgIssued}\n`;
         }
         if (action === 'Reject') {
-          eventText += `- Rejection Reason: ${rejectionReason}\n`;
+          requestText += `- Rejection Reason: ${rejectionReason}\n`;
         }
         if (contributorName) {
-          eventText += `- Contributor Name: ${contributorName}\n`;
+          requestText += `- Contributor Name: ${contributorName}\n`;
         }
-        eventText += `\n--------\n`;
-        eventText += `My Digital Signature: (pending)\n`;
-        eventText += `Request Transaction ID: (pending)`;
+        requestText += `--------`;
 
-        // Sign with RSA keypair
-        const signature = await signText(eventText, keypair.privateKey);
-        const txId = generateTxId();
+        const privateKeyObj = await importPrivateKey(keypair.privateKey);
+        const enc = new TextEncoder();
+        const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKeyObj, enc.encode(requestText));
+        const signatureB64 = arrayBufferToBase64(sigBuf);
 
-        const signedText = eventText
-          .replace('My Digital Signature: (pending)', `My Digital Signature:\n${signature}`)
-          .replace('Request Transaction ID: (pending)', `Request Transaction ID: ${txId}`);
+        const signedText =
+          `${requestText}\n\nMy Digital Signature: ${keypair.publicKey}\n\n` +
+          `Request Transaction ID: ${signatureB64}\n\n` +
+          `This submission was generated using ${window.location.href}\n\n` +
+          `Verify submission here: https://dapp.truesight.me/verify_request.html`;
 
         // Submit to Edgar
         const formData = new FormData();
@@ -676,13 +680,12 @@
       return arrayBufferToBase64(signature);
     }
 
-    async function importPrivateKey(pem) {
-      const pemHeader = '-----BEGIN RSA PRIVATE KEY-----';
-      const pemFooter = '-----END RSA PRIVATE KEY-----';
-      let pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length);
-      pemContents = pemContents.replace(/\s/g, '');
-      const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-
+    async function importPrivateKey(b64) {
+      // The DApp stores the private key as RAW base64 PKCS#8 (no PEM armor), same as
+      // create_signature.html / report_contribution.html. Decode it directly; strip any
+      // PEM header/footer + whitespace defensively in case an armored key is ever present.
+      const clean = String(b64 || '').replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+      const binaryDer = Uint8Array.from(atob(clean), c => c.charCodeAt(0));
       return await crypto.subtle.importKey(
         'pkcs8',
         binaryDer.buffer,
