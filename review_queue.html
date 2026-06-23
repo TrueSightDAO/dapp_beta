@@ -55,30 +55,32 @@
       border-radius: var(--radius);
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    header h1 {
-      font-size: 1.6rem;
+    h1 {
+      font-size: 1.8rem;
       color: #333;
+      margin: 0.5rem 0 1rem;
+      text-align: center;
     }
-    header .status-badge {
+    #description {
+      font-style: italic;
+      color: #555;
+      line-height: 1.5;
+      margin: 0.8rem 0 1.2rem;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+    .status-badge {
       font-size: 0.8rem;
       padding: 4px 12px;
       border-radius: 12px;
       background: var(--surface);
       border: 1px solid var(--border);
     }
-    header .status-badge.governor {
+    .status-badge.governor {
       border-color: var(--accent);
       color: var(--accent);
     }
-    header .status-badge.readonly {
+    .status-badge.readonly {
       border-color: var(--text-muted);
       color: var(--text-muted);
     }
@@ -314,10 +316,11 @@
         flex-direction: column;
         align-items: stretch;
       }
-      header {
-        flex-direction: column;
-        gap: 8px;
-        align-items: flex-start;
+      h1 {
+        font-size: 1.5rem;
+      }
+      .container {
+        padding: 0.8rem;
       }
     }
   </style>
@@ -325,14 +328,15 @@
 <body>
   <div id="navDropdown" style="margin: 1rem 0; text-align: center;"></div>
   <div id="tdgBalanceBadge"></div>
-  <div id="google_translate_element" style="text-align: right; margin: 1rem;"></div>
   <div class="container">
-    <header>
-      <h1>📋 Review Queue</h1>
-      <div>
-        <span class="status-badge" id="authBadge">Checking authorization...</span>
-      </div>
-    </header>
+    <div style="text-align: center;">
+      <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+    </div>
+    <h1>📋 Review Queue</h1>
+    <p id="description">Review pending scored contributions. Governors and Sentinels can approve (issuing TDG), skip, or reject each one.</p>
+    <div style="text-align: center; margin-bottom: 1rem;">
+      <span class="status-badge" id="authBadge">Checking authorization…</span>
+    </div>
 
     <div class="controls">
       <span class="count" id="recordCount">Loading...</span>
