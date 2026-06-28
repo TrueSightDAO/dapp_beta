@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Post-repackaging cleanup — deplete inputs, add output locations, set Currencies metadata, rebuild inventory snapshot.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post-Repackaging Cleanup - TrueSight DAO</title>
+
+  <!-- Open Graph tags for WhatsApp and social media previews -->
+  <meta property="og:title" content="Post-Repackaging Cleanup - TrueSight DAO">
+  <meta property="og:description" content="Post-repackaging cleanup — deplete inputs, add output locations, set Currencies metadata, rebuild inventory snapshot.">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://truesightdao.github.io/dapp/post_repackaging_cleanup.html">
+  <meta property="og:type" content="website">
+
+  <!-- Twitter Card tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Post-Repackaging Cleanup - TrueSight DAO">
+  <meta name="twitter:description" content="Post-repackaging cleanup — deplete inputs, add output locations, set Currencies metadata, rebuild inventory snapshot.">
+  <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260628a"></script>
+  <script src="./tdg_balance.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 1rem;
+      padding: 1rem;
+      min-height: 100vh;
+      box-sizing: border-box;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+      background-color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: #333;
+      margin: 0.5rem 0 1rem;
+      text-align: center;
+    }
+    #description {
+      font-style: italic;
+      color: #555;
+      line-height: 1.5;
+      margin: 0.8rem 0;
+      font-size: 1rem;
+      text-align: center;
+    }
+    #backLink {
+      top: 1rem;
+      left: 1rem;
+      font-size: 1rem;
+      color: #007bff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: color 0.2s;
+    }
+    #backLink:hover {
+      color: #0056b3;
+      text-decoration: underline;
+    }
+    #backLink::before {
+      content: "\2190";
+      font-size: 1.2rem;
+    }
+    #status {
+      margin: 1rem 0;
+      font-weight: bold;
+      min-height: 24px;
+      font-size: 1rem;
+      text-align: center;
+    }
+    .status { color: #28a745; }
+    .error { color: #dc3545; }
+    .form-row {
+      margin: 1rem 0;
+      text-align: left;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    input[type="text"], input[type="url"], textarea {
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    input[type="text"]:focus, input[type="url"]:focus, textarea:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    textarea {
+      min-height: 5rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    select:disabled, input:disabled, textarea:disabled {
+      background-color: #f0f0f0;
+      cursor: not-allowed;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+    .checkbox-row label {
+      margin: 0;
+      font-weight: normal;
+      font-size: 0.95rem;
+    }
+    .checkbox-row input[type="checkbox"] {
+      width: 1.1rem;
+      height: 1.1rem;
+      cursor: pointer;
+    }
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 640px) {
+      .row2 { grid-template-columns: 1fr; }
+    }
+    #submitButtonHolder {
+      text-align: center;
+    }
+    button {
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      background-color: #007bff;
+      color: white;
+      transition: background-color 0.2s, transform 0.1s;
+      margin: 0.5rem 0;
+      width: 100%;
+      max-width: 300px;
+    }
+    button:hover {
+      background-color: #0056b3;
+      transform: scale(1.02);
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .help-text {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+    #submissionResult {
+      display: none;
+      margin-top: 1.5rem;
+    }
+    #submissionResult h3 {
+      font-size: 1.1rem;
+      color: #333;
+      margin: 1rem 0 0.5rem;
+    }
+    #submissionResult pre {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    @media print {
+      #submissionResult pre {
+        max-height: none;
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+  <div id="tdgBalanceBadge"></div>
+  <div class="container">
+    <a id="backLink" href="./index.html">Back to Home</a>
+    <h1>Post-Repackaging Cleanup</h1>
+    <div id="description">
+      Automates the four cleanup steps after a repackaging batch: depletes consumed inputs from
+      offchain asset location, adds output rows for new products, sets Currencies metadata
+      (isSerializable, SKU ID, farm info), and optionally rebuilds the store inventory snapshot.
+    </div>
+
+    <div id="status"></div>
+
+    <div class="form-row">
+      <label for="compositionUrl">Composition URL *</label>
+      <input type="url" id="compositionUrl" placeholder="https://raw.githubusercontent.com/.../composition.json" required>
+      <div class="help-text">URL to the composition JSON (GitHub raw).</div>
+    </div>
+
+    <div class="form-row">
+      <label for="holderName">Holder Name *</label>
+      <input type="text" id="holderName" placeholder="e.g. Kirsten Ritschel" required>
+      <div class="help-text">Who physically holds the inventory.</div>
+    </div>
+
+    <div class="row2">
+      <div class="form-row">
+        <label for="farmName">Farm Name</label>
+        <input type="text" id="farmName" placeholder="e.g. Fazenda Santa Clara">
+      </div>
+      <div class="form-row">
+        <label for="state">State</label>
+        <input type="text" id="state" placeholder="e.g. Bahia">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="form-row">
+        <label for="country">Country</label>
+        <input type="text" id="country" placeholder="e.g. Brazil">
+      </div>
+      <div class="form-row">
+        <label for="year">Year</label>
+        <input type="text" id="year" placeholder="e.g. 2026" maxlength="4">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="form-row">
+        <label for="landingPage">Landing Page</label>
+        <input type="url" id="landingPage" placeholder="https://agroverse.com/shop">
+      </div>
+      <div class="form-row">
+        <label for="ledgerUrl">Ledger URL</label>
+        <input type="url" id="ledgerUrl" placeholder="https://ledger.truesight.me">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="skuMapping">SKU Mapping (JSON)</label>
+      <textarea id="skuMapping" placeholder='{"Ceremonial Cacao Kraft Pouch": "ceremonial-cacao-kraft-pouch-200g"}'></textarea>
+      <div class="help-text">JSON object mapping output label substrings to SKU Product IDs.</div>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="depleteInputs" checked>
+      <label for="depleteInputs">Deplete consumed inputs from offchain asset location</label>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="addOutputLocations" checked>
+      <label for="addOutputLocations">Add output rows to offchain asset location</label>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="setCurrenciesMetadata" checked>
+      <label for="setCurrenciesMetadata">Set Currencies metadata (isSerializable, SKU ID, farm info)</label>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="rebuildInventory">
+      <label for="rebuildInventory">Rebuild store inventory snapshot</label>
+    </div>
+
+    <div id="submitButtonHolder">
+      <button id="submitButton" onclick="onSubmit()">Submit</button>
+    </div>
+
+    <div id="submissionResult">
+      <h3>Transaction request</h3>
+      <pre id="requestPre" style="white-space: pre-wrap; word-break: break-word; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem;"></pre>
+      <h3>Edgar response</h3>
+      <pre id="responsePre" style="white-space: pre-wrap; word-break: break-word; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem;"></pre>
+    </div>
+  </div>
+
+  <script>
+    async function onSubmit() {
+      const status = document.getElementById('status');
+      const submitBtn = document.getElementById('submitButton');
+      const resultDiv = document.getElementById('submissionResult');
+
+      const compositionUrl = document.getElementById('compositionUrl').value.trim();
+      const holderName = document.getElementById('holderName').value.trim();
+
+      if (!compositionUrl) {
+        status.textContent = 'Composition URL is required.';
+        status.className = 'error';
+        return;
+      }
+      if (!holderName) {
+        status.textContent = 'Holder Name is required.';
+        status.className = 'error';
+        return;
+      }
+
+      const publicKey = localStorage.getItem('publicKey');
+      const privateKey = localStorage.getItem('privateKey');
+      if (!publicKey || !privateKey) {
+        status.textContent = 'No digital signature found. Redirecting to create one...';
+        status.className = 'error';
+        setTimeout(function() {
+          window.location.href = './create_signature.html';
+        }, 2000);
+        return;
+      }
+
+      submitBtn.disabled = true;
+      status.textContent = 'Submitting...';
+      status.className = 'status';
+      resultDiv.style.display = 'none';
+
+      var lines = [];
+      lines.push('[POST-REPACKAGING CLEANUP EVENT]');
+      lines.push('- Composition URL: ' + compositionUrl);
+      lines.push('- Holder Name: ' + holderName);
+
+      var farmName = document.getElementById('farmName').value.trim();
+      if (farmName) lines.push('- Farm Name: ' + farmName);
+
+      var state = document.getElementById('state').value.trim();
+      if (state) lines.push('- State: ' + state);
+
+      var country = document.getElementById('country').value.trim();
+      if (country) lines.push('- Country: ' + country);
+
+      var year = document.getElementById('year').value.trim();
+      if (year) lines.push('- Year: ' + year);
+
+      var landingPage = document.getElementById('landingPage').value.trim();
+      if (landingPage) lines.push('- Landing Page: ' + landingPage);
+
+      var ledgerUrl = document.getElementById('ledgerUrl').value.trim();
+      if (ledgerUrl) lines.push('- Ledger URL: ' + ledgerUrl);
+
+      var skuMapping = document.getElementById('skuMapping').value.trim();
+      if (skuMapping) {
+        lines.push('- SKU Mapping: ' + skuMapping);
+      }
+
+      lines.push('- Deplete Inputs: ' + (document.getElementById('depleteInputs').checked ? 'true' : 'false'));
+      lines.push('- Add Output Locations: ' + (document.getElementById('addOutputLocations').checked ? 'true' : 'false'));
+      lines.push('- Set Currencies Metadata: ' + (document.getElementById('setCurrenciesMetadata').checked ? 'true' : 'false'));
+      lines.push('- Rebuild Inventory: ' + (document.getElementById('rebuildInventory').checked ? 'true' : 'false'));
+      lines.push('- Submission Source: ' + window.location.href);
+      lines.push('--------');
+
+      var requestText = lines.join('\n');
+
+      try {
+        var privateKeyObj = await window.crypto.subtle.importKey(
+          'jwk',
+          JSON.parse(privateKey),
+          { name: 'RSA-PSS', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        var encoder = new TextEncoder();
+        var signature = await window.crypto.subtle.sign(
+          { name: 'RSA-PSS', saltLength: 32 },
+          privateKeyObj,
+          encoder.encode(requestText)
+        );
+        var signatureBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(signature)));
+        var txId = 'TX' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+        var shareText = requestText + '\n' +
+          '- My Digital Signature: ' + signatureBase64 + '\n' +
+          '- Request Transaction ID: ' + txId + '\n' +
+          '- generated using ' + window.location.href + '\n' +
+          '- Verify submission here: https://dapp.truesight.me/verify_request.html';
+
+        var formData = new FormData();
+        formData.append('text', shareText);
+        formData.append('publicKey', publicKey);
+
+        var response = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+        var result = await response.json();
+
+        document.getElementById('requestPre').textContent = shareText;
+        document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+        resultDiv.style.display = 'block';
+
+        if (result.status === 'success' || result.success) {
+          status.textContent = 'Submitted successfully. The cleanup steps will be processed by the GAS handler.';
+          status.className = 'status';
+        } else {
+          status.textContent = 'Submission completed. Check Edgar response below.';
+          status.className = 'status';
+        }
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        status.className = 'error';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
