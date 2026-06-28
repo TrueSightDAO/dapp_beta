@@ -22,7 +22,7 @@
     { title: 'Batch QR Code Generator', url: './batch_qr_generator.html', section: 'Inventory & ledger' },
     { title: 'Update QR Code', url: './update_qr_code.html', section: 'Inventory & ledger' },
     { title: 'Repackaging Planner', url: './repackaging_planner.html', section: 'Inventory & ledger' },
-    { title: 'Post-Repackaging Cleanup', url: './post_repackaging_cleanup.html', section: 'Inventory & ledger' },
+    { title: 'Repackaging Settlement', url: './repackaging_settlement.html', section: 'Inventory & ledger' },
     { title: 'Shipping Planner', url: './shipping_planner.html', section: 'Inventory & ledger' },
     { title: 'Restock Recommender', url: './restock_recommender.html', section: 'Inventory & ledger' },
     { title: 'Cacao Bag Scanner', url: './scanner.html', section: 'Retail & field activity' },
