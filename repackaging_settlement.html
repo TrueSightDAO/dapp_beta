@@ -185,23 +185,6 @@
       color: #666;
       margin-top: 0.25rem;
     }
-    .show-table-btn {
-      background: none;
-      border: none;
-      color: #007bff;
-      cursor: pointer;
-      font-size: 0.85rem;
-      padding: 0;
-      text-decoration: underline;
-      width: auto;
-      max-width: none;
-    }
-    .show-table-btn:hover {
-      color: #0056b3;
-      text-decoration: none;
-      transform: none;
-      background: none;
-    }
     #compositionPreview h4 {
       margin: 0 0 0.5rem;
       font-size: 0.95rem;
@@ -216,6 +199,7 @@
     .comp-table td { padding: 0.25rem 0.4rem; border: 1px solid #ddd; }
     .comp-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.5rem; }
     .comp-total { font-size: 0.82rem; color: #333; font-weight: 600; margin-top: 0.25rem; }
+    .sku-mapping-select { width: auto; min-width: 220px; font-size: 0.82rem; padding: 0.35rem 0.5rem; }
     #logo { height: 200px; }
     #submissionResult {
       display: none;
@@ -360,20 +344,12 @@
     </div>
 
     <div class="form-row">
-      <label for="skuMapping">SKU Mapping (JSON)</label>
-      <textarea id="skuMapping" placeholder='{"Ceremonial Cacao Kraft Pouch": "ceremonial-cacao-kraft-pouch-200g"}'></textarea>
-      <div class="help-text">JSON object mapping output label substrings to SKU Product IDs. <button type="button" class="show-table-btn" id="toggleSkuTable" onclick="document.getElementById('skuRefTable').style.display = document.getElementById('skuRefTable').style.display === 'none' ? 'block' : 'none'; this.textContent = this.textContent.startsWith('Show') ? 'Hide known SKU IDs' : 'Show known SKU IDs';">Show known SKU IDs</button></div>
-      <table id="skuRefTable" style="display:none; width:100%; border-collapse:collapse; margin-top:0.5rem; font-size:0.85rem;">
-        <thead>
-          <tr style="background:#f0f0f0;">
-            <th style="text-align:left; padding:0.4rem; border:1px solid #ddd;">Label Substring Match</th>
-            <th style="text-align:left; padding:0.4rem; border:1px solid #ddd;">SKU Product ID</th>
-          </tr>
-        </thead>
-        <tbody id="skuRefBody">
-          <tr><td colspan="2" style="padding:0.5rem; text-align:center; color:#999;">Loading SKU catalog...</td></tr>
-        </tbody>
-      </table>
+      <label>SKU Mapping</label>
+      <p style="margin:0;font-size:0.85rem;color:#666;">Select a composition above, then pick the matching SKU for each output.</p>
+      <div id="skuMappingDynamic" style="margin-top:0.5rem; color:#999; font-size:0.85rem;">
+        Select a composition to see output SKU mapping options.
+      </div>
+      <textarea id="skuMapping" style="display:none;"></textarea>
     </div>
 
     <div class="checkbox-row">
@@ -415,15 +391,16 @@
     var STATIC_COUNTRIES = ['Brazil', 'United States'];
     var STATIC_YEARS = ['2026', '2025', '2024', '2023', '2022'];
     var STATIC_SKUS = [
-      { label: "81% Chocolate Bar 50g — Oscar's Farm, Bahia", id: 'organic-81-dark-chocolate-bar-50g-oscar-bahia-2024' },
-      { label: "81% Chocolate Bar 50g — Fazenda Santa Ana, Bahia", id: 'organic-81-dark-chocolate-bar-50g-fazenda-santa-ana-bahia-2023' },
-      { label: "Ceremonial Cacao 200g — Oscar's Farm", id: 'oscar-bahia-ceremonial-cacao-200g' },
-      { label: "Ceremonial Cacao 200g — Fazenda Santa Ana", id: 'ceremonial-cacao-fazenda-santa-ana-2023-200g' },
-      { label: "Ceremonial Cacao 200g — La do Sitio Farm", id: 'ceremonial-cacao-paulo-s-la-do-sitio-farm-200g' },
-      { label: "Cacao Tea 1lb — Oscar's Farm", id: 'oscar-bahia-cacao-tea-1lb' },
-      { label: '8oz Cacao Nibs — Amazon Rainforest', id: '8-ounce-organic-cacao-nibs' },
-      { label: "Organic Criollo Beans — Oscar's Farm", id: 'organic-criollo-cacao-beans-oscar-farm' }
+      'organic-81-dark-chocolate-bar-50g-oscar-bahia-2024',
+      'organic-81-dark-chocolate-bar-50g-fazenda-santa-ana-bahia-2023',
+      'oscar-bahia-ceremonial-cacao-200g',
+      'ceremonial-cacao-fazenda-santa-ana-2023-200g',
+      'ceremonial-cacao-paulo-s-la-do-sitio-farm-200g',
+      'oscar-bahia-cacao-tea-1lb',
+      '8-ounce-organic-cacao-nibs',
+      'organic-criollo-cacao-beans-oscar-farm'
     ];
+    var loadedSkus = STATIC_SKUS;
 
     var PARTNERS_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/partners-inventory.json';
     var STORE_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/store-inventory.json';
@@ -455,20 +432,48 @@
       sel.appendChild(custom);
     }
 
-    function populateSkuTable(skuList) {
-      var tbody = document.getElementById('skuRefBody');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-      if (!skuList.length) {
-        tbody.innerHTML = '<tr><td colspan="2" style="padding:0.5rem; text-align:center; color:#999;">No SKUs available</td></tr>';
+    function renderSkuMapping(outputs) {
+      var container = document.getElementById('skuMappingDynamic');
+      if (!container) return;
+      if (!outputs || !outputs.length) {
+        container.innerHTML = '<span style="color:#999;">No outputs in composition.</span>';
         return;
       }
-      skuList.forEach(function (s) {
-        var tr = document.createElement('tr');
-        tr.innerHTML = '<td style="padding:0.35rem; border:1px solid #ddd;">' + escapeHtml(s.label) + '</td>' +
-          '<td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">' + escapeHtml(s.id) + '</td>';
-        tbody.appendChild(tr);
+      var html = '';
+      outputs.forEach(function (out, i) {
+        var labelShort = (out.label || '').substring(0, 60);
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">';
+        html += '<span style="font-size:0.82rem;color:#555;min-width:0;flex:1;" title="' + escapeHtml(out.label || '') + '">' + escapeHtml(labelShort) + (out.label && out.label.length > 60 ? '…' : '') + '</span>';
+        html += '<span style="color:#999;font-size:0.8rem;">→</span>';
+        html += '<select class="sku-mapping-select" data-output-index="' + i + '" style="width:auto;min-width:220px;font-size:0.82rem;padding:0.35rem 0.5rem;" onchange="buildSkuMapping()">';
+        html += '<option value="">-- Pick SKU --</option>';
+        loadedSkus.forEach(function (sku) {
+          var sel = autoMatchSku(out.label, sku) ? ' selected' : '';
+          html += '<option value="' + escapeHtml(sku) + '"' + sel + '>' + escapeHtml(sku) + '</option>';
+        });
+        html += '</select></div>';
       });
+      container.innerHTML = html + '<div style="margin-top:0.4rem;font-size:0.75rem;color:#888;">SKU mapping auto-generated from selections above.</div>';
+      buildSkuMapping();
+    }
+
+    function autoMatchSku(label, skuId) {
+      if (!label || !skuId) return false;
+      var tokens = skuId.toLowerCase().split('-');
+      return tokens.some(function (t) { return t.length >= 3 && label.toLowerCase().indexOf(t) !== -1; });
+    }
+
+    function buildSkuMapping() {
+      var selects = document.querySelectorAll('.sku-mapping-select');
+      var mapping = {};
+      selects.forEach(function (sel) {
+        if (sel.value) {
+          var idx = parseInt(sel.dataset.outputIndex);
+          var label = sel.closest('div').querySelector('span').textContent;
+          mapping[label] = sel.value;
+        }
+      });
+      document.getElementById('skuMapping').value = Object.keys(mapping).length ? JSON.stringify(mapping) : '';
     }
 
     function escapeHtml(str) {
@@ -530,6 +535,7 @@
           html += '<div class="comp-total">Grand Total: $' + (comp.totals.grand_total_usd != null ? comp.totals.grand_total_usd.toFixed(2) : '0.00') + ' &middot; Total Output Weight: ' + (comp.totals.total_output_weight_grams || 0) + 'g &middot; Cost/g: $' + (comp.totals.cost_per_gram_usd != null ? comp.totals.cost_per_gram_usd.toFixed(4) : '0.0000') + '</div>';
         }
         content.innerHTML = html;
+        renderSkuMapping(comp.outputs);
       } catch (e) {
         content.innerHTML = '<span style="color:#dc3545;font-size:0.85rem;">Failed to load: ' + escapeHtml(e.message) + '</span>';
       }
@@ -538,7 +544,6 @@
     async function loadDynamicData() {
       var holderList = null;
       var farmList = null;
-      var skuList = null;
       var compList = STATIC_COMPOSITIONS;
 
       try {
@@ -593,15 +598,13 @@
         if (res2.ok) {
           var invData = await res2.json();
           var inv = invData.inventory || {};
-          skuList = Object.keys(inv).sort().map(function (id) {
-            return { label: id, id: id };
-          });
+          var skuList = Object.keys(inv).sort();
+          if (skuList.length) { loadedSkus = skuList; }
         }
       } catch (e) {
         console.warn('[repackaging-settlement] store-inventory fetch failed:', e);
       }
-      populateSkuTable(skuList && skuList.length ? skuList : STATIC_SKUS);
-      if (skuList) console.log('[repackaging-settlement] SKU table: loaded ' + skuList.length + ' from store-inventory');
+      if (loadedSkus) console.log('[repackaging-settlement] SKUs: loaded ' + loadedSkus.length + ' from store-inventory');
 
       populateSelect('state', STATIC_STATES, STATIC_STATES);
       populateSelect('country', STATIC_COUNTRIES, STATIC_COUNTRIES);
