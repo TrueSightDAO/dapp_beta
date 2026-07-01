@@ -488,6 +488,79 @@
       return div.innerHTML;
     }
 
+    var holderList = [];
+    var selectedHolderName = '';
+
+    function populateHolderCombobox(holders) {
+      holderList = (Array.isArray(holders) && holders.length > 0) ? holders.sort() : STATIC_HOLDERS.slice();
+      var display = document.getElementById('holderNameDisplay');
+      if (display) {
+        display.textContent = 'Type to filter...';
+        display.style.color = '#999';
+      }
+      updateHolderAutocomplete();
+    }
+
+    function updateHolderAutocomplete() {
+      var searchInput = document.getElementById('holderNameSearch');
+      var listEl = document.getElementById('holderNameList');
+      if (!searchInput || !listEl) return;
+      var filterText = (searchInput.value || '').toLowerCase();
+      var filtered = holderList.filter(function (h) { return h.toLowerCase().indexOf(filterText) !== -1; });
+      listEl.innerHTML = '';
+      if (filtered.length > 0) {
+        filtered.forEach(function (name) {
+          var item = document.createElement('div');
+          item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;';
+          item.textContent = name;
+          item.addEventListener('mouseenter', function () { item.style.backgroundColor = '#f0f0f0'; });
+          item.addEventListener('mouseleave', function () { item.style.backgroundColor = 'white'; });
+          item.addEventListener('click', function () { selectHolder(name); });
+          listEl.appendChild(item);
+        });
+      } else {
+        var noRes = document.createElement('div');
+        noRes.style.cssText = 'padding:8px 12px;color:#999;font-style:italic;';
+        noRes.textContent = filterText ? 'No matches — press Enter to use "' + filterText + '"' : 'No holders available';
+        listEl.appendChild(noRes);
+      }
+    }
+
+    function selectHolder(name) {
+      selectedHolderName = name;
+      var display = document.getElementById('holderNameDisplay');
+      if (display) { display.textContent = name; display.style.color = '#333'; }
+      var dropdown = document.getElementById('holderNameDropdown');
+      var search = document.getElementById('holderNameSearch');
+      if (dropdown) dropdown.style.display = 'none';
+      if (search) search.value = '';
+    }
+
+    function setupHolderCombobox() {
+      var combobox = document.getElementById('holderNameCombobox');
+      var dropdown = document.getElementById('holderNameDropdown');
+      var search = document.getElementById('holderNameSearch');
+      if (!combobox || !dropdown || !search) return;
+      combobox.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var isOpen = dropdown.style.display === 'block';
+        dropdown.style.display = isOpen ? 'none' : 'block';
+        if (!isOpen) { setTimeout(function () { search.focus(); }, 10); updateHolderAutocomplete(); }
+      });
+      search.addEventListener('input', updateHolderAutocomplete);
+      search.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var ft = (search.value || '').toLowerCase();
+          var matches = holderList.filter(function (h) { return h.toLowerCase().indexOf(ft) !== -1; });
+          selectHolder(matches.length > 0 ? matches[0] : (search.value.trim() || ''));
+        } else if (e.key === 'Escape') {
+          dropdown.style.display = 'none'; search.value = '';
+        }
+      });
+      document.addEventListener('click', function () { dropdown.style.display = 'none'; });
+    }
+
     function populateCompositionSelect(compositions) {
       var sel = document.getElementById('compositionUrl');
       if (!sel) return;
@@ -580,7 +653,7 @@
       } catch (e) {
         console.warn('[repackaging-settlement] TreasuryCache.getManagers failed:', e);
       }
-      populateSelect('holderName', holderList, STATIC_HOLDERS, holderList ? 'treasury-cache' : null);
+      populateHolderCombobox(holderList);
 
       try {
         var res = await fetch(PARTNERS_INVENTORY_URL + '?t=' + Date.now(), { cache: 'no-store' });
@@ -617,7 +690,10 @@
       populateSelect('year', STATIC_YEARS, STATIC_YEARS);
     }
 
-    document.addEventListener('DOMContentLoaded', loadDynamicData);
+    document.addEventListener('DOMContentLoaded', function () {
+      loadDynamicData();
+      setupHolderCombobox();
+    });
     function handleSelectOther(select, customId) {
       var custom = document.getElementById(customId);
       if (select.value === '__custom__') {
@@ -643,7 +719,7 @@
       var resultDiv = document.getElementById('submissionResult');
 
       var compositionUrl = getSelectVal('compositionUrl', 'compositionUrlCustom');
-      var holderName = getSelectVal('holderName', 'holderNameCustom');
+      var holderName = selectedHolderName;
 
       if (!compositionUrl) {
         status.textContent = 'Composition URL is required.';
