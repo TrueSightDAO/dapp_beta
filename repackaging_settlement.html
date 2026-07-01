@@ -129,20 +129,27 @@
       cursor: not-allowed;
     }
     .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin: 0.5rem 0;
+      margin: 0.75rem 0;
     }
     .checkbox-row label {
       margin: 0;
       font-weight: normal;
       font-size: 0.95rem;
+      cursor: pointer;
     }
     .checkbox-row input[type="checkbox"] {
       width: 1.1rem;
       height: 1.1rem;
       cursor: pointer;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    .checkbox-row .check-help {
+      display: block;
+      margin: 0.15rem 0 0 1.5rem;
+      font-size: 0.82rem;
+      color: #777;
+      line-height: 1.4;
     }
     .row2 {
       display: grid;
@@ -361,31 +368,25 @@
     <div class="checkbox-row">
       <input type="checkbox" id="depleteInputs">
       <label for="depleteInputs">Deplete consumed inputs from offchain asset location</label>
-      <div class="help-text" style="margin-left:1.6rem;">Deducts the composition's input quantities from the holder's inventory on the Ledger. Confirm that the ledger URL and holder above are correct before checking.</div>
+      <span class="check-help">Deducts the composition's input quantities from the holder's inventory on the Ledger. Confirm the ledger URL and holder are correct before checking.</span>
     </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="addOutputLocations">
       <label for="addOutputLocations">Add output rows to offchain asset location</label>
-      <div class="help-text" style="margin-left:1.6rem;">Creates new inventory rows for each output defined in the composition. Confirm the composition preview looks correct before checking.</div>
+      <span class="check-help">Creates new inventory rows for each output defined in the composition. Confirm the composition preview looks correct before checking.</span>
     </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="setCurrenciesMetadata" checked>
       <label for="setCurrenciesMetadata">Set Currencies metadata (isSerializable, SKU ID, farm info)</label>
-      <div class="help-text" style="margin-left:1.6rem;">Writes the farm/state/country/year info and SKU IDs from the mapping above into the Currencies tab. Required for products to appear on agroverse.shop.</div>
+      <span class="check-help">Writes the farm/state/country/year info and SKU IDs from the mapping above into the Currencies tab. Required for products to appear on agroverse.shop.</span>
     </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="rebuildInventory">
       <label for="rebuildInventory">Rebuild store inventory snapshot</label>
-      <div class="help-text" style="margin-left:1.6rem;">
-        <strong>Optional final step.</strong> Reads the offchain asset location ledger and publishes a fresh <code>store-inventory.json</code> to<br>
-        <a href="https://github.com/TrueSightDAO/agroverse-inventory/blob/main/store-inventory.json" target="_blank" rel="noopener">agroverse-inventory/store-inventory.json</a>.
-        This JSON is what <a href="https://agroverse.shop" target="_blank" rel="noopener">agroverse.shop</a> reads to show in-stock products.<br>
-        <em>Skip this</em> if you only need the ledger updated but don't need the storefront refreshed yet (e.g. batching multiple settlements).<br>
-        GitHub CDN may take up to 5 minutes to reflect changes on the live site.
-      </div>
+      <span class="check-help">Optional final step. Reads the offchain asset location ledger and publishes a fresh <code>store-inventory.json</code> to <a href="https://github.com/TrueSightDAO/agroverse-inventory/blob/main/store-inventory.json" target="_blank" rel="noopener">agroverse-inventory</a>. This JSON is what <a href="https://agroverse.shop" target="_blank" rel="noopener">agroverse.shop</a> reads to show in-stock products. Skip this if you only need the ledger updated but don't need the storefront refreshed yet (e.g. batching multiple settlements). GitHub CDN may take up to 5 minutes to reflect changes on the live site.</span>
     </div>
 
     <div id="submitButtonHolder">
