@@ -379,7 +379,13 @@
     <div class="checkbox-row">
       <input type="checkbox" id="rebuildInventory">
       <label for="rebuildInventory">Rebuild store inventory snapshot</label>
-      <div class="help-text" style="margin-left:1.6rem;">Regenerates store-inventory.json from the offchain asset location sheet and publishes it to GitHub. This is what makes products visible on agroverse.shop (may take ~5 min for CDN cache).</div>
+      <div class="help-text" style="margin-left:1.6rem;">
+        <strong>Optional final step.</strong> Reads the offchain asset location ledger and publishes a fresh <code>store-inventory.json</code> to<br>
+        <a href="https://github.com/TrueSightDAO/agroverse-inventory/blob/main/store-inventory.json" target="_blank" rel="noopener">agroverse-inventory/store-inventory.json</a>.
+        This JSON is what <a href="https://agroverse.shop" target="_blank" rel="noopener">agroverse.shop</a> reads to show in-stock products.<br>
+        <em>Skip this</em> if you only need the ledger updated but don't need the storefront refreshed yet (e.g. batching multiple settlements).<br>
+        GitHub CDN may take up to 5 minutes to reflect changes on the live site.
+      </div>
     </div>
 
     <div id="submitButtonHolder">
