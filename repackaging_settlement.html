@@ -202,6 +202,20 @@
       transform: none;
       background: none;
     }
+    #compositionPreview h4 {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .comp-section { margin-bottom: 0.75rem; }
+    .comp-section h5 { margin: 0 0 0.35rem; font-size: 0.85rem; color: #555; }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .comp-table th { background: #e8e8e8; padding: 0.3rem 0.4rem; text-align: left; border: 1px solid #ddd; font-weight: 600; }
+    .comp-table td { padding: 0.25rem 0.4rem; border: 1px solid #ddd; }
+    .comp-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.5rem; }
+    .comp-total { font-size: 0.82rem; color: #333; font-weight: 600; margin-top: 0.25rem; }
     #submissionResult {
       display: none;
       margin-top: 1.5rem;
@@ -247,8 +261,18 @@
 
     <div class="form-row">
       <label for="compositionUrl">Composition URL *</label>
-      <input type="url" id="compositionUrl" placeholder="https://raw.githubusercontent.com/.../composition.json" required>
+      <select id="compositionUrl" onchange="handleSelectOther(this, 'compositionUrlCustom'); loadCompositionPreview();" required>
+        <option value="">Loading compositions...</option>
+      </select>
+      <input type="url" id="compositionUrlCustom" style="display:none; margin-top:0.3rem;" placeholder="Paste GitHub raw URL..." class="composition-custom-input">
       <div class="help-text">URL to the composition JSON (GitHub raw).</div>
+    </div>
+    <div id="compositionPreview" style="display:none; margin:0.5rem 0 1rem; padding:0.75rem; background:#f9f9f9; border:1px solid #e0e0e0; border-radius:8px;">
+      <h4 style="margin:0 0 0.5rem; font-size:0.95rem; display:flex; justify-content:space-between; align-items:center;">
+        Composition Preview
+        <button type="button" id="compositionPreviewClose" onclick="document.getElementById('compositionPreview').style.display='none'" style="background:none;border:none;color:#999;cursor:pointer;font-size:1.2rem;padding:0;width:auto;max-width:none;line-height:1;">&times;</button>
+      </h4>
+      <div id="compositionPreviewContent"></div>
     </div>
 
     <div class="form-row">
@@ -399,6 +423,11 @@
 
     var PARTNERS_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/partners-inventory.json';
     var STORE_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/store-inventory.json';
+    var COMPOSITIONS_API_URL = 'https://api.github.com/repos/TrueSightDAO/agroverse-inventory/contents/currency-compositions';
+    var STATIC_COMPOSITIONS = [
+      { name: '67c88267-b41c-4eab-8ef5-d5be48854d65.json', url: 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/currency-compositions/67c88267-b41c-4eab-8ef5-d5be48854d65.json' },
+      { name: 'b08d324b-e2f4-4645-9d25-ee43f9e7d9e0.json', url: 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/currency-compositions/b08d324b-e2f4-4645-9d25-ee43f9e7d9e0.json' }
+    ];
 
     function populateSelect(selectId, items, staticFallback, sourceLabel) {
       var sel = document.getElementById(selectId);
@@ -444,10 +473,87 @@
       return div.innerHTML;
     }
 
+    function populateCompositionSelect(compositions) {
+      var sel = document.getElementById('compositionUrl');
+      if (!sel) return;
+      sel.innerHTML = '';
+      var ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = '-- Select composition --';
+      sel.appendChild(ph);
+      compositions.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.url;
+        opt.textContent = c.name.replace('.json', '');
+        sel.appendChild(opt);
+      });
+      var custom = document.createElement('option');
+      custom.value = '__custom__';
+      custom.textContent = 'Other (paste URL manually)...';
+      sel.appendChild(custom);
+      console.log('[repackaging-settlement] compositions: loaded ' + compositions.length);
+    }
+
+    async function loadCompositionPreview() {
+      var preview = document.getElementById('compositionPreview');
+      var content = document.getElementById('compositionPreviewContent');
+      if (!preview || !content) return;
+      var url = getSelectVal('compositionUrl', 'compositionUrlCustom');
+      if (!url || url === '__custom__') { preview.style.display = 'none'; return; }
+      content.innerHTML = '<span style="color:#999;font-size:0.85rem;">Loading...</span>';
+      preview.style.display = 'block';
+      try {
+        var res = await fetch(url + '?t=' + Date.now());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var comp = await res.json();
+        var html = '';
+        html += '<div class="comp-meta"><strong>Request ID:</strong> ' + escapeHtml(comp.request_id || '—') + ' &middot; <strong>Generated:</strong> ' + escapeHtml(comp.generated_at || '—') + '</div>';
+        if (comp.inputs && comp.inputs.length) {
+          html += '<div class="comp-section"><h5>Inputs (' + comp.inputs.length + ')</h5><table class="comp-table"><thead><tr><th>Currency</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead><tbody>';
+          comp.inputs.forEach(function (inp) {
+            html += '<tr><td>' + escapeHtml(inp.currency || '') + '</td><td>' + (inp.quantity || '') + '</td><td>$' + (inp.unit_cost_usd != null ? inp.unit_cost_usd.toFixed(4) : '') + '</td><td>$' + (inp.extended_cost_usd != null ? inp.extended_cost_usd.toFixed(2) : '') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+        if (comp.outputs && comp.outputs.length) {
+          html += '<div class="comp-section"><h5>Outputs (' + comp.outputs.length + ')</h5><table class="comp-table"><thead><tr><th>Label</th><th>Units</th><th>Weight(g)</th><th>Unit Cost</th><th>Total</th></tr></thead><tbody>';
+          comp.outputs.forEach(function (out) {
+            html += '<tr><td>' + escapeHtml(out.label || '') + '</td><td>' + out.units + ' ' + escapeHtml(out.unit_kind || '') + '</td><td>' + (out.weight_per_unit_grams || '') + '</td><td>$' + (out.unit_cost_usd != null ? out.unit_cost_usd.toFixed(4) : '') + '</td><td>$' + (out.line_total_usd != null ? out.line_total_usd.toFixed(2) : '') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+        if (comp.totals) {
+          html += '<div class="comp-total">Grand Total: $' + (comp.totals.grand_total_usd != null ? comp.totals.grand_total_usd.toFixed(2) : '0.00') + ' &middot; Total Output Weight: ' + (comp.totals.total_output_weight_grams || 0) + 'g &middot; Cost/g: $' + (comp.totals.cost_per_gram_usd != null ? comp.totals.cost_per_gram_usd.toFixed(4) : '0.0000') + '</div>';
+        }
+        content.innerHTML = html;
+      } catch (e) {
+        content.innerHTML = '<span style="color:#dc3545;font-size:0.85rem;">Failed to load: ' + escapeHtml(e.message) + '</span>';
+      }
+    }
+
     async function loadDynamicData() {
       var holderList = null;
       var farmList = null;
       var skuList = null;
+      var compList = STATIC_COMPOSITIONS;
+
+      try {
+        var compRes = await fetch(COMPOSITIONS_API_URL + '?per_page=100', {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (compRes.ok) {
+          var files = await compRes.json();
+          if (Array.isArray(files) && files.length) {
+            compList = files.map(function (f) {
+              return { name: f.name, url: f.download_url };
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[repackaging-settlement] GitHub API compositions fetch failed:', e);
+      }
+      populateCompositionSelect(compList);
+      if (compList !== STATIC_COMPOSITIONS) console.log('[repackaging-settlement] compositions: loaded ' + compList.length + ' from GitHub API');
 
       try {
         if (window.TreasuryCache && typeof TreasuryCache.getManagers === 'function') {
@@ -523,7 +629,7 @@
       var submitBtn = document.getElementById('submitButton');
       var resultDiv = document.getElementById('submissionResult');
 
-      var compositionUrl = document.getElementById('compositionUrl').value.trim();
+      var compositionUrl = getSelectVal('compositionUrl', 'compositionUrlCustom');
       var holderName = getSelectVal('holderName', 'holderNameCustom');
 
       if (!compositionUrl) {
