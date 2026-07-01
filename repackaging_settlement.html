@@ -23,6 +23,7 @@
   <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
   <script src="./routes.js"></script>
   <script src="./menu.js?v=20260628a"></script>
+  <script src="./js/treasury_cache.js"></script>
   <script src="./tdg_balance.js"></script>
 
   <style>
@@ -253,10 +254,7 @@
     <div class="form-row">
       <label for="holderName">Holder Name *</label>
       <select id="holderName" onchange="handleSelectOther(this, 'holderNameCustom')" required>
-        <option value="">-- Select holder --</option>
-        <option value="Kirsten Ritschel">Kirsten Ritschel</option>
-        <option value="Matheus Reis Pereira">Matheus Reis Pereira</option>
-        <option value="__custom__">Other (type manually)...</option>
+        <option value="">Loading holders...</option>
       </select>
       <input type="text" id="holderNameCustom" style="display:none; margin-top:0.3rem;" placeholder="Type holder name">
       <div class="help-text">Who physically holds the inventory.</div>
@@ -266,12 +264,7 @@
       <div class="form-row">
         <label for="farmName">Farm Name</label>
         <select id="farmName" onchange="handleSelectOther(this, 'farmNameCustom')">
-          <option value="">-- Select farm --</option>
-          <option value="Oscar's Farm">Oscar's Farm</option>
-          <option value="Fazenda Santa Ana">Fazenda Santa Ana</option>
-          <option value="Paulo's La do Sitio">Paulo's La do Sitio</option>
-          <option value="Vivi's Jesus Do Deus">Vivi's Jesus Do Deus</option>
-          <option value="__custom__">Other (type manually)...</option>
+          <option value="">Loading farms...</option>
         </select>
         <input type="text" id="farmNameCustom" style="display:none; margin-top:0.3rem;" placeholder="Type farm name">
       </div>
@@ -349,15 +342,8 @@
             <th style="text-align:left; padding:0.4rem; border:1px solid #ddd;">SKU Product ID</th>
           </tr>
         </thead>
-        <tbody>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">81% Chocolate Bar 50g — Oscar's Farm, Bahia</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-81-dark-chocolate-bar-50g-oscar-bahia-2024</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">81% Chocolate Bar 50g — Fazenda Santa Ana, Bahia</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-81-dark-chocolate-bar-50g-fazenda-santa-ana-bahia-2023</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">oscar-bahia-ceremonial-cacao-200g</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — Fazenda Santa Ana</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">ceremonial-cacao-fazenda-santa-ana-2023-200g</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — La do Sitio Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">ceremonial-cacao-paulo-s-la-do-sitio-farm-200g</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Cacao Tea 1lb — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">oscar-bahia-cacao-tea-1lb</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">8oz Cacao Nibs — Amazon Rainforest</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">8-ounce-organic-cacao-nibs</td></tr>
-          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Organic Criollo Beans — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-criollo-cacao-beans-oscar-farm</td></tr>
+        <tbody id="skuRefBody">
+          <tr><td colspan="2" style="padding:0.5rem; text-align:center; color:#999;">Loading SKU catalog...</td></tr>
         </tbody>
       </table>
     </div>
@@ -395,6 +381,124 @@
   </div>
 
   <script>
+    var STATIC_HOLDERS = ['Kirsten Ritschel', 'Matheus Reis Pereira'];
+    var STATIC_FARMS = ["Oscar's Farm", 'Fazenda Santa Ana', "Paulo's La do Sitio", "Vivi's Jesus Do Deus"];
+    var STATIC_STATES = ['Bahia', 'Para', 'Pará', 'California'];
+    var STATIC_COUNTRIES = ['Brazil', 'United States'];
+    var STATIC_YEARS = ['2026', '2025', '2024', '2023', '2022'];
+    var STATIC_SKUS = [
+      { label: "81% Chocolate Bar 50g — Oscar's Farm, Bahia", id: 'organic-81-dark-chocolate-bar-50g-oscar-bahia-2024' },
+      { label: "81% Chocolate Bar 50g — Fazenda Santa Ana, Bahia", id: 'organic-81-dark-chocolate-bar-50g-fazenda-santa-ana-bahia-2023' },
+      { label: "Ceremonial Cacao 200g — Oscar's Farm", id: 'oscar-bahia-ceremonial-cacao-200g' },
+      { label: "Ceremonial Cacao 200g — Fazenda Santa Ana", id: 'ceremonial-cacao-fazenda-santa-ana-2023-200g' },
+      { label: "Ceremonial Cacao 200g — La do Sitio Farm", id: 'ceremonial-cacao-paulo-s-la-do-sitio-farm-200g' },
+      { label: "Cacao Tea 1lb — Oscar's Farm", id: 'oscar-bahia-cacao-tea-1lb' },
+      { label: '8oz Cacao Nibs — Amazon Rainforest', id: '8-ounce-organic-cacao-nibs' },
+      { label: "Organic Criollo Beans — Oscar's Farm", id: 'organic-criollo-cacao-beans-oscar-farm' }
+    ];
+
+    var PARTNERS_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/partners-inventory.json';
+    var STORE_INVENTORY_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/store-inventory.json';
+
+    function populateSelect(selectId, items, staticFallback, sourceLabel) {
+      var sel = document.getElementById(selectId);
+      if (!sel) return;
+      sel.innerHTML = '';
+      var list = (Array.isArray(items) && items.length > 0) ? items : (staticFallback || []);
+      if (sourceLabel) console.log('[repackaging-settlement] ' + selectId + ': loaded ' + list.length + ' from ' + sourceLabel);
+      var ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = '-- Select --';
+      sel.appendChild(ph);
+      list.forEach(function (val) {
+        var opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        sel.appendChild(opt);
+      });
+      var custom = document.createElement('option');
+      custom.value = '__custom__';
+      custom.textContent = 'Other (type manually)...';
+      sel.appendChild(custom);
+    }
+
+    function populateSkuTable(skuList) {
+      var tbody = document.getElementById('skuRefBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (!skuList.length) {
+        tbody.innerHTML = '<tr><td colspan="2" style="padding:0.5rem; text-align:center; color:#999;">No SKUs available</td></tr>';
+        return;
+      }
+      skuList.forEach(function (s) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td style="padding:0.35rem; border:1px solid #ddd;">' + escapeHtml(s.label) + '</td>' +
+          '<td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">' + escapeHtml(s.id) + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    async function loadDynamicData() {
+      var holderList = null;
+      var farmList = null;
+      var skuList = null;
+
+      try {
+        if (window.TreasuryCache && typeof TreasuryCache.getManagers === 'function') {
+          var managers = await TreasuryCache.getManagers();
+          if (managers && managers.length) {
+            holderList = managers.map(function (m) { return m.name; }).filter(Boolean).sort();
+          }
+        }
+      } catch (e) {
+        console.warn('[repackaging-settlement] TreasuryCache.getManagers failed:', e);
+      }
+      populateSelect('holderName', holderList, STATIC_HOLDERS, holderList ? 'treasury-cache' : null);
+
+      try {
+        var res = await fetch(PARTNERS_INVENTORY_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          var data = await res.json();
+          var farmSet = {};
+          Object.values(data.partners || {}).forEach(function (p) {
+            (p.items || []).forEach(function (item) {
+              if (item.farm) farmSet[item.farm.trim()] = true;
+            });
+          });
+          farmList = Object.keys(farmSet).sort();
+        }
+      } catch (e) {
+        console.warn('[repackaging-settlement] partners-inventory fetch failed:', e);
+      }
+      populateSelect('farmName', farmList, STATIC_FARMS, farmList ? 'partners-inventory' : null);
+
+      try {
+        var res2 = await fetch(STORE_INVENTORY_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (res2.ok) {
+          var invData = await res2.json();
+          var inv = invData.inventory || {};
+          skuList = Object.keys(inv).sort().map(function (id) {
+            return { label: id, id: id };
+          });
+        }
+      } catch (e) {
+        console.warn('[repackaging-settlement] store-inventory fetch failed:', e);
+      }
+      populateSkuTable(skuList && skuList.length ? skuList : STATIC_SKUS);
+      if (skuList) console.log('[repackaging-settlement] SKU table: loaded ' + skuList.length + ' from store-inventory');
+
+      populateSelect('state', STATIC_STATES, STATIC_STATES);
+      populateSelect('country', STATIC_COUNTRIES, STATIC_COUNTRIES);
+      populateSelect('year', STATIC_YEARS, STATIC_YEARS);
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDynamicData);
     function handleSelectOther(select, customId) {
       var custom = document.getElementById(customId);
       if (select.value === '__custom__') {
