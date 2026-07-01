@@ -264,11 +264,17 @@
     </div>
 
     <div class="form-row">
-      <label for="holderName">Holder Name *</label>
-      <select id="holderName" onchange="handleSelectOther(this, 'holderNameCustom')" required>
-        <option value="">Loading holders...</option>
-      </select>
-      <input type="text" id="holderNameCustom" style="display:none; margin-top:0.3rem;" placeholder="Type holder name">
+      <label for="holderNameCombobox">Holder Name *</label>
+      <div style="position: relative;">
+        <div id="holderNameCombobox" style="position: relative; cursor: pointer; padding: 0.8rem; font-size: 1rem; width: 100%; box-sizing: border-box; border: 1px solid #ccc; background-color: white; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span id="holderNameDisplay" style="color: #999;">Loading holders...</span>
+          <span style="color: #666;">▼</span>
+        </div>
+        <div id="holderNameDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 0 0 8px 8px;">
+          <input type="text" id="holderNameSearch" placeholder="Type to filter..." autocomplete="off" style="width: 100%; padding: 0.8rem; font-size: 1rem; box-sizing: border-box; border: none; border-bottom: 1px solid #eee; outline: none;">
+          <div id="holderNameList" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+      </div>
       <div class="help-text">Who physically holds the inventory.</div>
     </div>
 
@@ -442,7 +448,7 @@
       var html = '';
       outputs.forEach(function (out, i) {
         var labelShort = (out.label || '').substring(0, 60);
-        html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">';
+        html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem;padding:0.35rem 0;flex-wrap:wrap;">';
         html += '<span style="font-size:0.82rem;color:#555;min-width:0;flex:1;" title="' + escapeHtml(out.label || '') + '">' + escapeHtml(labelShort) + (out.label && out.label.length > 60 ? '…' : '') + '</span>';
         html += '<span style="color:#999;font-size:0.8rem;">→</span>';
         html += '<select class="sku-mapping-select" data-output-index="' + i + '" style="width:auto;min-width:220px;font-size:0.82rem;padding:0.35rem 0.5rem;" onchange="buildSkuMapping()">';
