@@ -359,23 +359,27 @@
     </div>
 
     <div class="checkbox-row">
-      <input type="checkbox" id="depleteInputs" checked>
+      <input type="checkbox" id="depleteInputs">
       <label for="depleteInputs">Deplete consumed inputs from offchain asset location</label>
+      <div class="help-text" style="margin-left:1.6rem;">Deducts the composition's input quantities from the holder's inventory on the Ledger. Confirm that the ledger URL and holder above are correct before checking.</div>
     </div>
 
     <div class="checkbox-row">
-      <input type="checkbox" id="addOutputLocations" checked>
+      <input type="checkbox" id="addOutputLocations">
       <label for="addOutputLocations">Add output rows to offchain asset location</label>
+      <div class="help-text" style="margin-left:1.6rem;">Creates new inventory rows for each output defined in the composition. Confirm the composition preview looks correct before checking.</div>
     </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="setCurrenciesMetadata" checked>
       <label for="setCurrenciesMetadata">Set Currencies metadata (isSerializable, SKU ID, farm info)</label>
+      <div class="help-text" style="margin-left:1.6rem;">Writes the farm/state/country/year info and SKU IDs from the mapping above into the Currencies tab. Required for products to appear on agroverse.shop.</div>
     </div>
 
     <div class="checkbox-row">
       <input type="checkbox" id="rebuildInventory">
       <label for="rebuildInventory">Rebuild store inventory snapshot</label>
+      <div class="help-text" style="margin-left:1.6rem;">Regenerates store-inventory.json from the offchain asset location sheet and publishes it to GitHub. This is what makes products visible on agroverse.shop (may take ~5 min for CDN cache).</div>
     </div>
 
     <div id="submitButtonHolder">
