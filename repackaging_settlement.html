@@ -97,7 +97,7 @@
       font-weight: bold;
       font-size: 1rem;
     }
-    input[type="text"], input[type="url"], textarea {
+    input[type="text"], input[type="url"], textarea, select {
       width: 100%;
       padding: 0.8rem;
       font-size: 1rem;
@@ -105,7 +105,15 @@
       border-radius: 8px;
       border: 1px solid #ccc;
     }
-    input[type="text"]:focus, input[type="url"]:focus, textarea:focus {
+    select {
+      appearance: none;
+      background: white url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%23666' d='M6 8L1 3h10z'/%3e%3c/svg%3e") no-repeat right 0.8rem center;
+      padding-right: 2rem;
+      cursor: pointer;
+      color: #333;
+    }
+    select.has-value { color: #333; }
+    input[type="text"]:focus, input[type="url"]:focus, textarea:focus, select:focus {
       outline: none;
       border-color: #007bff;
       box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
@@ -176,6 +184,23 @@
       color: #666;
       margin-top: 0.25rem;
     }
+    .show-table-btn {
+      background: none;
+      border: none;
+      color: #007bff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0;
+      text-decoration: underline;
+      width: auto;
+      max-width: none;
+    }
+    .show-table-btn:hover {
+      color: #0056b3;
+      text-decoration: none;
+      transform: none;
+      background: none;
+    }
     #submissionResult {
       display: none;
       margin-top: 1.5rem;
@@ -227,47 +252,114 @@
 
     <div class="form-row">
       <label for="holderName">Holder Name *</label>
-      <input type="text" id="holderName" placeholder="e.g. Kirsten Ritschel" required>
+      <select id="holderName" onchange="handleSelectOther(this, 'holderNameCustom')" required>
+        <option value="">-- Select holder --</option>
+        <option value="Kirsten Ritschel">Kirsten Ritschel</option>
+        <option value="Matheus Reis Pereira">Matheus Reis Pereira</option>
+        <option value="__custom__">Other (type manually)...</option>
+      </select>
+      <input type="text" id="holderNameCustom" style="display:none; margin-top:0.3rem;" placeholder="Type holder name">
       <div class="help-text">Who physically holds the inventory.</div>
     </div>
 
     <div class="row2">
       <div class="form-row">
         <label for="farmName">Farm Name</label>
-        <input type="text" id="farmName" placeholder="e.g. Fazenda Santa Clara">
+        <select id="farmName" onchange="handleSelectOther(this, 'farmNameCustom')">
+          <option value="">-- Select farm --</option>
+          <option value="Oscar's Farm">Oscar's Farm</option>
+          <option value="Fazenda Santa Ana">Fazenda Santa Ana</option>
+          <option value="Paulo's La do Sitio">Paulo's La do Sitio</option>
+          <option value="Vivi's Jesus Do Deus">Vivi's Jesus Do Deus</option>
+          <option value="__custom__">Other (type manually)...</option>
+        </select>
+        <input type="text" id="farmNameCustom" style="display:none; margin-top:0.3rem;" placeholder="Type farm name">
       </div>
       <div class="form-row">
         <label for="state">State</label>
-        <input type="text" id="state" placeholder="e.g. Bahia">
+        <select id="state" onchange="handleSelectOther(this, 'stateCustom')">
+          <option value="">-- Select state --</option>
+          <option value="Bahia">Bahia</option>
+          <option value="Para">Para</option>
+          <option value="Pará">Pará</option>
+          <option value="California">California</option>
+          <option value="__custom__">Other (type manually)...</option>
+        </select>
+        <input type="text" id="stateCustom" style="display:none; margin-top:0.3rem;" placeholder="Type state">
       </div>
     </div>
 
     <div class="row2">
       <div class="form-row">
         <label for="country">Country</label>
-        <input type="text" id="country" placeholder="e.g. Brazil">
+        <select id="country" onchange="handleSelectOther(this, 'countryCustom')">
+          <option value="">-- Select country --</option>
+          <option value="Brazil">Brazil</option>
+          <option value="United States">United States</option>
+          <option value="__custom__">Other (type manually)...</option>
+        </select>
+        <input type="text" id="countryCustom" style="display:none; margin-top:0.3rem;" placeholder="Type country">
       </div>
       <div class="form-row">
         <label for="year">Year</label>
-        <input type="text" id="year" placeholder="e.g. 2026" maxlength="4">
+        <select id="year" onchange="handleSelectOther(this, 'yearCustom')">
+          <option value="">-- Select year --</option>
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+          <option value="2022">2022</option>
+          <option value="__custom__">Other (type manually)...</option>
+        </select>
+        <input type="text" id="yearCustom" style="display:none; margin-top:0.3rem;" placeholder="Type year" maxlength="4">
       </div>
     </div>
 
     <div class="row2">
       <div class="form-row">
         <label for="landingPage">Landing Page</label>
-        <input type="url" id="landingPage" placeholder="https://agroverse.com/shop">
+        <input type="url" id="landingPage" list="landingPages" placeholder="https://agroverse.shop/shipments/agl4">
+        <datalist id="landingPages">
+          <option value="https://agroverse.shop/shipments/agl4">
+          <option value="https://agroverse.shop/shipments/agl8">
+          <option value="https://agroverse.shop/farms/oscar-bahia/index.html">
+          <option value="https://agroverse.shop/farms/paulo-la-do-sitio-para/index.html">
+          <option value="https://agroverse.shop/farms/vivi-jesus-do-deus-itacare/index.html">
+        </datalist>
       </div>
       <div class="form-row">
         <label for="ledgerUrl">Ledger URL</label>
-        <input type="url" id="ledgerUrl" placeholder="https://ledger.truesight.me">
+        <input type="url" id="ledgerUrl" list="ledgerUrls" placeholder="https://docs.google.com/spreadsheets/d/1GE7PUq-UT6x2rBN-Q2ksogbWpgyuh2SaxJyG_uEK6PU/edit">
+        <datalist id="ledgerUrls">
+          <option value="https://docs.google.com/spreadsheets/d/1GE7PUq-UT6x2rBN-Q2ksogbWpgyuh2SaxJyG_uEK6PU/edit">
+          <option value="https://agroverse.shop/agl4">
+          <option value="https://agroverse.shop/agl8">
+        </datalist>
       </div>
     </div>
 
     <div class="form-row">
       <label for="skuMapping">SKU Mapping (JSON)</label>
       <textarea id="skuMapping" placeholder='{"Ceremonial Cacao Kraft Pouch": "ceremonial-cacao-kraft-pouch-200g"}'></textarea>
-      <div class="help-text">JSON object mapping output label substrings to SKU Product IDs.</div>
+      <div class="help-text">JSON object mapping output label substrings to SKU Product IDs. <button type="button" class="show-table-btn" id="toggleSkuTable" onclick="document.getElementById('skuRefTable').style.display = document.getElementById('skuRefTable').style.display === 'none' ? 'block' : 'none'; this.textContent = this.textContent.startsWith('Show') ? 'Hide known SKU IDs' : 'Show known SKU IDs';">Show known SKU IDs</button></div>
+      <table id="skuRefTable" style="display:none; width:100%; border-collapse:collapse; margin-top:0.5rem; font-size:0.85rem;">
+        <thead>
+          <tr style="background:#f0f0f0;">
+            <th style="text-align:left; padding:0.4rem; border:1px solid #ddd;">Label Substring Match</th>
+            <th style="text-align:left; padding:0.4rem; border:1px solid #ddd;">SKU Product ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">81% Chocolate Bar 50g — Oscar's Farm, Bahia</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-81-dark-chocolate-bar-50g-oscar-bahia-2024</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">81% Chocolate Bar 50g — Fazenda Santa Ana, Bahia</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-81-dark-chocolate-bar-50g-fazenda-santa-ana-bahia-2023</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">oscar-bahia-ceremonial-cacao-200g</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — Fazenda Santa Ana</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">ceremonial-cacao-fazenda-santa-ana-2023-200g</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Ceremonial Cacao 200g — La do Sitio Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">ceremonial-cacao-paulo-s-la-do-sitio-farm-200g</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Cacao Tea 1lb — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">oscar-bahia-cacao-tea-1lb</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">8oz Cacao Nibs — Amazon Rainforest</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">8-ounce-organic-cacao-nibs</td></tr>
+          <tr><td style="padding:0.35rem; border:1px solid #ddd;">Organic Criollo Beans — Oscar's Farm</td><td style="padding:0.35rem; border:1px solid #ddd; font-family:monospace; font-size:0.8rem;">organic-criollo-cacao-beans-oscar-farm</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="checkbox-row">
@@ -303,13 +395,32 @@
   </div>
 
   <script>
-    async function onSubmit() {
-      const status = document.getElementById('status');
-      const submitBtn = document.getElementById('submitButton');
-      const resultDiv = document.getElementById('submissionResult');
+    function handleSelectOther(select, customId) {
+      var custom = document.getElementById(customId);
+      if (select.value === '__custom__') {
+        custom.style.display = 'block';
+        custom.focus();
+      } else {
+        custom.style.display = 'none';
+        custom.value = '';
+      }
+    }
 
-      const compositionUrl = document.getElementById('compositionUrl').value.trim();
-      const holderName = document.getElementById('holderName').value.trim();
+    function getSelectVal(selectId, customId) {
+      var select = document.getElementById(selectId);
+      if (select.value === '__custom__') {
+        return document.getElementById(customId).value.trim();
+      }
+      return select.value;
+    }
+
+    async function onSubmit() {
+      var status = document.getElementById('status');
+      var submitBtn = document.getElementById('submitButton');
+      var resultDiv = document.getElementById('submissionResult');
+
+      var compositionUrl = document.getElementById('compositionUrl').value.trim();
+      var holderName = getSelectVal('holderName', 'holderNameCustom');
 
       if (!compositionUrl) {
         status.textContent = 'Composition URL is required.';
@@ -322,8 +433,8 @@
         return;
       }
 
-      const publicKey = localStorage.getItem('publicKey');
-      const privateKey = localStorage.getItem('privateKey');
+      var publicKey = localStorage.getItem('publicKey');
+      var privateKey = localStorage.getItem('privateKey');
       if (!publicKey || !privateKey) {
         status.textContent = 'No digital signature found. Redirecting to create one...';
         status.className = 'error';
@@ -343,16 +454,16 @@
       lines.push('- Composition URL: ' + compositionUrl);
       lines.push('- Holder Name: ' + holderName);
 
-      var farmName = document.getElementById('farmName').value.trim();
+      var farmName = getSelectVal('farmName', 'farmNameCustom');
       if (farmName) lines.push('- Farm Name: ' + farmName);
 
-      var state = document.getElementById('state').value.trim();
+      var state = getSelectVal('state', 'stateCustom');
       if (state) lines.push('- State: ' + state);
 
-      var country = document.getElementById('country').value.trim();
+      var country = getSelectVal('country', 'countryCustom');
       if (country) lines.push('- Country: ' + country);
 
-      var year = document.getElementById('year').value.trim();
+      var year = getSelectVal('year', 'yearCustom');
       if (year) lines.push('- Year: ' + year);
 
       var landingPage = document.getElementById('landingPage').value.trim();
