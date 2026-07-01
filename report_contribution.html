@@ -772,13 +772,26 @@
 
         async function loadContributors() {
             try {
-                const res = await fetch(`${DAO_FORMS_ENDPOINT}?recipients=true`);
-                const data = await res.json();
                 let contributors = [];
-                if (data.status === 'success' && data.data && data.data.contributors) {
-                    contributors = data.data.contributors;
-                } else if (Array.isArray(data)) {
-                    contributors = data;
+                // Cache-first: dao_members.json (~50–150ms via CDN) vs GAS (1–3s)
+                try {
+                    const snapshot = await window.DaoMembersCache.fetchSnapshot();
+                    if (snapshot && Array.isArray(snapshot.contributors)) {
+                        contributors = snapshot.contributors;
+                        console.log('[contributors] loaded ' + contributors.length + ' from dao_members.json cache');
+                    }
+                } catch (cacheErr) {
+                    console.warn('[contributors] dao_members.json cache miss, falling back to GAS:', cacheErr);
+                }
+                if (!contributors.length) {
+                    const res = await fetch(DAO_FORMS_ENDPOINT + '?recipients=true');
+                    const data = await res.json();
+                    if (data.status === 'success' && data.data && data.data.contributors) {
+                        contributors = data.data.contributors;
+                    } else if (Array.isArray(data)) {
+                        contributors = data;
+                    }
+                    console.log('[contributors] loaded ' + contributors.length + ' from GAS endpoint');
                 }
                 allContributors = contributors
                     .filter(c => c.name && c.name.trim())
@@ -787,7 +800,7 @@
                         name: c.name.trim()
                     }));
                 updateContributorAutocomplete();
-                
+
                 // Auto-select current contributor if available
                 if (contributorName) {
                     const currentContributor = allContributors.find(c => c.name === contributorName);
