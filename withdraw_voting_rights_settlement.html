@@ -318,12 +318,19 @@
       return btoa(binary);
     }
 
+    function base64ToArrayBuffer(base64) {
+      var binary = atob(base64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+
     function signRequestText(text) {
       var privateKey = localStorage.getItem('privateKey');
       if (!privateKey) return Promise.reject(new Error('No private key found'));
-      var binaryKey = Uint8Array.from(atob(privateKey), function (c) { return c.charCodeAt(0); });
       return window.crypto.subtle.importKey(
-        'pkcs8', binaryKey, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+        'pkcs8', base64ToArrayBuffer(privateKey),
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
       ).then(function (key) {
         return window.crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(text));
       }).then(function (sig) { return arrayBufferToBase64(sig); });
@@ -454,7 +461,10 @@
         formData.append('text', full);
         if (uploadedFile) formData.append('attachment', uploadedFile);
 
-        var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, 30000);
+        var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData, signal: controller.signal });
+        clearTimeout(timeout);
         var respText = await resp.text();
         document.getElementById('responsePre').textContent = respText;
 
