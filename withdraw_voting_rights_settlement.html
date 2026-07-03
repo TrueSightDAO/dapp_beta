@@ -98,11 +98,36 @@
     @media (max-width: 640px) { .row2 { grid-template-columns: 1fr; } }
     .tdg-display { font-size: 1.1rem; font-weight: bold; color: #1565c0; }
     #submissionResult { display: none; margin-top: 1.5rem; }
-    #submissionResult h3 { font-size: 1.1rem; color: #333; margin: 1rem 0 0.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
     #submissionResult pre {
-      background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;
-      padding: 0.75rem; font-size: 0.85rem; white-space: pre-wrap;
-      word-break: break-word; overflow-x: auto; max-height: 400px; overflow-y: auto;
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+    #txHashDisplay {
+      margin: 1rem 0; padding: 0.8rem; background: #f0f8ff;
+      border: 1px solid #b8daff; border-radius: 5px; word-break: break-all;
+    }
+    .tx-label { font-weight: bold; font-size: 0.85rem; color: #555; }
+    .tx-value { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; color: #333; }
+    #settlementSummary {
+      margin-top: 1.2rem; padding: 1rem;
+      background: #f8fff8; border: 2px solid #28a745; border-radius: 8px;
+    }
+    #settlementSummary h3 { color: #28a745; margin: 0 0 0.8rem; }
+    .summary-row { display: flex; margin: 0.4rem 0; font-size: 0.95rem; }
+    .summary-label { font-weight: bold; min-width: 180px; color: #555; }
+    .summary-value { color: #333; flex: 1; }
+    @media print {
+      body { background: white; }
+      .container { box-shadow: none; }
+      #navDropdown, #tdgBalanceBadge, #backLink, button, #submitButtonHolder, #gatedContent > .form-row,
+      #gatedContent > .info-box, #gatedContent > .radio-row, #paste-area, #proof-file-info, #previewBox { display: none; }
+      #submissionResult, #settlementSummary, #txHashDisplay { display: block !important; }
+      #submissionResult pre { max-height: none; overflow: visible; }
+      #settlementSummary { border: 2px solid #000 !important; background: #fff !important; }
+      #txHashDisplay { border: 1px solid #000 !important; background: #fff !important; }
     }
   </style>
 </head>
@@ -219,10 +244,55 @@
       </div>
 
       <div id="submissionResult">
-        <h3>Transaction request</h3>
+        <h3>Transaction request (signed payload sent to Edgar)</h3>
         <pre id="requestPre"></pre>
         <h3>Edgar response</h3>
         <pre id="responsePre"></pre>
+      </div>
+
+      <div id="txHashDisplay">
+        <span class="tx-label">Transaction Hash (Request ID):</span><br>
+        <span class="tx-value" id="txHashValue"></span>
+      </div>
+
+      <div id="settlementSummary">
+        <h3>Voting Rights Cash-Out Settlement</h3>
+        <div class="summary-row">
+          <span class="summary-label">Contributor:</span>
+          <span class="summary-value" id="summaryContributor"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">TDG Deducted:</span>
+          <span class="summary-value" id="summaryTdg"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">USD Paid:</span>
+          <span class="summary-value" id="summaryUsd"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Settlement Method:</span>
+          <span class="summary-value" id="summaryMethod"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Settlement Reference:</span>
+          <span class="summary-value" id="summaryRef"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Settlement Date:</span>
+          <span class="summary-value" id="summaryDate"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Governor:</span>
+          <span class="summary-value" id="summaryGovernor"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Transaction Hash:</span>
+          <span class="summary-value" id="summaryTxHash"></span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Submission Timestamp:</span>
+          <span class="summary-value" id="summaryTimestamp"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -390,7 +460,20 @@
 
         if (resp.ok) {
           document.getElementById('submissionResult').style.display = '';
+          document.getElementById('txHashDisplay').style.display = '';
+          document.getElementById('txHashValue').textContent = sig;
+          document.getElementById('settlementSummary').style.display = '';
+          document.getElementById('summaryContributor').textContent = selectedContributor;
+          document.getElementById('summaryTdg').textContent = '-' + Number(tdg).toLocaleString() + ' TDG';
+          document.getElementById('summaryUsd').textContent = '-$' + Number(usd).toFixed(2);
+          document.getElementById('summaryMethod').textContent = document.getElementById('fldPaymentMethod').value || '-';
+          document.getElementById('summaryRef').textContent = document.getElementById('fldPaymentRef').value || '-';
+          document.getElementById('summaryDate').textContent = document.getElementById('fldDate').value;
+          document.getElementById('summaryGovernor').textContent = governorName;
+          document.getElementById('summaryTxHash').textContent = sig.substring(0, 64) + '...';
+          document.getElementById('summaryTimestamp').textContent = new Date().toISOString();
           setStatus('Settlement submitted successfully!', 'status');
+          document.getElementById('submitButton').textContent = 'Settle Another';
         } else {
           setStatus('Edgar returned HTTP ' + resp.status, 'error');
           document.getElementById('submitButton').disabled = false;
