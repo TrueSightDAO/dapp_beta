@@ -178,8 +178,8 @@
         <input type="text" id="fldPaymentRef" placeholder="e.g. PayLah transaction ID">
       </div>
       <div class="form-row">
-        <label for="fldDate">Settlement Date * (YYYYMMDD)</label>
-        <input type="text" id="fldDate" placeholder="YYYYMMDD" maxlength="8">
+        <label for="fldDate">Settlement Date *</label>
+        <input type="date" id="fldDate">
       </div>
       <div class="form-row">
         <label for="fldGovernor">Governor</label>
@@ -224,6 +224,7 @@
   <script>
     var EDGAR_SUBMIT = Routes.edgar.submit;
     var API_ENDPOINT = Routes.gas.assetVerify;
+    var DAO_FORMS_ENDPOINT = Routes.gas.daoForms;
     var BUY_BACK_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/buy-back-reserve.json';
     var governorName = '';
     var valuePerRight = 0;
@@ -307,7 +308,7 @@
       lines.push('- Amount Paid (USD): ' + Number(document.getElementById('fldUsd').value).toFixed(2));
       lines.push('- Payment Reference: ' + (document.getElementById('fldPaymentRef').value || 'N/A'));
       lines.push('- Payment Method Used: ' + (document.getElementById('fldPaymentMethod').value || 'N/A'));
-      lines.push('- Settlement Date: ' + document.getElementById('fldDate').value);
+      lines.push('- Settlement Date: ' + document.getElementById('fldDate').value.replace(/-/g, ''));
       lines.push('- Governor: ' + governorName);
       lines.push('- Notes: ' + (document.getElementById('fldNotes').value || 'N/A'));
       if (uploadedFile) lines.push('- Proof Attachment URL: (attached)');
@@ -325,7 +326,7 @@
       if (!contrib) { setStatus('Contributor name is required', 'error'); return; }
       if (!tdg || Number(tdg) <= 0) { setStatus('Valid TDG amount is required', 'error'); return; }
       if (!usd || Number(usd) <= 0) { setStatus('Valid USD amount is required', 'error'); return; }
-      if (!date || !/^\d{8}$/.test(date)) { setStatus('Settlement date required (YYYYMMDD)', 'error'); return; }
+      if (!date || date.length !== 10) { setStatus('Settlement date required', 'error'); return; }
 
       setStatus('Signing settlement...', 'loading');
       document.getElementById('submitButton').disabled = true;
@@ -432,24 +433,47 @@
     }
 
     async function populateContributorsDropDown() {
+      var list = [];
       try {
         var snapshot = await window.DaoMembersCache.fetchSnapshot();
-        var list = (snapshot && snapshot.contributors) || [];
-        var dd = document.getElementById('fldContributor');
-        allContributors = list
-          .filter(function (c) { return c.name && c.name.trim(); })
-          .map(function (c) {
-            contributorMap[c.name] = c;
-            return c.name;
-          })
-          .sort(function (a, b) { return a.localeCompare(b); });
-
-        dd.innerHTML = '<option value="">-- Select contributor --</option>';
-        for (var i = 0; i < allContributors.length; i++) {
-          dd.innerHTML += '<option value="' + allContributors[i] + '">' + allContributors[i] + '</option>';
+        var contributors = (snapshot && snapshot.contributors) || [];
+        if (contributors.length > 0) {
+          list = contributors;
         }
-      } catch (_) {
+      } catch (_) {}
+
+      // GAS fallback for full contributor list (not just key-registered)
+      if (list.length === 0) {
+        try {
+          var res = await fetch(DAO_FORMS_ENDPOINT + '?recipients=true');
+          var data = await res.json();
+          if (Array.isArray(data)) {
+            list = data.map(function (c) { return { name: c.name, voting_rights: 0 }; });
+          } else if (data.status === 'success' && data.data && data.data.contributors) {
+            list = data.data.contributors.map(function (c) { return { name: c.name || c, voting_rights: 0 }; });
+          }
+        } catch (_) {}
+      }
+
+      if (list.length === 0) {
         document.getElementById('contributorHelp').textContent = 'Could not load contributors.';
+        return;
+      }
+
+      contributorMap = {};
+      allContributors = [];
+      for (var i = 0; i < list.length; i++) {
+        var name = (list[i].name || '').trim();
+        if (!name) continue;
+        contributorMap[name] = list[i];
+        allContributors.push(name);
+      }
+      allContributors.sort(function (a, b) { return a.localeCompare(b); });
+
+      var dd = document.getElementById('fldContributor');
+      dd.innerHTML = '<option value="">-- Select contributor --</option>';
+      for (var i = 0; i < allContributors.length; i++) {
+        dd.innerHTML += '<option value="' + allContributors[i] + '">' + allContributors[i] + '</option>';
       }
     }
 
@@ -490,8 +514,7 @@
         governorName = c.name || '';
         document.getElementById('fldGovernor').value = governorName;
         var today = new Date();
-        document.getElementById('fldDate').value = '' + today.getFullYear() +
-          String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+        document.getElementById('fldDate').value = today.toISOString().split('T')[0];
 
         statusEl.textContent = 'Welcome, ' + governorName + '!';
         statusEl.className = 'status fade-in';
