@@ -126,7 +126,8 @@
       <div class="info-box reserve" id="reserveBox">
         <span class="label">Accumulated Buy-Back Reserve:</span>
         <span class="value" id="reserveAmount">Loading...</span>
-        <div class="help-text">Total USD provisions set aside for buy-back / voting rights cash out.</div>
+        <span style="margin-left:1rem;color:#555;">NAV per TDG: $<span id="navPerTdg">-</span></span>
+        <div class="help-text">Total USD provisions set aside for voting rights cash out.</div>
       </div>
 
       <div class="info-box" id="holdingsBox" style="display:none;">
@@ -135,8 +136,9 @@
       </div>
 
       <div class="form-row">
-        <label for="fldContributor">Contributor Name *</label>
-        <select id="fldContributor" onchange="onContributorSelected()">
+        <label for="contributorSearch">Contributor Name *</label>
+        <input type="text" id="contributorSearch" placeholder="Type to filter..." autocomplete="off" oninput="filterContributors()" style="margin-bottom:0.3rem;">
+        <select id="fldContributor" onchange="onContributorSelected()" size="6" style="height:auto;">
           <option value="">-- Select contributor --</option>
         </select>
         <div class="help-text" id="contributorHelp"></div>
@@ -158,7 +160,7 @@
       </div>
 
       <div class="form-row">
-        <label for="fldPaymentMethod">Payment Method Used</label>
+        <label for="fldPaymentMethod">Settlement Method</label>
         <select id="fldPaymentMethod">
           <option value="">-- Select --</option>
           <option value="PIX">PIX - Brazil</option>
@@ -174,7 +176,7 @@
         </select>
       </div>
       <div class="form-row">
-        <label for="fldPaymentRef">Payment Reference</label>
+        <label for="fldPaymentRef">Settlement Reference</label>
         <input type="text" id="fldPaymentRef" placeholder="e.g. PayLah transaction ID">
       </div>
       <div class="form-row">
@@ -231,6 +233,17 @@
     var contributorMap = {};
     var uploadedFile = null;
     var allContributors = [];
+
+    function filterContributors() {
+      var q = (document.getElementById('contributorSearch').value || '').toLowerCase();
+      var dd = document.getElementById('fldContributor');
+      dd.innerHTML = '<option value="">-- Select contributor --</option>';
+      for (var i = 0; i < allContributors.length; i++) {
+        if (!q || allContributors[i].toLowerCase().indexOf(q) !== -1) {
+          dd.innerHTML += '<option value="' + allContributors[i] + '">' + allContributors[i] + '</option>';
+        }
+      }
+    }
 
     function arrayBufferToBase64(buffer) {
       var binary = '';
@@ -306,8 +319,8 @@
       lines.push('- Contributor: ' + document.getElementById('fldContributor').value);
       lines.push('- Voting Rights Withdrawn (TDG): ' + document.getElementById('fldTdg').value);
       lines.push('- Amount Paid (USD): ' + Number(document.getElementById('fldUsd').value).toFixed(2));
-      lines.push('- Payment Reference: ' + (document.getElementById('fldPaymentRef').value || 'N/A'));
-      lines.push('- Payment Method Used: ' + (document.getElementById('fldPaymentMethod').value || 'N/A'));
+      lines.push('- Settlement Reference: ' + (document.getElementById('fldPaymentRef').value || 'N/A'));
+      lines.push('- Settlement Method: ' + (document.getElementById('fldPaymentMethod').value || 'N/A'));
       lines.push('- Settlement Date: ' + document.getElementById('fldDate').value.replace(/-/g, ''));
       lines.push('- Governor: ' + governorName);
       lines.push('- Notes: ' + (document.getElementById('fldNotes').value || 'N/A'));
@@ -466,11 +479,7 @@
         return;
       }
 
-      var dd = document.getElementById('fldContributor');
-      dd.innerHTML = '<option value="">-- Select contributor --</option>';
-      for (var i = 0; i < allContributors.length; i++) {
-        dd.innerHTML += '<option value="' + allContributors[i] + '">' + allContributors[i] + '</option>';
-      }
+      filterContributors();
     }
 
     async function verifyGate() {
@@ -498,6 +507,7 @@
 
         valuePerRight = parseFloat(data.asset_per_circulated_voting_right) || 0;
         document.getElementById('valuePerTdg').textContent = valuePerRight.toFixed(5);
+        document.getElementById('navPerTdg').textContent = valuePerRight.toFixed(5);
 
         var cacheResult = await window.DaoMembersCache.findByPublicKey(publicKey);
         var c = cacheResult.contributor;
