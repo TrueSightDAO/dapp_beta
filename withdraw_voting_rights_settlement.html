@@ -526,7 +526,15 @@
         for (var i = 0; i < contributors.length; i++) {
           var c = contributors[i];
           var keys = c.public_keys || [];
-          if (keys.indexOf(publicKey) !== -1 || keys.indexOf(publicKey.substring(0, 64)) !== -1) {
+          var keyMatch = false;
+          for (var j = 0; j < keys.length; j++) {
+            var k = typeof keys[j] === 'string' ? keys[j] : (keys[j].public_key || '');
+            if (k && (k === publicKey || k.substring(0, 64) === publicKey.substring(0, 64))) {
+              keyMatch = true;
+              break;
+            }
+          }
+          if (keyMatch) {
             var roles = c.roles || [];
             if (roles.indexOf('governor') !== -1) {
               governorName = c.name || '';
