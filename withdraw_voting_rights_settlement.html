@@ -6,20 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Voting Rights Cash-Out Settlement - TrueSight DAO</title>
 
-  <!-- Open Graph tags for WhatsApp and social media previews -->
   <meta property="og:title" content="Voting Rights Cash-Out Settlement - TrueSight DAO">
   <meta property="og:description" content="Governor-signed settlement of voting rights cash-out.">
   <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
   <meta property="og:url" content="https://truesightdao.github.io/dapp/withdraw_voting_rights_settlement.html">
   <meta property="og:type" content="website">
 
-  <!-- Twitter Card tags -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Voting Rights Cash-Out Settlement - TrueSight DAO">
   <meta name="twitter:description" content="Governor-signed settlement of voting rights cash-out.">
   <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
   <script src="./routes.js"></script>
   <script src="./menu.js?v=20260702b"></script>
@@ -28,191 +25,73 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 1rem;
-      padding: 1rem;
-      min-height: 100vh;
-      box-sizing: border-box;
+      display: flex; flex-direction: column; align-items: center;
+      margin: 1rem; padding: 1rem;
+      min-height: 100vh; box-sizing: border-box;
       background-color: #f5f5f5;
     }
     .container {
-      max-width: 800px;
-      width: 100%;
-      background-color: white;
-      padding: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 800px; width: 100%;
+      background-color: white; padding: 1rem;
+      border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    h1 {
-      font-size: 1.8rem;
-      color: #333;
-      margin: 0.5rem 0 1rem;
-      text-align: center;
-    }
-    #description {
-      font-style: italic;
-      color: #555;
-      line-height: 1.5;
-      margin: 0.8rem 0;
-      font-size: 1rem;
-      text-align: center;
-    }
-    #backLink {
-      top: 1rem;
-      left: 1rem;
-      font-size: 1rem;
-      color: #007bff;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      transition: color 0.2s;
-    }
-    #backLink:hover {
-      color: #0056b3;
-      text-decoration: underline;
-    }
-    #backLink::before {
-      content: "\2190";
-      font-size: 1.2rem;
-    }
-    #status {
-      margin: 1rem 0;
-      font-weight: bold;
-      min-height: 24px;
-      font-size: 1rem;
-      text-align: center;
-    }
+    h1 { font-size: 1.8rem; color: #333; margin: 0.5rem 0 1rem; text-align: center; }
+    #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; text-align: center; }
+    #backLink { top: 1rem; left: 1rem; font-size: 1rem; color: #007bff; text-decoration: none; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
+    #backLink:hover { color: #0056b3; text-decoration: underline; }
+    #backLink::before { content: "\2190"; font-size: 1.2rem; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; text-align: center; }
     .status { color: #28a745; }
     .error { color: #dc3545; }
     .loading { color: #007bff; font-style: italic; }
     .fade-in { opacity: 1; transition: opacity 0.3s; }
     #logo { height: 200px; }
-    .form-row {
-      margin: 1rem 0;
-      text-align: left;
-    }
-    label {
-      display: block;
-      margin-bottom: 0.3rem;
-      font-weight: bold;
-      font-size: 1rem;
-    }
+    .form-row { margin: 1rem 0; text-align: left; }
+    label { display: block; margin-bottom: 0.3rem; font-weight: bold; }
     input[type="text"], input[type="url"], input[type="number"], textarea, select {
-      width: 100%;
-      padding: 0.8rem;
-      font-size: 1rem;
-      box-sizing: border-box;
-      border-radius: 8px;
-      border: 1px solid #ccc;
+      width: 100%; padding: 0.8rem; font-size: 1rem;
+      box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc;
     }
     select {
       appearance: none;
       background: white url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%23666' d='M6 8L1 3h10z'/%3e%3c/svg%3e") no-repeat right 0.8rem center;
-      padding-right: 2rem;
-      cursor: pointer;
-      color: #333;
+      padding-right: 2rem; cursor: pointer; color: #333;
     }
-    input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
-      outline: none;
-      border-color: #007bff;
-      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: #007bff; box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
     }
-    textarea {
-      min-height: 5rem;
-      font-family: monospace;
-      font-size: 0.9rem;
-    }
-    select:disabled, input:disabled, textarea:disabled {
-      background-color: #f0f0f0;
-      cursor: not-allowed;
-    }
-    #submitButtonHolder {
-      text-align: center;
-    }
+    textarea { min-height: 5rem; font-family: monospace; font-size: 0.9rem; }
     button {
-      padding: 0.8rem 1rem;
-      cursor: pointer;
-      font-size: 1rem;
-      border: none;
-      border-radius: 8px;
-      background-color: #007bff;
-      color: white;
+      padding: 0.8rem 1rem; cursor: pointer; font-size: 1rem; border: none;
+      border-radius: 8px; background-color: #007bff; color: white;
       transition: background-color 0.2s, transform 0.1s;
-      margin: 0.5rem 0;
-      width: 100%;
-      max-width: 300px;
+      margin: 0.5rem 0; width: 100%; max-width: 300px;
     }
-    button:hover {
-      background-color: #0056b3;
-      transform: scale(1.02);
-    }
-    button:active {
-      transform: scale(0.98);
-    }
-    button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-      transform: none;
-    }
-    .help-text {
-      font-size: 0.85rem;
-      color: #666;
-      margin-top: 0.25rem;
-    }
+    button:hover { background-color: #0056b3; transform: scale(1.02); }
+    button:active { transform: scale(0.98); }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; transform: none; }
+    .help-text { font-size: 0.85rem; color: #666; margin-top: 0.25rem; }
     .info-box {
-      margin: 1rem 0;
-      padding: 1rem;
-      background-color: #f8f9fa;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      font-size: 0.9rem;
-      line-height: 1.5;
+      margin: 1rem 0; padding: 1rem;
+      background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 5px;
+      font-size: 0.9rem; line-height: 1.5;
     }
-    .radio-row {
-      margin: 0.75rem 0;
-    }
-    .radio-row label {
-      margin: 0;
-      font-weight: normal;
-      font-size: 0.95rem;
-      cursor: pointer;
-    }
-    .radio-row input[type="radio"] {
-      width: 1.1rem;
-      height: 1.1rem;
-      cursor: pointer;
-      margin-right: 0.4rem;
-      vertical-align: middle;
-    }
-    #submissionResult {
-      display: none;
-      margin-top: 1.5rem;
-    }
-    #submissionResult h3 {
-      font-size: 1.1rem;
-      color: #333;
-      margin: 1rem 0 0.5rem;
-    }
+    .info-box.reserve { background-color: #e8f5e9; border-color: #c8e6c9; }
+    .info-box .label { font-weight: bold; }
+    .info-box .value { font-size: 1.2rem; color: #2e7d32; font-weight: bold; }
+    .radio-row { margin: 0.75rem 0; }
+    .radio-row label { margin: 0; font-weight: normal; font-size: 0.95rem; cursor: pointer; }
+    .radio-row input[type="radio"] { width: 1.1rem; height: 1.1rem; cursor: pointer; margin-right: 0.4rem; vertical-align: middle; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 640px) { .row2 { grid-template-columns: 1fr; } }
+    .tdg-display { font-size: 1.1rem; font-weight: bold; color: #1565c0; }
+    .auto-field { background-color: #f5f5f5; }
+    #submissionResult { display: none; margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 1.1rem; color: #333; margin: 1rem 0 0.5rem; }
     #submissionResult pre {
-      background: #f5f5f5;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 0.75rem;
-      font-size: 0.85rem;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-x: auto;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    @media print {
-      #submissionResult pre {
-        max-height: none;
-        overflow: visible;
-      }
+      background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;
+      padding: 0.75rem; font-size: 0.85rem; white-space: pre-wrap;
+      word-break: break-word; overflow-x: auto; max-height: 400px; overflow-y: auto;
     }
   </style>
 </head>
@@ -232,6 +111,18 @@
     <p id="status" class="fade-in" aria-live="polite">Verifying your digital signature...</p>
 
     <div id="gatedContent" style="display:none;">
+
+      <div class="info-box reserve" id="reserveBox">
+        <span class="label">Accumulated Buy-Back Reserve:</span>
+        <span class="value" id="reserveAmount">Loading...</span>
+        <div class="help-text">Total USD provisions set aside for buy-back / voting rights cash out.</div>
+      </div>
+
+      <div class="info-box" id="holdingsBox" style="display:none;">
+        <span class="label">Contributor TDG Holdings:</span>
+        <span class="tdg-display" id="holdingsAmount">-</span>
+      </div>
+
       <div class="form-row">
         <label>Settlement Mode</label>
         <div class="radio-row">
@@ -255,7 +146,10 @@
       <div id="manualSection" style="display:none;">
         <div class="form-row">
           <label for="fldContributor">Contributor Name *</label>
-          <input type="text" id="fldContributor" placeholder="e.g. Linda">
+          <select id="fldContributor" onchange="onContributorSelected()">
+            <option value="">-- Select contributor --</option>
+          </select>
+          <div class="help-text" id="contributorHelp"></div>
         </div>
         <div class="form-row">
           <label for="fldProof">Payment Proof (image/PDF)</label>
@@ -264,61 +158,69 @@
         </div>
       </div>
 
-      <div class="form-row">
-        <label for="fldTdg">Voting Rights Withdrawn (TDG) *</label>
-        <input type="number" id="fldTdg" min="1" step="1" placeholder="e.g. 208" oninput="updatePreview()">
+      <div class="row2">
+        <div class="form-row">
+          <label for="fldTdg">Voting Rights Withdrawn (TDG) *</label>
+          <input type="number" id="fldTdg" min="1" step="1" placeholder="e.g. 208" oninput="onTdgChanged()">
+        </div>
+        <div class="form-row">
+          <label for="fldUsd">Amount Paid (USD) *</label>
+          <input type="number" id="fldUsd" min="0.01" step="0.01" placeholder="e.g. 1.40" oninput="onUsdChanged()">
+          <div class="help-text">Value per TDG: $<span id="valuePerTdg">-</span></div>
+        </div>
       </div>
+      <div class="help-text" style="text-align:center;margin-top:-0.5rem;">
+        Enter either TDG or USD — the other auto-computes.
+      </div>
+
       <div class="form-row">
-        <label for="fldUsd">Amount Paid (USD) *</label>
-        <input type="number" id="fldUsd" min="0.01" step="0.01" placeholder="e.g. 1.40" oninput="updatePreview()">
+        <label for="fldPaymentMethod">Payment Method Used</label>
+        <select id="fldPaymentMethod">
+          <option value="">-- Select --</option>
+          <option value="PIX">PIX - Brazil</option>
+          <option value="PayLah">PayLah - Singapore</option>
+          <option value="Venmo">Venmo - USA</option>
+          <option value="Zelle">Zelle - USA</option>
+          <option value="PayPal">PayPal - International</option>
+          <option value="WiseTransfer">WiseTransfer - International</option>
+          <option value="WesternUnion">Western Union - International</option>
+          <option value="Cash">Cash</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
       <div class="form-row">
         <label for="fldPaymentRef">Payment Reference</label>
         <input type="text" id="fldPaymentRef" placeholder="e.g. PayLah transaction ID">
       </div>
       <div class="form-row">
-        <label for="fldPaymentMethod">Payment Method Used</label>
-        <select id="fldPaymentMethod">
-          <option value="">-- Select --</option>
-          <option>PayLah</option>
-          <option>PayPal</option>
-          <option>Venmo</option>
-          <option>PIX</option>
-          <option>Zelle</option>
-          <option>WiseTransfer</option>
-          <option>WesternUnion</option>
-          <option>Bank Transfer</option>
-          <option>Cash</option>
-          <option>Other</option>
-        </select>
-      </div>
-      <div class="form-row">
         <label for="fldDate">Settlement Date * (YYYYMMDD)</label>
-        <input type="text" id="fldDate" placeholder="YYYYMMDD" maxlength="8" oninput="updatePreview()">
+        <input type="text" id="fldDate" placeholder="YYYYMMDD" maxlength="8">
       </div>
       <div class="form-row">
         <label for="fldGovernor">Governor</label>
-        <input type="text" id="fldGovernor" readonly>
+        <input type="text" id="fldGovernor" readonly style="background-color:#f5f5f5;">
+        <div class="help-text">Automatically set to your verified identity.</div>
       </div>
       <div class="form-row">
         <label for="fldNotes">Notes</label>
         <textarea id="fldNotes" placeholder="Any additional notes about this settlement"></textarea>
       </div>
 
-      <div class="info-box" id="previewBox">
-        <strong>Preview</strong>
+      <div class="info-box" id="previewBox" style="display:none;">
+        <strong>Ledger Effect</strong>
         <div id="previewContent" style="margin-top:0.5rem; font-size:0.9rem;"></div>
       </div>
 
-      <div id="submitButtonHolder">
+      <div id="submitButtonHolder" style="text-align:center;">
         <button id="submitButton" onclick="onSubmit()" disabled>Loading...</button>
       </div>
 
       <div id="submissionResult">
         <h3>Transaction request</h3>
-        <pre id="requestPre" style="white-space: pre-wrap; word-break: break-word; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem;"></pre>
+        <pre id="requestPre"></pre>
         <h3>Edgar response</h3>
-        <pre id="responsePre" style="white-space: pre-wrap; word-break: break-word; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem;"></pre>
+        <pre id="responsePre"></pre>
       </div>
     </div>
   </div>
@@ -327,12 +229,15 @@
 
   <script>
     var EDGAR_SUBMIT = Routes.edgar.submit;
-    var DAO_MEMBERS_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_members.json';
-    var REQUESTS_API_URL = 'https://api.github.com/repos/TrueSightDAO/treasury-cache/contents/cash-out-requests';
     var API_ENDPOINT = Routes.gas.assetVerify;
+    var DAO_MEMBERS_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_members.json';
+    var BUY_BACK_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/buy-back-reserve.json';
+    var REQUESTS_API_URL = 'https://api.github.com/repos/TrueSightDAO/treasury-cache/contents/cash-out-requests';
     var pendingRequests = [];
     var governorName = '';
-    var contributorName = '';
+    var valuePerRight = 0;
+    var usdProvisions = 0;
+    var contributorMap = {}; // name -> contributor object
 
     function arrayBufferToBase64(buffer) {
       var binary = '';
@@ -346,8 +251,7 @@
       if (!privateKey) return Promise.reject(new Error('No private key found'));
       var binaryKey = Uint8Array.from(atob(privateKey), function (c) { return c.charCodeAt(0); });
       return window.crypto.subtle.importKey(
-        'pkcs8', binaryKey,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+        'pkcs8', binaryKey, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
       ).then(function (key) {
         return window.crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(text));
       }).then(function (sig) { return arrayBufferToBase64(sig); });
@@ -359,26 +263,6 @@
       el.className = cls || 'status';
     }
 
-    function updatePreview() {
-      var refMode = document.querySelector('input[name="settlementMode"][value="reference"]').checked;
-      var contrib = refMode
-        ? document.getElementById('fldContributor').value
-        : document.getElementById('fldContributor').value;
-      var tdg = document.getElementById('fldTdg').value;
-      var usd = document.getElementById('fldUsd').value;
-      var method = document.getElementById('fldPaymentMethod').value;
-      var date = document.getElementById('fldDate').value;
-      var html = '';
-      if (contrib) html += '<div>Contributor: ' + contrib + '</div>';
-      if (tdg) html += '<div>TDG to Deduct: ' + tdg + ' (Ledger history row Col G: -' + tdg + ')</div>';
-      if (usd) html += '<div>USD to Pay: $' + Number(usd).toFixed(2) + ' (offchain transactions debit)</div>';
-      if (method) html += '<div>Payment Method: ' + method + '</div>';
-      if (date) html += '<div>Settlement Date: ' + date + '</div>';
-      if (governorName) html += '<div>Governor: ' + governorName + '</div>';
-      if (tdg && usd) html += '<div style="margin-top:0.5rem;font-weight:bold;">Ledger Effect: -' + tdg + ' TDG from Ledger history, -$' + Number(usd).toFixed(2) + ' from USD provisions</div>';
-      document.getElementById('previewContent').innerHTML = html || 'Fill in required fields to see preview.';
-    }
-
     function toggleMode() {
       var refMode = document.querySelector('input[name="settlementMode"][value="reference"]').checked;
       document.getElementById('referenceSection').style.display = refMode ? '' : 'none';
@@ -386,15 +270,62 @@
       updatePreview();
     }
 
+    function onContributorSelected() {
+      var name = document.getElementById('fldContributor').value;
+      var c = contributorMap[name];
+      if (c) {
+        document.getElementById('holdingsAmount').textContent = Number(c.voting_rights || 0).toLocaleString() + ' TDG';
+        document.getElementById('holdingsBox').style.display = '';
+        document.getElementById('contributorHelp').textContent = 'Total holdings: ' + Number(c.voting_rights || 0).toLocaleString() + ' TDG';
+      } else {
+        document.getElementById('holdingsBox').style.display = 'none';
+        document.getElementById('contributorHelp').textContent = '';
+      }
+      updatePreview();
+    }
+
     function onRequestSelected() {
       var sel = document.getElementById('requestDropdown').value;
       var req = pendingRequests.find(function (r) { return r.request_id === sel; });
       if (req) {
-        document.getElementById('fldContributor').value = req.contributor.name;
+        document.getElementById('fldContributor').value = '';
         document.getElementById('fldTdg').value = req.amount_tdg;
         document.getElementById('fldUsd').value = Number(req.expected_total_usd || 0).toFixed(2);
+        updatePreview();
+      }
+    }
+
+    function onTdgChanged() {
+      var tdg = parseFloat(document.getElementById('fldTdg').value);
+      if (!isNaN(tdg) && tdg > 0 && valuePerRight > 0) {
+        var usd = (tdg * valuePerRight).toFixed(2);
+        document.getElementById('fldUsd').value = usd;
       }
       updatePreview();
+    }
+
+    function onUsdChanged() {
+      var usd = parseFloat(document.getElementById('fldUsd').value);
+      if (!isNaN(usd) && usd > 0 && valuePerRight > 0) {
+        var tdg = Math.round(usd / valuePerRight);
+        document.getElementById('fldTdg').value = tdg;
+      }
+      updatePreview();
+    }
+
+    function updatePreview() {
+      var tdg = document.getElementById('fldTdg').value;
+      var usd = document.getElementById('fldUsd').value;
+      var contrib = document.getElementById('fldContributor').value;
+      if (tdg && usd && contrib) {
+        document.getElementById('previewBox').style.display = '';
+        document.getElementById('previewContent').innerHTML =
+          'Deduct <b>-' + tdg + ' TDG</b> from Ledger history (Col D: -1 : Transactions - For every 1 TDG Voting Rights Cashed Out)<br>' +
+          'Deduct <b>-$' + Number(usd).toFixed(2) + '</b> from offchain transactions & USD provisions<br>' +
+          'Contributor: <b>' + contrib + '</b> &nbsp;|&nbsp; Governor: <b>' + governorName + '</b>';
+      } else {
+        document.getElementById('previewBox').style.display = 'none';
+      }
     }
 
     function buildSettlementText() {
@@ -416,7 +347,7 @@
     }
 
     async function onSubmit() {
-      var contrib = document.getElementById('fldContributor').value.trim();
+      var contrib = document.getElementById('fldContributor').value;
       var tdg = document.getElementById('fldTdg').value;
       var usd = document.getElementById('fldUsd').value;
       var date = document.getElementById('fldDate').value.trim();
@@ -436,7 +367,6 @@
         var full = text + '\nMy Digital Signature: ' + publicKey + '\nRequest Transaction ID: ' + sig + '\nVerify submission here: https://dapp.truesight.me/verify_request.html';
 
         document.getElementById('requestPre').textContent = full;
-
         setStatus('Submitting to Edgar...', 'loading');
         var formData = new FormData();
         formData.append('text', full);
@@ -464,15 +394,9 @@
     async function loadPendingRequests() {
       try {
         var resp = await fetch(REQUESTS_API_URL);
-        if (!resp.ok) {
-          document.getElementById('requestDropdown').innerHTML = '<option value="">Could not load requests</option>';
-          return;
-        }
+        if (!resp.ok) { document.getElementById('requestDropdown').innerHTML = '<option value="">Could not load requests</option>'; return; }
         var files = await resp.json();
-        if (!Array.isArray(files)) {
-          document.getElementById('requestDropdown').innerHTML = '<option value="">No requests found</option>';
-          return;
-        }
+        if (!Array.isArray(files)) { document.getElementById('requestDropdown').innerHTML = '<option value="">No requests found</option>'; return; }
         pendingRequests = [];
         var dropdown = document.getElementById('requestDropdown');
         dropdown.innerHTML = '<option value="">-- Select a pending request --</option>';
@@ -486,23 +410,50 @@
           }).catch(function () {});
         });
         await Promise.all(fetches);
-        if (pendingRequests.length === 0) {
-          dropdown.innerHTML = '<option value="">No pending requests — use manual mode</option>';
-        }
+        if (pendingRequests.length === 0) dropdown.innerHTML = '<option value="">No pending requests — use manual mode</option>';
       } catch (_) {
         document.getElementById('requestDropdown').innerHTML = '<option value="">Could not load requests</option>';
       }
     }
 
+    async function loadBuyBackReserve() {
+      try {
+        var resp = await fetch(BUY_BACK_URL);
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var amount = (data.summary && data.summary.total_provisions_amount) || data.reserve.total_usd || 0;
+        document.getElementById('reserveAmount').textContent = '$' + Number(amount).toFixed(2) + ' USD';
+      } catch (_) {
+        document.getElementById('reserveAmount').textContent = '(unavailable)';
+      }
+    }
+
+    async function populateContributorsDropDown() {
+      try {
+        var resp = await fetch(DAO_MEMBERS_URL);
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var list = data.contributors || [];
+        var dd = document.getElementById('fldContributor');
+        list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        for (var i = 0; i < list.length; i++) {
+          var name = list[i].name;
+          if (!name) continue;
+          contributorMap[name] = list[i];
+          dd.innerHTML += '<option value="' + name + '">' + name + '</option>';
+        }
+      } catch (_) {}
+    }
+
     async function verifyGate() {
       var publicKey = localStorage.getItem('publicKey');
-      var statusElement = document.getElementById('status');
-      statusElement.textContent = 'Verifying your digital signature...';
-      statusElement.className = 'loading fade-in';
+      var statusEl = document.getElementById('status');
+      statusEl.textContent = 'Verifying your digital signature...';
+      statusEl.className = 'loading fade-in';
 
       if (!publicKey) {
-        statusElement.textContent = 'No digital signature found. Redirecting to create one...';
-        statusElement.className = 'error fade-in';
+        statusEl.textContent = 'No digital signature found. Redirecting to create one...';
+        statusEl.className = 'error fade-in';
         setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
         return;
       }
@@ -512,12 +463,14 @@
         var data = await resp.json();
 
         if (data.error) {
-          statusElement.innerHTML = 'Your digital signature is not registered. <a href="./create_signature.html">Please register it first</a>.';
-          statusElement.className = 'error fade-in';
+          statusEl.innerHTML = 'Your digital signature is not registered. <a href="./create_signature.html">Please register it first</a>.';
+          statusEl.className = 'error fade-in';
           return;
         }
 
-        contributorName = data.contributor_name;
+        valuePerRight = parseFloat(data.asset_per_circulated_voting_right) || 0;
+        usdProvisions = parseFloat(data.usd_provisions_for_cash_out) || 0;
+        document.getElementById('valuePerTdg').textContent = valuePerRight.toFixed(5);
 
         var membersResp = await fetch(DAO_MEMBERS_URL);
         var membersData = await membersResp.json();
@@ -530,23 +483,18 @@
           for (var j = 0; j < keys.length; j++) {
             var k = typeof keys[j] === 'string' ? keys[j] : (keys[j].public_key || '');
             if (k && (k === publicKey || k.substring(0, 64) === publicKey.substring(0, 64))) {
-              keyMatch = true;
-              break;
+              keyMatch = true; break;
             }
           }
-          if (keyMatch) {
-            var roles = c.roles || [];
-            if (roles.indexOf('governor') !== -1) {
-              governorName = c.name || '';
-              isGovernor = true;
-            }
-            break;
+          if (keyMatch && (c.roles || []).indexOf('governor') !== -1) {
+            governorName = c.name || '';
+            isGovernor = true; break;
           }
         }
 
         if (!isGovernor) {
-          statusElement.textContent = 'Unauthorized — this page is restricted to governors only. Signed in as: ' + (contributorName || 'unknown');
-          statusElement.className = 'error fade-in';
+          statusEl.textContent = 'Unauthorized — this page is restricted to governors only.';
+          statusEl.className = 'error fade-in';
           return;
         }
 
@@ -555,15 +503,18 @@
         document.getElementById('fldDate').value = '' + today.getFullYear() +
           String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
 
-        statusElement.textContent = 'Welcome, ' + governorName + '!';
-        statusElement.className = 'status fade-in';
+        statusEl.textContent = 'Welcome, ' + governorName + '!';
+        statusEl.className = 'status fade-in';
         document.getElementById('gatedContent').style.display = '';
         document.getElementById('submitButton').disabled = false;
         document.getElementById('submitButton').textContent = 'Sign & Submit Settlement';
+
+        populateContributorsDropDown();
         loadPendingRequests();
+        loadBuyBackReserve();
       } catch (err) {
-        statusElement.textContent = 'Could not verify signature: ' + err.message + '. Check your connection and try again.';
-        statusElement.className = 'error fade-in';
+        statusEl.textContent = 'Could not verify: ' + err.message + '. Check your connection.';
+        statusEl.className = 'error fade-in';
       }
     }
 
