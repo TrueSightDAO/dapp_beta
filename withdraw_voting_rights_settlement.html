@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Governor-signed settlement of voting rights cash-out — deducts TDG from ledger, creates GitHub paper trail.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voting Rights Cash-Out Settlement - TrueSight DAO</title>
+
+  <meta property="og:title" content="Voting Rights Cash-Out Settlement - TrueSight DAO">
+  <meta property="og:description" content="Governor-signed settlement of voting rights cash-out.">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://truesightdao.github.io/dapp/withdraw_voting_rights_settlement.html">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Voting Rights Cash-Out Settlement - TrueSight DAO">
+  <meta name="twitter:description" content="Governor-signed settlement of voting rights cash-out.">
+  <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260702a"></script>
+  <script src="./tdg_balance.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      margin: 1rem; padding: 1rem;
+      min-height: 100vh; box-sizing: border-box;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 800px; width: 100%;
+      background-color: white; padding: 1rem;
+      border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 1.8rem; color: #333; margin: 0.5rem 0 1rem; text-align: center; }
+    #description { font-style: italic; color: #555; margin: 0.8rem 0; text-align: center; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; text-align: center; }
+    .status { color: #28a745; }
+    .error { color: #dc3545; }
+    .warning { color: #ffc107; }
+    .form-row { margin: 1rem 0; text-align: left; }
+    label { display: block; margin-bottom: 0.3rem; font-weight: bold; }
+    input, select, textarea {
+      width: 100%; padding: 0.5rem; font-size: 1rem;
+      border: 1px solid #ccc; border-radius: 4px;
+      box-sizing: border-box;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    button {
+      padding: 0.6rem 1.5rem; font-size: 1rem;
+      background-color: #28a745; color: white;
+      border: none; border-radius: 4px; cursor: pointer;
+    }
+    button:hover { background-color: #218838; }
+    button:disabled { background-color: #6c757d; cursor: not-allowed; }
+    .mode-toggle {
+      display: flex; gap: 1rem; margin: 1rem 0;
+      padding: 0.5rem; background: #f8f9fa; border-radius: 6px;
+    }
+    .mode-toggle label { font-weight: normal; cursor: pointer; }
+    .mode-toggle input { width: auto; margin-right: 0.3rem; }
+    #gatedContent { display: none; }
+    #gateMessage { text-align: center; padding: 2rem; }
+    #preview {
+      margin-top: 1.5rem; padding: 1rem;
+      background: #f8f9fa; border: 1px solid #dee2e6;
+      border-radius: 6px; display: none;
+    }
+    #preview h3 { margin-top: 0; }
+    #preview table { width: 100%; border-collapse: collapse; }
+    #preview td { padding: 0.4rem; border-bottom: 1px solid #e9ecef; }
+    #preview td:first-child { font-weight: bold; width: 40%; }
+    #receipt {
+      margin-top: 1.5rem; padding: 1rem;
+      background: #d4edda; border: 1px solid #c3e6cb;
+      border-radius: 6px; display: none;
+    }
+    #receipt pre {
+      white-space: pre-wrap; word-break: break-all;
+      background: white; padding: 0.5rem; border-radius: 4px;
+      max-height: 300px; overflow-y: auto; font-size: 0.85rem;
+    }
+    .btn-row { display: flex; gap: 0.5rem; margin: 1rem 0; }
+    .btn-reset { background-color: #6c757d; }
+    .btn-reset:hover { background-color: #5a6268; }
+    .btn-copy { background-color: #007bff; }
+    .btn-copy:hover { background-color: #0069d9; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Voting Rights Cash-Out Settlement</h1>
+  <p id="description">Governor-signed settlement — deducts TDG from ledger, creates GitHub paper trail, and deducts USD from provisions.</p>
+  <div id="navDropdown"></div>
+  <div id="status"></div>
+
+  <div id="gateMessage">
+    <p>Loading governor authorization...</p>
+  </div>
+
+  <div id="gatedContent">
+    <div class="mode-toggle">
+      <label><input type="radio" name="settlementMode" value="reference" checked onchange="toggleMode()"> Reference existing cash-out request</label>
+      <label><input type="radio" name="settlementMode" value="manual" onchange="toggleMode()"> New settlement with proof</label>
+    </div>
+
+    <div id="referenceSection">
+      <div class="form-row">
+        <label for="requestDropdown">Pending Cash-Out Request:</label>
+        <select id="requestDropdown" onchange="onRequestSelected()">
+          <option value="">-- Loading pending requests --</option>
+        </select>
+      </div>
+      <div id="requestPreview" style="display:none; padding:0.8rem; background:#f0f8ff; border-radius:4px; margin-bottom:1rem;">
+        <strong>Request Details:</strong><br>
+        <span id="reqContributor"></span><br>
+        <span id="reqAmount"></span><br>
+        <span id="reqValue"></span><br>
+        <span id="reqMethod"></span>
+      </div>
+    </div>
+
+    <div id="manualSection" style="display:none">
+      <div class="form-row">
+        <label for="fldContributor">Contributor Name *:</label>
+        <input type="text" id="fldContributor" placeholder="e.g. Linda">
+      </div>
+      <div class="form-row">
+        <label for="fldProof">Payment Proof (image/PDF):</label>
+        <input type="file" id="fldProof" accept="image/*,.pdf">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="fldTdg">Voting Rights Withdrawn (TDG) *:</label>
+      <input type="number" id="fldTdg" min="1" step="1" value="" placeholder="e.g. 208" oninput="updatePreview()">
+    </div>
+    <div class="form-row">
+      <label for="fldUsd">Amount Paid (USD) *:</label>
+      <input type="number" id="fldUsd" min="0.01" step="0.01" value="" placeholder="e.g. 1.40" oninput="updatePreview()">
+    </div>
+    <div class="form-row">
+      <label for="fldPaymentRef">Payment Reference:</label>
+      <input type="text" id="fldPaymentRef" placeholder="e.g. PayLah transaction ID">
+    </div>
+    <div class="form-row">
+      <label for="fldPaymentMethod">Payment Method Used:</label>
+      <select id="fldPaymentMethod">
+        <option value="">-- Select --</option>
+        <option>PayLah</option><option>PayPal</option><option>Venmo</option>
+        <option>PIX</option><option>Zelle</option><option>WiseTransfer</option>
+        <option>WesternUnion</option><option>Bank Transfer</option><option>Cash</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="fldDate">Settlement Date *:</label>
+      <input type="text" id="fldDate" placeholder="YYYYMMDD" maxlength="8" oninput="updatePreview()">
+    </div>
+    <div class="form-row">
+      <label for="fldGovernor">Governor Name:</label>
+      <input type="text" id="fldGovernor" readonly>
+    </div>
+    <div class="form-row">
+      <label for="fldNotes">Notes:</label>
+      <textarea id="fldNotes" placeholder="Any additional notes about this settlement"></textarea>
+    </div>
+
+    <div id="preview">
+      <h3>Settlement Preview</h3>
+      <table>
+        <tr><td>Contributor:</td><td id="pvContributor">-</td></tr>
+        <tr><td>TDG to Deduct:</td><td id="pvTdg">-</td></tr>
+        <tr><td>USD to Pay:</td><td id="pvUsd">-</td></tr>
+        <tr><td>Payment Method:</td><td id="pvMethod">-</td></tr>
+        <tr><td>Settlement Date:</td><td id="pvDate">-</td></tr>
+        <tr><td>Governor:</td><td id="pvGovernor">-</td></tr>
+        <tr><td><strong>Ledger Effect:</strong></td><td id="pvLedger">-</td></tr>
+      </table>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnSubmit" onclick="submitSettlement()">Sign & Submit Settlement</button>
+      <button id="btnReset" class="btn-reset" onclick="resetForm()" style="display:none">Settle Another</button>
+    </div>
+
+    <div id="receipt">
+      <h3>Settlement Submitted</h3>
+      <pre id="receiptText"></pre>
+      <button class="btn-copy" onclick="copyReceipt()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var EDGAR_SUBMIT = Routes.edgar.submit;
+var DAO_MEMBERS_URL = 'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_members.json';
+var REQUESTS_API_URL = 'https://api.github.com/repos/TrueSightDAO/treasury-cache/contents/cash-out-requests';
+var pendingRequests = [];
+var governorName = '';
+
+function arrayBufferToBase64(buffer) {
+  var binary = '';
+  var bytes = new Uint8Array(buffer);
+  for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function signRequestText(text) {
+  var privateKey = localStorage.getItem('privateKey');
+  if (!privateKey) return Promise.reject(new Error('No private key found'));
+  return window.crypto.subtle.importKey(
+    'pkcs8', Uint8Array.from(atob(privateKey), function (c) { return c.charCodeAt(0); }),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+  ).then(function (key) {
+    return window.crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5', key,
+      new TextEncoder().encode(text)
+    );
+  }).then(function (sig) { return arrayBufferToBase64(sig); });
+}
+
+function setStatus(msg, cls) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls || 'status';
+}
+
+function toggleMode() {
+  var refMode = document.querySelector('input[name="settlementMode"][value="reference"]').checked;
+  document.getElementById('referenceSection').style.display = refMode ? '' : 'none';
+  document.getElementById('manualSection').style.display = refMode ? 'none' : '';
+  updatePreview();
+}
+
+function onRequestSelected() {
+  var sel = document.getElementById('requestDropdown').value;
+  var req = pendingRequests.find(function (r) { return r.request_id === sel; });
+  var preview = document.getElementById('requestPreview');
+  if (req) {
+    document.getElementById('reqContributor').textContent = 'Contributor: ' + req.contributor.name;
+    document.getElementById('reqAmount').textContent = 'Requested: ' + req.amount_tdg + ' TDG';
+    document.getElementById('reqValue').textContent = 'Value: $' + Number(req.expected_total_usd || 0).toFixed(2);
+    document.getElementById('reqMethod').textContent = 'Method: ' + (req.withdrawal_method || 'N/A');
+    preview.style.display = '';
+    document.getElementById('fldContributor').value = req.contributor.name;
+    document.getElementById('fldTdg').value = req.amount_tdg;
+    document.getElementById('fldUsd').value = Number(req.expected_total_usd || 0).toFixed(2);
+  } else {
+    preview.style.display = 'none';
+  }
+  updatePreview();
+}
+
+function updatePreview() {
+  var refMode = document.querySelector('input[name="settlementMode"][value="reference"]').checked;
+  var contributor = refMode
+    ? document.getElementById('fldContributor').value
+    : document.getElementById('fldContributor').value;
+  var tdg = document.getElementById('fldTdg').value;
+  var usd = document.getElementById('fldUsd').value;
+  var method = document.getElementById('fldPaymentMethod').value;
+  var date = document.getElementById('fldDate').value;
+
+  document.getElementById('pvContributor').textContent = contributor || '-';
+  document.getElementById('pvTdg').textContent = tdg ? tdg + ' TDG' : '-';
+  document.getElementById('pvUsd').textContent = usd ? '$' + Number(usd).toFixed(2) : '-';
+  document.getElementById('pvMethod').textContent = method || '-';
+  document.getElementById('pvDate').textContent = date || '-';
+  document.getElementById('pvGovernor').textContent = governorName || '-';
+  document.getElementById('pvLedger').textContent = (tdg && usd)
+    ? ('Deduct ' + tdg + ' TDG from Ledger history, deduct $' + Number(usd).toFixed(2) + ' from USD provisions')
+    : '-';
+  document.getElementById('preview').style.display = (contributor && tdg && usd) ? '' : 'none';
+}
+
+function buildSettlementText() {
+  var refMode = document.querySelector('input[name="settlementMode"][value="reference"]').checked;
+  var requestId = refMode ? document.getElementById('requestDropdown').value : '';
+
+  var lines = ['[VOTING RIGHTS WITHDRAWAL SETTLEMENT EVENT]'];
+  if (requestId) lines.push('- Cash-Out Request ID: ' + requestId);
+  lines.push('- Contributor: ' + document.getElementById('fldContributor').value);
+  lines.push('- Voting Rights Withdrawn (TDG): ' + document.getElementById('fldTdg').value);
+  lines.push('- Amount Paid (USD): ' + Number(document.getElementById('fldUsd').value).toFixed(2));
+  lines.push('- Payment Reference: ' + (document.getElementById('fldPaymentRef').value || 'N/A'));
+  lines.push('- Payment Method Used: ' + (document.getElementById('fldPaymentMethod').value || 'N/A'));
+  lines.push('- Settlement Date: ' + document.getElementById('fldDate').value);
+  lines.push('- Governor: ' + governorName);
+  lines.push('- Notes: ' + (document.getElementById('fldNotes').value || 'N/A'));
+  lines.push('- Submission Source: ' + window.location.href);
+  lines.push('--------');
+  return lines.join('\n');
+}
+
+async function submitSettlement() {
+  var contributor = document.getElementById('fldContributor').value.trim();
+  var tdg = document.getElementById('fldTdg').value;
+  var usd = document.getElementById('fldUsd').value;
+  var date = document.getElementById('fldDate').value.trim();
+
+  if (!contributor) { setStatus('Contributor name is required', 'error'); return; }
+  if (!tdg || Number(tdg) <= 0) { setStatus('Valid TDG amount is required', 'error'); return; }
+  if (!usd || Number(usd) <= 0) { setStatus('Valid USD amount is required', 'error'); return; }
+  if (!date || !/^\d{8}$/.test(date)) { setStatus('Settlement date required (YYYYMMDD)', 'error'); return; }
+
+  setStatus('Signing settlement...', 'status');
+  var text = buildSettlementText();
+  var publicKey = localStorage.getItem('publicKey');
+
+  try {
+    var sig = await signRequestText(text);
+    var full = text + '\nMy Digital Signature: ' + publicKey + '\nRequest Transaction ID: ' + sig + '\nVerify submission here: https://dapp.truesight.me/verify_request.html';
+    var formData = new FormData();
+    formData.append('text', full);
+
+    var proofFile = document.getElementById('fldProof').files[0];
+    if (proofFile) formData.append('attachment', proofFile);
+
+    setStatus('Submitting to Edgar...', 'status');
+    var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    document.getElementById('btnSubmit').style.display = 'none';
+    document.getElementById('btnReset').style.display = '';
+    document.getElementById('receipt').style.display = '';
+    document.getElementById('receiptText').textContent = full;
+    setStatus('Settlement submitted successfully!', 'status');
+  } catch (err) {
+    setStatus('Submission failed: ' + err.message, 'error');
+  }
+}
+
+function resetForm() {
+  document.getElementById('fldTdg').value = '';
+  document.getElementById('fldUsd').value = '';
+  document.getElementById('fldPaymentRef').value = '';
+  document.getElementById('fldPaymentMethod').value = '';
+  document.getElementById('fldDate').value = '';
+  document.getElementById('fldNotes').value = '';
+  document.getElementById('fldProof').value = '';
+  if (document.querySelector('input[name="settlementMode"][value="manual"]').checked) {
+    document.getElementById('fldContributor').value = '';
+  }
+  document.getElementById('receipt').style.display = 'none';
+  document.getElementById('preview').style.display = 'none';
+  document.getElementById('btnSubmit').style.display = '';
+  document.getElementById('btnReset').style.display = 'none';
+  document.getElementById('requestPreview').style.display = 'none';
+  setStatus('', '');
+}
+
+function copyReceipt() {
+  var text = document.getElementById('receiptText').textContent;
+  navigator.clipboard.writeText(text).then(function () {
+    setStatus('Copied to clipboard!', 'status');
+  });
+}
+
+async function loadPendingRequests() {
+  try {
+    var resp = await fetch(REQUESTS_API_URL);
+    if (!resp.ok) {
+      document.getElementById('requestDropdown').innerHTML = '<option value="">-- Could not load requests --</option>';
+      return;
+    }
+    var files = await resp.json();
+    pendingRequests = [];
+    var dropdown = document.getElementById('requestDropdown');
+    dropdown.innerHTML = '<option value="">-- Select a pending request --</option>';
+
+    var fetches = files.map(async function (f) {
+      try {
+        var r = await fetch(f.download_url);
+        if (!r.ok) return;
+        var doc = await r.json();
+        if (doc.status === 'pending') {
+          pendingRequests.push(doc);
+          dropdown.innerHTML += '<option value="' + doc.request_id + '">' +
+            doc.contributor.name + ' — ' + doc.amount_tdg + ' TDG ($' + Number(doc.expected_total_usd || 0).toFixed(2) + ')</option>';
+        }
+      } catch (_) {}
+    });
+    await Promise.all(fetches);
+
+    if (pendingRequests.length === 0) {
+      dropdown.innerHTML = '<option value="">-- No pending requests --</option>';
+    }
+  } catch (_) {
+    document.getElementById('requestDropdown').innerHTML = '<option value="">-- Could not load requests --</option>';
+  }
+}
+
+async function verifyGovernor() {
+  var publicKey = localStorage.getItem('publicKey');
+  if (!publicKey) {
+    document.getElementById('gateMessage').innerHTML = '<p class="error">No digital signature found. Please <a href="./create_signature.html">create a signature</a> first.</p>';
+    return false;
+  }
+  try {
+    var resp = await fetch(DAO_MEMBERS_URL);
+    if (!resp.ok) throw new Error('Could not load members');
+    var data = await resp.json();
+    var member = data.members.find(function (m) {
+      return m.public_key && m.public_key.substring(0, 64) === publicKey.substring(0, 64);
+    });
+    if (!member || !member.roles || member.roles.indexOf('governor') === -1) {
+      document.getElementById('gateMessage').innerHTML = '<p class="error">Unauthorized — this page is restricted to governors only.</p>';
+      return false;
+    }
+    governorName = member.name || '';
+    document.getElementById('fldGovernor').value = governorName;
+
+    var today = new Date();
+    document.getElementById('fldDate').value = '' + today.getFullYear() +
+      String(today.getMonth() + 1).padStart(2, '0') +
+      String(today.getDate()).padStart(2, '0');
+
+    return true;
+  } catch (err) {
+    document.getElementById('gateMessage').innerHTML = '<p class="error">Could not verify governor status: ' + err.message + '</p>';
+    return false;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', async function () {
+  var isGovernor = await verifyGovernor();
+  if (!isGovernor) return;
+  document.getElementById('gateMessage').style.display = 'none';
+  document.getElementById('gatedContent').style.display = '';
+  loadPendingRequests();
+});
+</script>
+
+</body>
+</html>

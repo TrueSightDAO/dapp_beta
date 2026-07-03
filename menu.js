@@ -36,6 +36,7 @@
     { title: 'Report Tree Planting', url: './report_tree_planting.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Digital Signature Creator', url: './create_signature.html', section: 'Identity & Governance' },
     { title: 'Voting Rights Cash Out', url: './withdraw_voting_rights.html', section: 'Identity & Governance' },
+    { title: 'Voting Rights Settlement', url: './withdraw_voting_rights_settlement.html', section: 'Governor only' },
     { title: 'Notarize Official Document', url: './notarize.html', section: 'Identity & Governance' },
     { title: 'Verify Signed Request', url: './verify_request.html', section: 'Identity & Governance' },
     { title: 'DAO Proposal Management', url: './view_open_proposals.html', section: 'Identity & Governance' },
