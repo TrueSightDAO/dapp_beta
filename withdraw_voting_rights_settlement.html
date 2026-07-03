@@ -136,11 +136,17 @@
       </div>
 
       <div class="form-row">
-        <label for="contributorSearch">Contributor Name *</label>
-        <input type="text" id="contributorSearch" placeholder="Type to filter..." autocomplete="off" oninput="filterContributors()" style="margin-bottom:0.3rem;">
-        <select id="fldContributor" onchange="onContributorSelected()" size="6" style="height:auto;">
-          <option value="">-- Select contributor --</option>
-        </select>
+        <label>Contributor Name *</label>
+        <div style="position: relative;">
+          <div id="contributorSelectCombobox" style="position: relative; cursor: pointer; padding: 0.8rem; font-size: 1rem; width: 100%; box-sizing: border-box; border: 1px solid #ccc; background-color: white; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
+            <span id="contributorSelectDisplay" style="color: #999;">Loading contributors...</span>
+            <span style="color: #666;">▼</span>
+          </div>
+          <div id="contributorDropdownContainer" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px;">
+            <input type="text" id="contributorSearchInput" placeholder="Type to search contributors..." autocomplete="off" style="width: 100%; padding: 0.8rem; font-size: 1rem; box-sizing: border-box; border: none; border-bottom: 1px solid #eee; outline: none;">
+            <div id="contributorAutocompleteList" style="max-height: 200px; overflow-y: auto;"></div>
+          </div>
+        </div>
         <div class="help-text" id="contributorHelp"></div>
       </div>
 
@@ -231,19 +237,9 @@
     var governorName = '';
     var valuePerRight = 0;
     var contributorMap = {};
+    var contributorList = [];
+    var selectedContributor = null;
     var uploadedFile = null;
-    var allContributors = [];
-
-    function filterContributors() {
-      var q = (document.getElementById('contributorSearch').value || '').toLowerCase();
-      var dd = document.getElementById('fldContributor');
-      dd.innerHTML = '<option value="">-- Select contributor --</option>';
-      for (var i = 0; i < allContributors.length; i++) {
-        if (!q || allContributors[i].toLowerCase().indexOf(q) !== -1) {
-          dd.innerHTML += '<option value="' + allContributors[i] + '">' + allContributors[i] + '</option>';
-        }
-      }
-    }
 
     function arrayBufferToBase64(buffer) {
       var binary = '';
@@ -269,8 +265,14 @@
       el.className = cls || 'status';
     }
 
-    function onContributorSelected() {
-      var name = document.getElementById('fldContributor').value;
+    function selectContributor(name) {
+      selectedContributor = name;
+      var display = document.getElementById('contributorSelectDisplay');
+      display.textContent = name;
+      display.style.color = '#333';
+      document.getElementById('contributorDropdownContainer').style.display = 'none';
+      document.getElementById('contributorSearchInput').value = '';
+
       var c = contributorMap[name];
       if (c) {
         document.getElementById('holdingsAmount').textContent = Number(c.voting_rights || 0).toLocaleString() + ' TDG';
@@ -281,6 +283,34 @@
         document.getElementById('contributorHelp').textContent = '';
       }
       updatePreview();
+    }
+
+    function updateContributorAutocomplete() {
+      var input = document.getElementById('contributorSearchInput');
+      var list = document.getElementById('contributorAutocompleteList');
+      var q = (input.value || '').toLowerCase();
+
+      if (!contributorList || contributorList.length === 0) {
+        list.innerHTML = '<div style="padding:8px 12px;color:#999;font-style:italic;">Loading contributors...</div>';
+        return;
+      }
+
+      var filtered = q ? contributorList.filter(function (n) { return n.toLowerCase().indexOf(q) !== -1; }) : contributorList;
+
+      list.innerHTML = '';
+      if (filtered.length > 0) {
+        filtered.forEach(function (name) {
+          var item = document.createElement('div');
+          item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;transition:background-color 0.2s;';
+          item.textContent = name;
+          item.addEventListener('mouseenter', function () { item.style.backgroundColor = '#f0f0f0'; });
+          item.addEventListener('mouseleave', function () { item.style.backgroundColor = 'white'; });
+          item.addEventListener('click', function () { selectContributor(name); });
+          list.appendChild(item);
+        });
+      } else {
+        list.innerHTML = '<div style="padding:8px 12px;color:#999;font-style:italic;">No matching contributors</div>';
+      }
     }
 
     function onTdgChanged() {
@@ -302,13 +332,12 @@
     function updatePreview() {
       var tdg = document.getElementById('fldTdg').value;
       var usd = document.getElementById('fldUsd').value;
-      var contrib = document.getElementById('fldContributor').value;
-      if (tdg && usd && contrib) {
+      if (tdg && usd && selectedContributor) {
         document.getElementById('previewBox').style.display = '';
         document.getElementById('previewContent').innerHTML =
           'Deduct <b>-' + tdg + ' TDG</b> from Ledger history (Col D: -1 : Transactions - For every 1 TDG Voting Rights Cashed Out)<br>' +
           'Deduct <b>-$' + Number(usd).toFixed(2) + '</b> from offchain transactions & USD provisions<br>' +
-          'Contributor: <b>' + contrib + '</b> &nbsp;|&nbsp; Governor: <b>' + governorName + '</b>';
+          'Contributor: <b>' + selectedContributor + '</b> &nbsp;|&nbsp; Governor: <b>' + governorName + '</b>';
       } else {
         document.getElementById('previewBox').style.display = 'none';
       }
@@ -316,7 +345,7 @@
 
     function buildSettlementText() {
       var lines = ['[VOTING RIGHTS WITHDRAWAL SETTLEMENT EVENT]'];
-      lines.push('- Contributor: ' + document.getElementById('fldContributor').value);
+      lines.push('- Contributor: ' + selectedContributor);
       lines.push('- Voting Rights Withdrawn (TDG): ' + document.getElementById('fldTdg').value);
       lines.push('- Amount Paid (USD): ' + Number(document.getElementById('fldUsd').value).toFixed(2));
       lines.push('- Settlement Reference: ' + (document.getElementById('fldPaymentRef').value || 'N/A'));
@@ -331,12 +360,11 @@
     }
 
     async function onSubmit() {
-      var contrib = document.getElementById('fldContributor').value;
       var tdg = document.getElementById('fldTdg').value;
       var usd = document.getElementById('fldUsd').value;
       var date = document.getElementById('fldDate').value.trim();
 
-      if (!contrib) { setStatus('Contributor name is required', 'error'); return; }
+      if (!selectedContributor) { setStatus('Contributor name is required', 'error'); return; }
       if (!tdg || Number(tdg) <= 0) { setStatus('Valid TDG amount is required', 'error'); return; }
       if (!usd || Number(usd) <= 0) { setStatus('Valid USD amount is required', 'error'); return; }
       if (!date || date.length !== 10) { setStatus('Settlement date required', 'error'); return; }
@@ -445,9 +473,7 @@
       }
     }
 
-    async function populateContributorsDropDown() {
-      // Load full contributor name list from GAS (280+ names)
-      // Cross-reference with dao_members.json for voting_rights data
+    async function loadContributors() {
       var gasList = [];
       var daoMap = {};
 
@@ -463,7 +489,7 @@
         var res = await fetch(DAO_FORMS_ENDPOINT + '?recipients=true');
         var data = await res.json();
         if (Array.isArray(data)) {
-          gasList = data.map(function (c) { return c.name || ''; });
+          gasList = data.map(function (c) { return c.name || ''; }).filter(function (n) { return n; });
         }
       } catch (_) {}
 
@@ -472,14 +498,13 @@
       }
 
       contributorMap = daoMap;
-      allContributors = gasList.filter(function (n) { return n; }).sort(function (a, b) { return a.localeCompare(b); });
+      contributorList = gasList.sort(function (a, b) { return a.localeCompare(b); });
 
-      if (allContributors.length === 0) {
-        document.getElementById('contributorHelp').textContent = 'Could not load contributors.';
-        return;
+      var display = document.getElementById('contributorSelectDisplay');
+      if (display) {
+        display.textContent = 'Select a contributor';
+        display.style.color = '#999';
       }
-
-      filterContributors();
     }
 
     async function verifyGate() {
@@ -528,16 +553,58 @@
         document.getElementById('submitButton').disabled = false;
         document.getElementById('submitButton').textContent = 'Sign & Submit Settlement';
 
+        loadContributors();
         loadBuyBackReserve();
-        populateContributorsDropDown();
       } catch (err) {
         statusEl.textContent = 'Could not verify: ' + err.message + '. Check your connection.';
         statusEl.className = 'error fade-in';
       }
     }
 
+    function setupCombobox() {
+      var trigger = document.getElementById('contributorSelectCombobox');
+      var dropdown = document.getElementById('contributorDropdownContainer');
+      var search = document.getElementById('contributorSearchInput');
+
+      if (!trigger || !dropdown || !search) return;
+
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = dropdown.style.display === 'block';
+        dropdown.style.display = open ? 'none' : 'block';
+        if (!open) {
+          setTimeout(function () { search.focus(); }, 10);
+          updateContributorAutocomplete();
+        }
+      });
+
+      search.addEventListener('input', updateContributorAutocomplete);
+
+      search.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var q = (search.value || '').toLowerCase();
+          var matches = contributorList.filter(function (n) { return n.toLowerCase().indexOf(q) !== -1; });
+          if (matches.length > 0) selectContributor(matches[0]);
+        } else if (e.key === 'Escape') {
+          dropdown.style.display = 'none';
+          search.value = '';
+        }
+      });
+
+      document.addEventListener('click', function (e) {
+        if (trigger && dropdown) {
+          if (!trigger.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+            search.value = '';
+          }
+        }
+      });
+    }
+
     window.addEventListener('DOMContentLoaded', function () {
       verifyGate();
+      setupCombobox();
       document.getElementById('paste-area').addEventListener('paste', handlePaste);
       document.getElementById('paste-area').addEventListener('click', triggerFileSelect);
       document.getElementById('fldNotes').addEventListener('paste', handleNotesPaste);
