@@ -433,42 +433,38 @@
     }
 
     async function populateContributorsDropDown() {
-      var list = [];
+      // Load full contributor name list from GAS (280+ names)
+      // Cross-reference with dao_members.json for voting_rights data
+      var gasList = [];
+      var daoMap = {};
+
       try {
         var snapshot = await window.DaoMembersCache.fetchSnapshot();
         var contributors = (snapshot && snapshot.contributors) || [];
-        if (contributors.length > 0) {
-          list = contributors;
+        for (var i = 0; i < contributors.length; i++) {
+          if (contributors[i].name) daoMap[contributors[i].name.trim()] = contributors[i];
         }
       } catch (_) {}
 
-      // GAS fallback for full contributor list (not just key-registered)
-      if (list.length === 0) {
-        try {
-          var res = await fetch(DAO_FORMS_ENDPOINT + '?recipients=true');
-          var data = await res.json();
-          if (Array.isArray(data)) {
-            list = data.map(function (c) { return { name: c.name, voting_rights: 0 }; });
-          } else if (data.status === 'success' && data.data && data.data.contributors) {
-            list = data.data.contributors.map(function (c) { return { name: c.name || c, voting_rights: 0 }; });
-          }
-        } catch (_) {}
+      try {
+        var res = await fetch(DAO_FORMS_ENDPOINT + '?recipients=true');
+        var data = await res.json();
+        if (Array.isArray(data)) {
+          gasList = data.map(function (c) { return c.name || ''; });
+        }
+      } catch (_) {}
+
+      if (gasList.length === 0) {
+        gasList = Object.keys(daoMap);
       }
 
-      if (list.length === 0) {
+      contributorMap = daoMap;
+      allContributors = gasList.filter(function (n) { return n; }).sort(function (a, b) { return a.localeCompare(b); });
+
+      if (allContributors.length === 0) {
         document.getElementById('contributorHelp').textContent = 'Could not load contributors.';
         return;
       }
-
-      contributorMap = {};
-      allContributors = [];
-      for (var i = 0; i < list.length; i++) {
-        var name = (list[i].name || '').trim();
-        if (!name) continue;
-        contributorMap[name] = list[i];
-        allContributors.push(name);
-      }
-      allContributors.sort(function (a, b) { return a.localeCompare(b); });
 
       var dd = document.getElementById('fldContributor');
       dd.innerHTML = '<option value="">-- Select contributor --</option>';
