@@ -434,7 +434,15 @@
             return Array.isArray(json) ? json : [];
         }
 
-        async function fetchQrRowsForManager(managerName) {
+        async function fetchQrRowsForManager(managerKey, managerName) {
+            try {
+                if (window.TreasuryCache && typeof TreasuryCache.getManagerQrCodes === 'function') {
+                    var cached = await TreasuryCache.getManagerQrCodes(managerKey);
+                    if (cached) return cached;
+                }
+            } catch (e) {
+                console.warn('[holdings] treasury-cache QR failed:', e);
+            }
             var want = (managerName || '').trim().toLowerCase();
             if (!want) return [];
             var url = QR_CODE_BASE + '?list_with_members=true';
@@ -545,9 +553,11 @@
             var meta = document.getElementById('holdingsMeta');
             if (meta) meta.textContent = 'Loading…';
             try {
-                var assets = await fetchManagerAssets(currentManagerKey);
+                var [assets, qrRows] = await Promise.all([
+                    fetchManagerAssets(currentManagerKey),
+                    fetchQrRowsForManager(currentManagerKey, currentManagerName)
+                ]);
                 lastAssets = assets;
-                var qrRows = await fetchQrRowsForManager(currentManagerName);
                 lastQrRows = qrRows;
                 renderHoldingsTable(assets);
                 renderQrTable(qrRows);
