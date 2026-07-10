@@ -176,6 +176,17 @@
     return out;
   }
 
+  // [{qr_code, status, currency, ledger_shortcut}] — drop-in for GAS QR list_with_members
+  // filtered to a single manager. Returns null when cache unavailable (caller falls back to GAS).
+  // Returns [] when the manager has no QR codes in the cache.
+  async function getManagerQrCodes(managerKey) {
+    var snap = await load();
+    if (!snap) return null;
+    var manager = snap.managers.find(function (m) { return m.manager_key === managerKey; });
+    if (!manager || !Array.isArray(manager.qr_codes)) return [];
+    return manager.qr_codes;
+  }
+
   // Fast, GAS-free signature-registration check. The cache publisher writes one
   // file per ACTIVE public key at public_keys/<sha256(publicKeyBase64)>.json, so
   // a single static CDN fetch confirms registration without an Apps Script
@@ -226,6 +237,7 @@
     getManagerAssets: getManagerAssets,
     getManagerInventoryForShipping: getManagerInventoryForShipping,
     getManagersForShipping: getManagersForShipping,
+    getManagerQrCodes: getManagerQrCodes,
     verifyPublicKey: verifyPublicKey
   };
 })(window);
