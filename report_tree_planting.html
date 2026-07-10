@@ -19,6 +19,7 @@
   <script src="./routes.js"></script>
   <script src="./menu.js?v=20260702b"></script>
   <script src="./tdg_balance.js"></script>
+  <script src="./scripts/dao_members_cache.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -412,6 +413,15 @@
       }
       
       try {
+        // Cache-first identity lookup — dao_members.json from GitHub CDN
+        // (~50–150ms) vs the assetVerify GAS round-trip (1–5s cold-start).
+        try {
+          const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+          if (lookup.contributor) {
+            return { contributor_name: lookup.contributor.name };
+          }
+        } catch (_) { /* cache unavailable; fall through to GAS */ }
+
         const encodedSignature = encodeSignature(publicKey);
         const url = `${API_ENDPOINT}?signature=${encodedSignature}`;
         console.log('Making request to:', url);

@@ -149,14 +149,60 @@ async function loadRemoteData() {
 1. Show "Verifying your digital signature..." message immediately on page load
 2. Check for signature in localStorage
 3. If missing, redirect to `create_signature.html` after 2-second countdown
-4. If present, verify with backend
+4. **Cache-first identity lookup** (see below), falling back to the GAS `assetVerify` endpoint
 5. If verification fails, show error and redirect to create signature
 6. If successful, show welcome message and enable form
 
+### Pattern: Cache-First Identity Lookup (fast path)
+
+**Why:** The GAS `assetVerify` (`?signature=<publicKey>`) endpoint scans the ledger
+spreadsheet and has a 1–5s cold-start. The same "is this key registered + who is it"
+fact is published to GitHub as a static JSON, served from a CDN in ~50–150ms.
+
+**Rule:** Verify against the cache first, then **fall back to GAS** on a cache miss.
+The fallback matters: a brand-new signature (registered minutes ago) may not be in the
+cron-published cache yet, so a cache miss must NOT immediately declare the key invalid.
+
+**Standard helper — `DaoMembersCache.findByPublicKey(pk)`** (from `scripts/dao_members_cache.js`):
+Returns `{contributor, key, ...}` and gives the contributor **name** most pages display.
+Include `<script src="./scripts/dao_members_cache.js"></script>` in the head (after `tdg_balance.js`).
+
+```js
+let data;
+// Cache-first identity lookup — dao_members.json from GitHub CDN
+// (~50–150ms) vs the assetVerify GAS round-trip (1–5s cold-start).
+try {
+  const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+  if (lookup.contributor) {
+    data = { contributor_name: lookup.contributor.name };
+  }
+} catch (_) { /* cache unavailable; fall through to GAS */ }
+
+if (!data) {
+  const response = await fetch(`${API_ENDPOINT}?signature=${encodeURIComponent(publicKey)}`);
+  data = await response.json();
+}
+// …then use data.error / data.contributor_name exactly as before.
+```
+
+**Alternate helper — `TreasuryCache.verifyPublicKey(pk)`** (from `js/treasury_cache.js`):
+For pages that need only a boolean "is registered?" gate (no name). Fetches a single
+tiny `public_keys/<sha256(pubkey)>.json` file. Returns `{registered, reason, record}`.
+Used by `view_inventory_holdings.html`. Fall back to GAS on `not_found`/`error`.
+
+**Exceptions (keep authoritative GAS call):**
+- `withdraw_voting_rights.html` / `withdraw_voting_rights_settlement.html` need live
+  **balances** (`&full=true`: `total_assets`, `asset_per_circulated_voting_right`,
+  `usd_provisions_for_cash_out`) that the identity cache does not carry.
+
 **Files Using This Pattern:**
-- `report_contribution.html`
-- `report_inventory_movement.html`
-- `update_qr_code.html`
+- Cache-first (name) + GAS fallback: `create_proposal.html`, `scanner.html`,
+  `notarize.html`, `report_tree_planting.html`, `register_farm.html`,
+  `submit_feedback.html`, `verify_request.html`, `update_qr_code.html`,
+  `review_proposal.html`, `repackaging_planner.html`, `batch_qr_generator.html`,
+  `report_contribution.html`, `report_sales.html`, `report_inventory_movement.html`,
+  `report_dao_expenses.html`, `stores_nearby.html`, `store_interaction_history.html`
+- Cache-first (boolean) + GAS fallback: `view_inventory_holdings.html`
 - All authenticated DApp modules
 
 ---

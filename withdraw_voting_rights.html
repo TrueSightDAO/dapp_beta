@@ -900,6 +900,12 @@
 
       try {
         const timestamp = new Date().toISOString();
+        // NOTE: intentionally NOT cache-first. Unlike the identity-only pages,
+        // this cash-out flow needs live balances (voting_rights,
+        // asset_per_circulated_voting_right, total_assets,
+        // usd_provisions_for_cash_out) that only assetVerify's &full=true
+        // response provides — dao_members.json's dao_totals is often null.
+        // Keep the authoritative GAS call here.
         const response = await fetch(`${API_ENDPOINT}?signature=${encodeURIComponent(publicKey)}&full=true`);
         const data = await response.json();
 
