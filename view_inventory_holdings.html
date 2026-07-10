@@ -654,17 +654,38 @@
                 return;
             }
             try {
-                var response = await fetch(API_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
-                var data = await response.json();
-                if (data.error) {
-                    if (String(data.error).indexOf('No matching') !== -1) {
+                var verified = false;
+                var verifyErr = null;
+
+                if (window.TreasuryCache && typeof TreasuryCache.verifyPublicKey === 'function') {
+                    var fast = await TreasuryCache.verifyPublicKey(publicKey);
+                    if (fast.registered === true) {
+                        verified = true;
+                        console.log('[holdings] signature verified via treasury-cache (fast path)');
+                    } else if (fast.registered === false && fast.reason === 'not_active') {
                         statusEl.innerHTML = 'Signature not registered. <a href="./create_signature.html">Register first</a>.';
-                    } else {
-                        statusEl.textContent = 'Error: ' + data.error;
+                        statusEl.className = 'error fade-in';
+                        return;
                     }
-                    statusEl.className = 'error fade-in';
-                    return;
+                    // not_found (maybe too new for the cron cache) or error → fall through to GAS.
                 }
+
+                if (!verified) {
+                    var response = await fetch(API_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
+                    var data = await response.json();
+                    if (data.error) {
+                        if (String(data.error).indexOf('No matching') !== -1) {
+                            statusEl.innerHTML = 'Signature not registered. <a href="./create_signature.html">Register first</a>.';
+                        } else {
+                            statusEl.textContent = 'Error: ' + data.error;
+                        }
+                        statusEl.className = 'error fade-in';
+                        return;
+                    }
+                    verified = true;
+                    console.log('[holdings] signature verified via GAS (fallback path)');
+                }
+
                 statusEl.textContent = 'Signature verified.';
                 statusEl.className = 'status fade-in';
                 mainPanel.style.display = 'block';

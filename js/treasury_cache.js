@@ -24,6 +24,8 @@
 
   var TREASURY_CACHE_BASE_URL =
     'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_offchain_treasury.json';
+  var PUBLIC_KEYS_BASE_URL =
+    'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/public_keys/';
   var TREASURY_CACHE_SESSION_BUST = Date.now(); // freshen per page load, memoize within session
   var _promise = null;
 
@@ -165,6 +167,57 @@
     };
   }
 
+  function _hexFromBuffer(buf) {
+    var bytes = new Uint8Array(buf);
+    var out = '';
+    for (var i = 0; i < bytes.length; i++) {
+      out += bytes[i].toString(16).padStart(2, '0');
+    }
+    return out;
+  }
+
+  // Fast, GAS-free signature-registration check. The cache publisher writes one
+  // file per ACTIVE public key at public_keys/<sha256(publicKeyBase64)>.json, so
+  // a single static CDN fetch confirms registration without an Apps Script
+  // cold-start + full-sheet scan.
+  //
+  // Returns one of:
+  //   { registered: true,  record: {...} }          — ACTIVE key found in cache
+  //   { registered: false, reason: 'not_active' }   — file exists but status !== ACTIVE
+  //   { registered: false, reason: 'not_found' }    — no file (unknown OR too new for cache)
+  //   { registered: null,  reason: 'error', error } — network/crypto failure; caller should fall back
+  //
+  // `reason: 'not_found'` is intentionally ambiguous: a brand-new signature may
+  // not be in the cron-published cache yet, so callers should fall back to the
+  // GAS assetVerify endpoint before declaring the key invalid.
+  async function verifyPublicKey(publicKeyBase64) {
+    if (!publicKeyBase64) return { registered: false, reason: 'not_found' };
+    try {
+      if (!global.crypto || !global.crypto.subtle) {
+        return { registered: null, reason: 'error', error: new Error('WebCrypto unavailable') };
+      }
+      var data = new TextEncoder().encode(publicKeyBase64);
+      var digest = await global.crypto.subtle.digest('SHA-256', data);
+      var hash = _hexFromBuffer(digest);
+      var url = PUBLIC_KEYS_BASE_URL + hash + '.json?t=' + TREASURY_CACHE_SESSION_BUST;
+      var res = await fetch(url, { cache: 'no-store' });
+      if (res.status === 404) {
+        return { registered: false, reason: 'not_found' };
+      }
+      if (!res.ok) {
+        return { registered: null, reason: 'error', error: new Error('HTTP ' + res.status) };
+      }
+      var record = await res.json();
+      if (record && record.status === 'ACTIVE') {
+        return { registered: true, record: record };
+      }
+      return { registered: false, reason: 'not_active', record: record };
+    } catch (err) {
+      console.warn('[treasury-cache] verifyPublicKey failed, caller should fall back to GAS:', err);
+      return { registered: null, reason: 'error', error: err };
+    }
+  }
+
   global.TreasuryCache = {
     load: load,
     getManagers: getManagers,
@@ -172,6 +225,7 @@
     getAllCurrencies: getAllCurrencies,
     getManagerAssets: getManagerAssets,
     getManagerInventoryForShipping: getManagerInventoryForShipping,
-    getManagersForShipping: getManagersForShipping
+    getManagersForShipping: getManagersForShipping,
+    verifyPublicKey: verifyPublicKey
   };
 })(window);

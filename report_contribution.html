@@ -1315,14 +1315,33 @@
                 const timestamp = new Date().toISOString();
                 // Cache-first identity lookup. dao_members.json on treasury-cache is
                 // CDN-served (~50–150ms) vs the assetVerify GAS round-trip (1–3s).
-                const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
-                if (!lookup.contributor) {
+                let data;
+                try {
+                    const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                    if (lookup.contributor) {
+                        data = { contributor_name: lookup.contributor.name };
+                    }
+                } catch (_) { /* cache unavailable; fall through to GAS */ }
+
+                // GAS fallback: a brand-new signature may not be in the cron-published
+                // cache yet, so confirm against assetVerify before rejecting.
+                if (!data) {
+                    const verifyUrl = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify);
+                    if (verifyUrl) {
+                        try {
+                            const response = await fetch(`${verifyUrl}?signature=${encodeURIComponent(publicKey)}`);
+                            data = await response.json();
+                        } catch (_) { /* network issue; treat as unregistered below */ }
+                    }
+                }
+
+                if (!data || data.error || !data.contributor_name) {
                     statusElement.innerHTML = 'Your digital signature is not registered. <a href="./create_signature.html">Please register it first</a>.';
                     statusElement.className = 'error fade-in';
                     return;
                 }
 
-                contributorName = lookup.contributor.name;
+                contributorName = data.contributor_name;
                 document.getElementById('info').style.display = 'block';
                 document.getElementById('welcome').textContent = `Welcome back, ${contributorName}!`;
                 document.getElementById('welcome').style.display = 'block';

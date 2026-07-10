@@ -18,6 +18,7 @@
     <script src="./routes.js"></script>
     <script src="./menu.js?v=20260702b"></script>
     <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
     <script src="./scripts/edgar_payload_helper.js"></script>
 
     <style>
@@ -1081,8 +1082,20 @@
                     throw new Error('Digital signature not found. Please create one first.');
                 }
 
-                const memberResponse = await fetch(`${VERIFY_ENDPOINT}?signature=${encodeURIComponent(publicKey)}`);
-                const memberData = await memberResponse.json();
+                let memberData;
+                // Cache-first identity lookup — dao_members.json from GitHub CDN
+                // (~50–150ms) vs the assetVerify GAS round-trip (1–5s cold-start).
+                try {
+                    const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                    if (lookup.contributor) {
+                        memberData = { name: lookup.contributor.name, contributor_name: lookup.contributor.name };
+                    }
+                } catch (_) { /* cache unavailable; fall through to GAS */ }
+
+                if (!memberData) {
+                    const memberResponse = await fetch(`${VERIFY_ENDPOINT}?signature=${encodeURIComponent(publicKey)}`);
+                    memberData = await memberResponse.json();
+                }
 
                 if (memberData.error) {
                     if (memberData.error.includes('No matching')) {
@@ -1266,8 +1279,20 @@
             }
 
             try {
-                const response = await fetch(`${VERIFY_ENDPOINT}?signature=${encodeURIComponent(publicKey)}`);
-                const data = await response.json();
+                let data;
+                // Cache-first identity lookup — dao_members.json from GitHub CDN
+                // (~50–150ms) vs the assetVerify GAS round-trip (1–5s cold-start).
+                try {
+                    const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                    if (lookup.contributor) {
+                        data = { contributor_name: lookup.contributor.name, name: lookup.contributor.name };
+                    }
+                } catch (_) { /* cache unavailable; fall through to GAS */ }
+
+                if (!data) {
+                    const response = await fetch(`${VERIFY_ENDPOINT}?signature=${encodeURIComponent(publicKey)}`);
+                    data = await response.json();
+                }
 
                 if (data.error) {
                     if (data.error.includes('No matching')) {

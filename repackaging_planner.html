@@ -13,6 +13,7 @@
   <script src="./routes.js"></script>
   <script src="./menu.js?v=20260702b"></script>
   <script src="./tdg_balance.js"></script>
+  <script src="./scripts/dao_members_cache.js"></script>
   <title>Repackaging Planner - TrueSight DAO</title>
   <style>
     body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; margin: 1rem; padding: 1rem; min-height: 100vh; box-sizing: border-box; background: #f5f5f5; }
@@ -373,8 +374,24 @@
       }, 1000);
       return Promise.resolve(null);
     }
-    return fetch(SIGNATURE_API + '?signature=' + encodeURIComponent(publicKey))
-      .then(function (r) { return r.json(); })
+    // Cache-first identity lookup — dao_members.json from GitHub CDN
+    // (~50–150ms) vs the assetVerify GAS round-trip (1–5s cold-start).
+    var cachePromise = (window.DaoMembersCache && window.DaoMembersCache.findByPublicKey)
+      ? window.DaoMembersCache.findByPublicKey(publicKey)
+          .then(function (lookup) {
+            return (lookup && lookup.contributor)
+              ? { contributor_name: lookup.contributor.name }
+              : null;
+          })
+          .catch(function () { return null; })
+      : Promise.resolve(null);
+
+    return cachePromise
+      .then(function (cached) {
+        if (cached) return cached;
+        return fetch(SIGNATURE_API + '?signature=' + encodeURIComponent(publicKey))
+          .then(function (r) { return r.json(); });
+      })
       .then(function (data) {
         if (data && data.error) {
           if (String(data.error).indexOf('No matching') !== -1) {
