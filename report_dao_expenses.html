@@ -1087,29 +1087,9 @@
                 resourceSearchInput.value = '';
             }
             
-            // Auto-update Target Ledger if resource has ledger prefix
-            // Do NOT call filterResourcesByLedger() - avoids race conditions and unnecessary dropdown refresh
-            if (ledgerInput && resourceValue) {
-                const extractedLedger = extractLedgerFromResource(resourceValue);
-                if (extractedLedger) {
-                    const matchingLedger = allLedgers.find(l => {
-                        const ledgerName = l.ledger_name.toLowerCase().trim();
-                        const extractedName = extractedLedger.toLowerCase().trim();
-                        return ledgerName === extractedName || 
-                               ledgerName.replace(/[\s\-_]/g, '') === extractedName.replace(/[\s\-_]/g, '');
-                    });
-                    
-                    if (matchingLedger) {
-                        ledgerInput.value = matchingLedger.ledger_name;
-                        updateLedgerInfo();
-                        console.log(`Auto-selected Target Ledger: ${matchingLedger.ledger_name} based on resource: ${resourceValue}`);
-                    } else {
-                        ledgerInput.value = extractedLedger;
-                        updateLedgerInfo();
-                        console.log(`Auto-selected Target Ledger: ${extractedLedger} (not in ledger list, but extracted from resource)`);
-                    }
-                }
-            }
+            // For expense reports, target ledger stays as selected (defaults to offchain).
+            // Do NOT auto-fill from resource prefix — expenses always post to offchain.
+            updateLedgerInfo();
             
             // Enable quantity input and update available quantity display
             if (qtyInput) {
