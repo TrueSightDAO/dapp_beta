@@ -140,6 +140,13 @@ const PAGE_SPECS: PageSpec[] = [
     edgarWired: { ping: true, submit: true },
   },
   {
+    module: 'Sunmint',
+    path: '/link_tree_planting.html',
+    gasKeysWired: ['qrCodes'],
+    edgarWired: { submit: true },
+    verifiedMarker: { selector: '#welcome', textContains: 'Signed in as' },
+  },
+  {
     module: 'Remaining pages',
     path: '/store_interaction_history.html',
     gasKeysWired: ['storesHitList', 'assetVerify'],
