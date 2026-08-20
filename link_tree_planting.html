@@ -222,12 +222,12 @@
         <details class="settings">
             <summary>Endpoint settings (one-time setup)</summary>
             <div class="field">
-                <label for="governor_key_input">Governor Read Key (shared secret provisioned by a governor — required for both lists below)</label>
-                <input type="password" id="governor_key_input" placeholder="paste the GOVERNOR_READ_KEY value">
+                <label for="governor_key_input">Governor Read Key (shared secret — enter once, saved in this browser)</label>
+                <input type="password" id="governor_key_input" placeholder="enter the GOVERNOR_READ_KEY value">
             </div>
             <div class="field">
-                <label for="sunmint_endpoint_input">Sunmint Tree Planting GAS /exec URL (no known default yet — ask a governor for the current deployment URL after tokenomics PR3 is clasp-deployed)</label>
-                <input type="text" id="sunmint_endpoint_input" placeholder="https://script.google.com/macros/s/.../exec">
+                <label for="sunmint_endpoint_input">Sunmint Tree Planting endpoint (defaults to the live PR3 deployment; change only if re-deployed)</label>
+                <input type="text" id="sunmint_endpoint_input" placeholder="https://script.google.com/macros/s/AKfycbyoNNX.../exec">
             </div>
             <div class="field" style="margin-top:0.8rem;">
                 <button type="button" id="save_settings_button">Save &amp; reload lists</button>
@@ -278,12 +278,13 @@
         const QR_CODE_BASE = (window.Routes && window.Routes.gas && window.Routes.gas.qrCodes)
             || 'https://script.google.com/macros/s/AKfycbyGD0CDkvjo7K9O1gPnnqmdXvaJt9FM2v39HHqiDud5wwU6Mf41wwIOFS-NDD93xqoL/exec';
 
-        // Governor Read Key + Sunmint endpoint aren't in routes.js yet (no known deployment URL for the
-        // Sunmint Tree Planting GAS project — its manifest.json marks deployments "TBC" as of this PR).
-        // Both are operator-configured, same localStorage pattern the DApp already uses for RSA keys.
+        // Governor Read Key: shared secret — enter once, saved in this browser.
+        // Sunmint endpoint defaults to the live PR3 deployment (verified via clasp 2026-08-20);
+        // override only if the GAS project is re-deployed to a new URL.
+        const SUNMINT_ENDPOINT_DEFAULT = 'https://script.google.com/macros/s/AKfycbyoNNX_zX0Vu3N2S-WmJ3BGtMdDvXeke5bkrblZhi7SgmDrcuSrzIgrI5FTFFnPbeJP/exec';
         function getGovernorKey() { try { return localStorage.getItem('tplGovernorKey') || ''; } catch (_) { return ''; } }
         function setGovernorKey(v) { try { localStorage.setItem('tplGovernorKey', v || ''); } catch (_) { /* ignore */ } }
-        function getSunmintEndpoint() { try { return localStorage.getItem('tplSunmintEndpoint') || ''; } catch (_) { return ''; } }
+        function getSunmintEndpoint() { try { return localStorage.getItem('tplSunmintEndpoint') || SUNMINT_ENDPOINT_DEFAULT; } catch (_) { return SUNMINT_ENDPOINT_DEFAULT; } }
         function setSunmintEndpoint(v) { try { localStorage.setItem('tplSunmintEndpoint', v || ''); } catch (_) { /* ignore */ } }
 
         const publicKey = (function () { try { return localStorage.getItem('publicKey') || ''; } catch (_) { return ''; } })();
