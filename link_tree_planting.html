@@ -370,6 +370,12 @@
             const capEl = document.getElementById('photo_caption');
             if (sub && sub.photo_url) {
                 imgEl.src = sub.photo_url;
+                imgEl.onerror = function () {
+                    // Photo missing in the repo (or GitHub CDN lag) - show a graceful placeholder, not a broken image 404.
+                    this.onerror = null;
+                    this.removeAttribute('src');
+                    capEl.textContent = (sub.submitted_name || 'Submission') + ' - tree photo unavailable';
+                };
                 capEl.textContent = (sub.submitted_name || 'Submission') + ' \u00b7 planted ' +
                     (sub.planting_date || 'N/A') +
                     (sub.latitude && sub.longitude ? ' \u00b7 ' + sub.latitude + ', ' + sub.longitude : '');
