@@ -244,6 +244,11 @@
             <span class="empty">Select one QR code and one submission to continue.</span>
         </div>
 
+        <div id="photo_preview" style="display:none;margin-top:1rem;text-align:center;">
+            <img id="tree_photo" alt="Tree photo" style="max-width:100%;max-height:340px;border-radius:8px;border:1px solid var(--border,#e2e2e2);"/>
+            <p id="photo_caption" style="margin:0.35rem 0 0;font-size:0.8rem;color:#666;"></p>
+        </div>
+
         <div class="action-row" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;">
             <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
             <button type="button" id="reject_button" disabled onclick="submitReject()">Mark Invalid</button>
@@ -359,6 +364,20 @@
             el.innerHTML = 'Will link QR <strong>' + escapeHtml(selectedQrCode) + '</strong> to the ' +
                 escapeHtml((sub && sub.submitted_name) || 'selected') + ' submission planted ' +
                 escapeHtml((sub && sub.planting_date) || 'N/A') + '.';
+            // Show the tree photo for the selected submission (public cache photo_url).
+            const photoEl = document.getElementById('photo_preview');
+            const imgEl = document.getElementById('tree_photo');
+            const capEl = document.getElementById('photo_caption');
+            if (sub && sub.photo_url) {
+                imgEl.src = sub.photo_url;
+                capEl.textContent = (sub.submitted_name || 'Submission') + ' \u00b7 planted ' +
+                    (sub.planting_date || 'N/A') +
+                    (sub.latitude && sub.longitude ? ' \u00b7 ' + sub.latitude + ', ' + sub.longitude : '');
+                photoEl.style.display = 'block';
+            } else {
+                photoEl.style.display = 'none';
+                imgEl.removeAttribute('src');
+            }
             btn.disabled = false;
             if (rejectBtn) rejectBtn.disabled = false;
         }
