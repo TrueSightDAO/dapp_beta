@@ -22,29 +22,49 @@
     <script src="./scripts/edgar_payload_helper.js"></script>
 
     <style>
+        /* TrueSight DApp — light "Saffron Monk" / earthen palette to match the rest of the DApp */
+        :root {
+            --bg: #f5f5f5;
+            --surface: #ffffff;
+            --surface-hover: #f7f7f7;
+            --border: #e2e2e2;
+            --text: #333333;
+            --text-muted: #777777;
+            --accent: #166534;
+            --accent-hover: #1f7a44;
+            --green: #166534;
+            --green-bg: #e8f5e9;
+            --red: #dc3545;
+            --red-bg: #fdecea;
+            --yellow: #92710a;
+            --yellow-bg: #fff8e1;
+            --radius: 8px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: Arial, sans-serif;
-            margin: 1rem;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
             padding: 1rem;
-            background-color: #f5f5f5;
         }
         .container {
             max-width: 1000px;
             margin: 0 auto;
-            background-color: white;
+            background-color: var(--surface);
             padding: 1.25rem;
-            border-radius: 8px;
+            border-radius: var(--radius);
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         h1 {
-            font-size: 1.6rem;
-            color: #333;
-            margin: 0.5rem 0 0.25rem;
+            font-size: 1.8rem;
+            color: var(--text);
+            margin: 0.5rem 0 1rem;
             text-align: center;
         }
         #welcome {
             text-align: center;
-            color: #555;
+            color: var(--text-muted);
             font-size: 0.95rem;
             margin-bottom: 1rem;
         }
@@ -52,14 +72,29 @@
             font-style: italic;
             color: #555;
             line-height: 1.5;
-            margin: 0.5rem 0 1.25rem;
+            margin: 0.8rem 0 1.2rem;
             font-size: 0.95rem;
             text-align: center;
         }
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+        .status-badge.governor {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .status-badge.readonly {
+            border-color: var(--text-muted);
+            color: var(--text-muted);
+        }
         details.settings {
             margin-bottom: 1.25rem;
-            border: 1px solid #e2e2e2;
-            border-radius: 6px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             padding: 0.6rem 0.9rem;
             background: #fafafa;
         }
@@ -87,81 +122,72 @@
             font-family: monospace;
             font-size: 0.85rem;
         }
-        .columns {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
+        .picker {
+            margin: 1rem 0;
         }
-        .column {
-            flex: 1 1 320px;
-            min-width: 280px;
+        .picker label {
+            display: block;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+            font-size: 0.95rem;
         }
-        .column h2 {
-            font-size: 1.05rem;
-            color: #333;
-            border-bottom: 2px solid #e2e2e2;
-            padding-bottom: 0.4rem;
-        }
-        .row-list {
-            max-height: 420px;
-            overflow-y: auto;
-            border: 1px solid #e2e2e2;
-            border-radius: 6px;
-        }
-        .row-item {
-            padding: 0.6rem 0.75rem;
-            border-bottom: 1px solid #eee;
+        .picker select {
+            width: 100%;
+            padding: 0.55rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            color: var(--text);
+            background: var(--surface);
             cursor: pointer;
-            font-size: 0.85rem;
         }
-        .row-item:last-child { border-bottom: none; }
-        .row-item:hover { background: #f7f7f7; }
-        .row-item.selected {
-            background: #e8f4ea;
-            border-left: 4px solid #2e7d32;
+        .picker select:focus {
+            outline: none;
+            border-color: var(--accent);
         }
-        .row-item .primary { font-weight: bold; color: #333; }
-        .row-item .secondary { color: #777; font-size: 0.8rem; }
-        .row-empty {
-            padding: 1rem;
-            color: #999;
-            text-align: center;
-            font-size: 0.85rem;
+        .picker select:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
         }
         .selection-summary {
             margin: 1.25rem 0;
             padding: 0.9rem;
-            background: #f0f7f1;
+            background: var(--green-bg);
             border: 1px solid #cfe6d2;
-            border-radius: 6px;
+            border-radius: var(--radius);
             font-size: 0.9rem;
         }
-        .selection-summary .empty { color: #999; }
+        .selection-summary .empty { color: var(--text-muted); }
         #link_button {
             display: block;
             width: 100%;
             padding: 0.7rem;
             margin-top: 0.5rem;
-            background: #2e7d32;
+            background: var(--green);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: var(--radius);
             font-size: 1rem;
             cursor: pointer;
+            transition: opacity 0.2s;
         }
         #link_button:disabled {
             background: #aaa;
             cursor: not-allowed;
         }
+        #link_button:not(:disabled):hover {
+            opacity: 0.85;
+        }
         #report_output {
             margin-top: 1rem;
             padding: 0.75rem;
-            border-radius: 6px;
+            border-radius: var(--radius);
             display: none;
             font-size: 0.9rem;
         }
-        #report_output.success { background: #e8f4ea; color: #1b5e20; border: 1px solid #cfe6d2; }
-        #report_output.error { background: #fff5f5; color: #842029; border: 1px solid #f5c2c7; }
+        #report_output.success { background: var(--green-bg); color: #1b5e20; border: 1px solid #cfe6d2; }
+        #report_output.error { background: var(--red-bg); color: #842029; border: 1px solid #f5c2c7; }
         #submissionResult { display: none; margin-top: 1rem; }
         #submissionResult pre {
             background: #f5f5f5;
@@ -175,15 +201,23 @@
     </style>
 </head>
 <body>
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
     <div id="gateContainer"></div>
     <div id="content" class="container" style="display:none;">
+        <div style="text-align: center;">
+            <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
         <h1>Link Tree Planting</h1>
         <div id="welcome"></div>
         <p id="description">
-            Governor-only. Pick a sold QR code (left) and a pending Sunmint tree-planting submission
-            (right), then confirm the link. This flips the QR to ASSIGNED_TO_TREE, copies the planting
+            Governor-only. Pick a sold QR code and a pending Sunmint tree-planting submission,
+            then confirm the link. This flips the QR to ASSIGNED_TO_TREE, copies the planting
             evidence onto the QR row, books the ledger fulfillment entry, and emails the QR owner.
         </p>
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <span class="status-badge" id="authBadge">Checking authorization…</span>
+        </div>
 
         <details class="settings">
             <summary>Endpoint settings (one-time setup)</summary>
@@ -202,15 +236,18 @@
 
         <div id="status"></div>
 
-        <div class="columns">
-            <div class="column">
-                <h2>Sold QR codes pending tree link</h2>
-                <div id="qr_list" class="row-list"><div class="row-empty">Loading…</div></div>
-            </div>
-            <div class="column">
-                <h2>Sunmint submissions pending link</h2>
-                <div id="sunmint_list" class="row-list"><div class="row-empty">Loading…</div></div>
-            </div>
+        <div class="picker">
+            <label for="qr_select">Sold QR codes pending tree link</label>
+            <select id="qr_select" disabled onchange="selectQr(this.value)">
+                <option value="">Loading…</option>
+            </select>
+        </div>
+
+        <div class="picker">
+            <label for="sunmint_select">Sunmint submissions pending link</label>
+            <select id="sunmint_select" disabled onchange="selectSubmission(this.value)">
+                <option value="">Loading…</option>
+            </select>
         </div>
 
         <div class="selection-summary" id="selection_summary">
@@ -265,35 +302,57 @@
         }
 
         function renderQrList() {
-            const el = document.getElementById('qr_list');
+            const sel = document.getElementById('qr_select');
+            sel.innerHTML = '';
             if (!qrItems.length) {
-                el.innerHTML = '<div class="row-empty">No sold QR codes pending a tree link.</div>';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No sold QR codes pending a tree link.';
+                sel.appendChild(opt);
+                sel.disabled = true;
                 return;
             }
-            el.innerHTML = qrItems.map(function (item) {
-                const selected = item.qr_code === selectedQrCode ? ' selected' : '';
-                return '<div class="row-item' + selected + '" data-qr="' + escapeHtml(item.qr_code) + '" onclick="selectQr(this.dataset.qr)">' +
-                    '<div class="primary">' + escapeHtml(item.qr_code) + '</div>' +
-                    '<div class="secondary">' + escapeHtml(item.owner_email || '(no email)') + ' · sold ' + escapeHtml(item.sold_date || 'N/A') +
-                    (item.ledger_name ? ' · ' + escapeHtml(item.ledger_name) : '') + '</div>' +
-                    '</div>';
-            }).join('');
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select a sold QR code…';
+            sel.appendChild(placeholder);
+            qrItems.forEach(function (item) {
+                const opt = document.createElement('option');
+                opt.value = item.qr_code;
+                opt.textContent = item.qr_code + ' · ' + (item.owner_email || '(no email)') +
+                    ' · sold ' + (item.sold_date || 'N/A') +
+                    (item.ledger_name ? ' · ' + item.ledger_name : '');
+                if (item.qr_code === selectedQrCode) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
         }
 
         function renderSunmintList() {
-            const el = document.getElementById('sunmint_list');
+            const sel = document.getElementById('sunmint_select');
+            sel.innerHTML = '';
             if (!sunmintItems.length) {
-                el.innerHTML = '<div class="row-empty">No pending Sunmint submissions.</div>';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No pending Sunmint submissions.';
+                sel.appendChild(opt);
+                sel.disabled = true;
                 return;
             }
-            el.innerHTML = sunmintItems.map(function (item) {
-                const selected = item.telegram_message_id === selectedSubmission ? ' selected' : '';
-                return '<div class="row-item' + selected + '" data-id="' + escapeHtml(item.telegram_message_id) + '" onclick="selectSubmission(this.dataset.id)">' +
-                    '<div class="primary">' + escapeHtml(item.submitted_name || '(unknown)') + ' — ' + escapeHtml(item.species || 'N/A') + '</div>' +
-                    '<div class="secondary">planted ' + escapeHtml(item.planting_date || 'N/A') +
-                    (item.latitude && item.longitude ? ' · ' + escapeHtml(item.latitude) + ', ' + escapeHtml(item.longitude) : '') + '</div>' +
-                    '</div>';
-            }).join('');
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select a submission…';
+            sel.appendChild(placeholder);
+            sunmintItems.forEach(function (item) {
+                const opt = document.createElement('option');
+                opt.value = item.telegram_message_id;
+                opt.textContent = (item.submitted_name || '(unknown)') + ' — ' + (item.species || 'N/A') +
+                    ' · planted ' + (item.planting_date || 'N/A') +
+                    (item.latitude && item.longitude ? ' · ' + item.latitude + ', ' + item.longitude : '');
+                if (item.telegram_message_id === selectedSubmission) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
         }
 
         function updateSelectionSummary() {
@@ -312,22 +371,21 @@
         }
 
         function selectQr(qrCode) {
-            selectedQrCode = (selectedQrCode === qrCode) ? null : qrCode;
-            renderQrList();
+            selectedQrCode = qrCode || null;
             updateSelectionSummary();
         }
 
         function selectSubmission(messageId) {
-            selectedSubmission = (selectedSubmission === messageId) ? null : messageId;
-            renderSunmintList();
+            selectedSubmission = messageId || null;
             updateSelectionSummary();
         }
 
         async function loadQrList() {
             const key = getGovernorKey();
+            const sel = document.getElementById('qr_select');
             if (!key) {
-                document.getElementById('qr_list').innerHTML =
-                    '<div class="row-empty">Set the Governor Read Key above, then Save &amp; reload.</div>';
+                sel.innerHTML = '<option value="">Set the Governor Read Key above, then Save &amp; reload.</option>';
+                sel.disabled = true;
                 return;
             }
             try {
@@ -338,17 +396,18 @@
                 qrItems = data.items || [];
                 renderQrList();
             } catch (err) {
-                document.getElementById('qr_list').innerHTML =
-                    '<div class="row-empty">Error loading QR codes: ' + escapeHtml(err.message) + '</div>';
+                sel.innerHTML = '<option value="">Error loading QR codes: ' + escapeHtml(err.message) + '</option>';
+                sel.disabled = true;
             }
         }
 
         async function loadSunmintList() {
             const key = getGovernorKey();
             const endpoint = getSunmintEndpoint();
+            const sel = document.getElementById('sunmint_select');
             if (!key || !endpoint) {
-                document.getElementById('sunmint_list').innerHTML =
-                    '<div class="row-empty">Set the Governor Read Key and Sunmint endpoint above, then Save &amp; reload.</div>';
+                sel.innerHTML = '<option value="">Set the Governor Read Key and Sunmint endpoint above, then Save &amp; reload.</option>';
+                sel.disabled = true;
                 return;
             }
             try {
@@ -360,8 +419,8 @@
                 sunmintItems = data.items || [];
                 renderSunmintList();
             } catch (err) {
-                document.getElementById('sunmint_list').innerHTML =
-                    '<div class="row-empty">Error loading Sunmint submissions: ' + escapeHtml(err.message) + '</div>';
+                sel.innerHTML = '<option value="">Error loading Sunmint submissions: ' + escapeHtml(err.message) + '</option>';
+                sel.disabled = true;
             }
         }
 
@@ -458,7 +517,11 @@
                 loadLists();
             });
 
+            const authBadge = document.getElementById('authBadge');
+
             if (!publicKey) {
+                authBadge.textContent = 'Not signed in';
+                authBadge.className = 'status-badge readonly';
                 document.getElementById('gateContainer').innerHTML =
                     '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
                     '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Sign in first</h2>' +
@@ -468,6 +531,8 @@
 
             window.DaoMembersCache.findByPublicKey(publicKey).then(function (lookup) {
                 if (!lookup || !lookup.contributor) {
+                    authBadge.textContent = 'Signature not registered';
+                    authBadge.className = 'status-badge readonly';
                     document.getElementById('gateContainer').innerHTML =
                         '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
                         '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature not registered</h2>' +
@@ -480,13 +545,20 @@
                     action: PAGE_ACTION,
                     publicKey: publicKey,
                     denyContainerId: 'gateContainer',
-                    onAllowed: function () {
+                    onAllowed: function (check) {
+                        authBadge.textContent = 'Governor';
+                        authBadge.className = 'status-badge governor';
                         document.getElementById('content').style.display = 'block';
                         loadLists();
                     },
-                    onDenied: function () {}
+                    onDenied: function (check) {
+                        authBadge.textContent = 'Not a governor';
+                        authBadge.className = 'status-badge readonly';
+                    }
                 });
             }).catch(function (err) {
+                authBadge.textContent = 'Permission check failed';
+                authBadge.className = 'status-badge readonly';
                 setStatus('Permission check failed: ' + err.message);
             });
         });
