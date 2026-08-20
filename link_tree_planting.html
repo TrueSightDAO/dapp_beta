@@ -254,7 +254,12 @@
             <span class="empty">Select one QR code and one submission to continue.</span>
         </div>
 
-        <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
+        <div class="action-row" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;">
+            <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
+            <button type="button" id="reject_button" disabled onclick="submitReject()">Mark Invalid</button>
+            <input type="text" id="reject_reason_input" placeholder="Reason (optional)" style="flex:1;min-width:220px;padding:0.5rem 0.75rem;border:1px solid var(--border,#e2e2e2);border-radius:var(--radius,8px);font-size:0.9rem;">
+        </div>
+        <p style="margin:0.35rem 0 0;font-size:0.8rem;color:#666;">Mark Invalid flips the SunMint submission to INVALID (governor-only). It does NOT change the QR code status, book ledger entries, or email the owner.</p>
 
         <div id="report_output"></div>
         <div id="submissionResult">
@@ -358,9 +363,11 @@
         function updateSelectionSummary() {
             const el = document.getElementById('selection_summary');
             const btn = document.getElementById('link_button');
+            const rejectBtn = document.getElementById('reject_button');
             if (!selectedQrCode || !selectedSubmission) {
                 el.innerHTML = '<span class="empty">Select one QR code and one submission to continue.</span>';
                 btn.disabled = true;
+                if (rejectBtn) rejectBtn.disabled = true;
                 return;
             }
             const sub = sunmintItems.find(function (s) { return s.telegram_message_id === selectedSubmission; });
@@ -368,6 +375,7 @@
                 escapeHtml((sub && sub.submitted_name) || 'selected') + ' submission planted ' +
                 escapeHtml((sub && sub.planting_date) || 'N/A') + '.';
             btn.disabled = false;
+            if (rejectBtn) rejectBtn.disabled = false;
         }
 
         function selectQr(qrCode) {
@@ -502,6 +510,81 @@
                 linkButton.textContent = 'Link Tree Planting';
                 // Recomputes disabled state from the current selection (cleared on success, kept on
                 // failure) — must run last so it isn't overridden by an unconditional enable/disable.
+                updateSelectionSummary();
+            }
+        }
+
+        async function submitReject() {
+            const reportOutput = document.getElementById('report_output');
+            const rejectButton = document.getElementById('reject_button');
+            const reasonInput = document.getElementById('reject_reason_input');
+            if (!selectedQrCode || !selectedSubmission) return;
+
+            if (!privateKey) {
+                reportOutput.textContent = 'No private key found. Sign in via create_signature.html first.';
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+                return;
+            }
+
+            rejectButton.disabled = true;
+            rejectButton.textContent = 'Marking Invalid…';
+            reportOutput.style.display = 'none';
+
+            try {
+                const attrPairs = [
+                    ['QR Code', selectedQrCode],
+                    ['SunMint Submission Message ID', selectedSubmission],
+                    ['Updated by', contributorName || 'Unknown']
+                ];
+                const reason = (reasonInput && reasonInput.value.trim()) || '';
+                if (reason) attrPairs.push(['Reason', reason]);
+
+                const helper = new EdgarPayloadHelper({
+                    digitalSignature: publicKey,
+                    generationSource: window.location.href
+                });
+
+                const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                    eventName: 'TREE PLANTING REJECT EVENT',
+                    attributes: attrPairs,
+                    privateKey: privateKey
+                });
+
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: payload, request_transaction_id: requestTransactionId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    reportOutput.textContent = 'Submitted. The submission is marked INVALID by the GAS handler on its next cron run (or immediately if the webhook is wired) — refresh the lists in a minute to confirm.';
+                    reportOutput.className = 'success';
+                } else {
+                    reportOutput.textContent = 'Submission failed: ' + (result.message || response.statusText);
+                    reportOutput.className = 'error';
+                }
+                reportOutput.style.display = 'block';
+
+                document.getElementById('requestPre').textContent = shareText;
+                document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('submissionResult').style.display = 'block';
+
+                if (response.ok && result.status === 'success') {
+                    selectedQrCode = null;
+                    selectedSubmission = null;
+                    if (reasonInput) reasonInput.value = '';
+                    renderQrList();
+                    renderSunmintList();
+                }
+            } catch (err) {
+                reportOutput.textContent = 'Error: ' + err.message;
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+            } finally {
+                rejectButton.textContent = 'Mark Invalid';
                 updateSelectionSummary();
             }
         }
