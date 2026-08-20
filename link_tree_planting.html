@@ -591,17 +591,48 @@
                 return;
             }
 
-            window.DaoMembersCache.findByPublicKey(publicKey).then(function (lookup) {
-                if (!lookup || !lookup.contributor) {
+            const ASSET_VERIFY_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
+                || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+
+            // Cache-first identity lookup (dao_members.json from GitHub CDN, ~50-150ms)
+            // with GAS assetVerify fallback (~1-5s cold-start) per UX_CONVENTIONS.md:
+            // a cache miss must NOT immediately declare the key invalid -- a brand-new
+            // signature may not be in the cron-published snapshot yet.
+            (async function () {
+                let data = null;
+                try {
+                    const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                    if (lookup && lookup.contributor) {
+                        data = { contributor_name: lookup.contributor.name };
+                    }
+                } catch (_) { /* cache unavailable; fall through to GAS */ }
+
+                if (!data) {
+                    try {
+                        const response = await fetch(ASSET_VERIFY_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
+                        data = await response.json();
+                    } catch (err) {
+                        authBadge.textContent = 'Signature check failed';
+                        authBadge.className = 'status-badge readonly';
+                        document.getElementById('gateContainer').innerHTML =
+                            '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                            '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature check failed</h2>' +
+                            '<p style="margin:0;">Could not verify your signature: ' + escapeHtml(err.message) + '</p></div>';
+                        return;
+                    }
+                }
+
+                if (!data || data.error) {
                     authBadge.textContent = 'Signature not registered';
                     authBadge.className = 'status-badge readonly';
                     document.getElementById('gateContainer').innerHTML =
                         '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
                         '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature not registered</h2>' +
-                        '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger.</p></div>';
-                    return null;
+                        '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger. Use <a href="./create_signature.html">the Digital Signature Creator</a> to register it first.</p></div>';
+                    return;
                 }
-                contributorName = lookup.contributor.name || '';
+
+                contributorName = data.contributor_name || '';
                 document.getElementById('welcome').textContent = 'Signed in as ' + (contributorName || '(contributor)');
                 return window.Permissions.requireRole({
                     action: PAGE_ACTION,
@@ -618,11 +649,7 @@
                         authBadge.className = 'status-badge readonly';
                     }
                 });
-            }).catch(function (err) {
-                authBadge.textContent = 'Permission check failed';
-                authBadge.className = 'status-badge readonly';
-                setStatus('Permission check failed: ' + err.message);
-            });
+            })();
         });
     </script>
     <script src="./js/dapp_footer_links.js?v=1"></script>
