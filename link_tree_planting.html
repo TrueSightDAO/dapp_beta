@@ -464,7 +464,7 @@
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: payload, request_transaction_id: requestTransactionId })
+                    body: JSON.stringify({ text: shareText, request_transaction_id: requestTransactionId })
                 });
 
                 const result = await response.json();
@@ -542,7 +542,7 @@
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: payload, request_transaction_id: requestTransactionId })
+                    body: JSON.stringify({ text: shareText, request_transaction_id: requestTransactionId })
                 });
 
                 const result = await response.json();
