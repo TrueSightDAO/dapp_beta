@@ -514,6 +514,81 @@
             }
         }
 
+        async function submitReject() {
+            const reportOutput = document.getElementById('report_output');
+            const rejectButton = document.getElementById('reject_button');
+            const reasonInput = document.getElementById('reject_reason_input');
+            if (!selectedQrCode || !selectedSubmission) return;
+
+            if (!privateKey) {
+                reportOutput.textContent = 'No private key found. Sign in via create_signature.html first.';
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+                return;
+            }
+
+            rejectButton.disabled = true;
+            rejectButton.textContent = 'Marking Invalid…';
+            reportOutput.style.display = 'none';
+
+            try {
+                const attrPairs = [
+                    ['QR Code', selectedQrCode],
+                    ['SunMint Submission Message ID', selectedSubmission],
+                    ['Updated by', contributorName || 'Unknown']
+                ];
+                const reason = (reasonInput && reasonInput.value.trim()) || '';
+                if (reason) attrPairs.push(['Reason', reason]);
+
+                const helper = new EdgarPayloadHelper({
+                    digitalSignature: publicKey,
+                    generationSource: window.location.href
+                });
+
+                const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                    eventName: 'TREE PLANTING REJECT EVENT',
+                    attributes: attrPairs,
+                    privateKey: privateKey
+                });
+
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: payload, request_transaction_id: requestTransactionId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    reportOutput.textContent = 'Submitted. The submission is marked INVALID by the GAS handler on its next cron run (or immediately if the webhook is wired) — refresh the lists in a minute to confirm.';
+                    reportOutput.className = 'success';
+                } else {
+                    reportOutput.textContent = 'Submission failed: ' + (result.message || response.statusText);
+                    reportOutput.className = 'error';
+                }
+                reportOutput.style.display = 'block';
+
+                document.getElementById('requestPre').textContent = shareText;
+                document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('submissionResult').style.display = 'block';
+
+                if (response.ok && result.status === 'success') {
+                    selectedQrCode = null;
+                    selectedSubmission = null;
+                    if (reasonInput) reasonInput.value = '';
+                    renderQrList();
+                    renderSunmintList();
+                }
+            } catch (err) {
+                reportOutput.textContent = 'Error: ' + err.message;
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+            } finally {
+                rejectButton.textContent = 'Mark Invalid';
+                updateSelectionSummary();
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             const governorKeyInput = document.getElementById('governor_key_input');
             const sunmintEndpointInput = document.getElementById('sunmint_endpoint_input');
