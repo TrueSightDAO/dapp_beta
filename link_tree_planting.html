@@ -254,7 +254,12 @@
             <span class="empty">Select one QR code and one submission to continue.</span>
         </div>
 
-        <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
+        <div class="action-row" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;">
+            <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
+            <button type="button" id="reject_button" disabled onclick="submitReject()">Mark Invalid</button>
+            <input type="text" id="reject_reason_input" placeholder="Reason (optional)" style="flex:1;min-width:220px;padding:0.5rem 0.75rem;border:1px solid var(--border,#e2e2e2);border-radius:var(--radius,8px);font-size:0.9rem;">
+        </div>
+        <p style="margin:0.35rem 0 0;font-size:0.8rem;color:#666;">Mark Invalid flips the SunMint submission to INVALID (governor-only). It does NOT change the QR code status, book ledger entries, or email the owner.</p>
 
         <div id="report_output"></div>
         <div id="submissionResult">
@@ -358,9 +363,11 @@
         function updateSelectionSummary() {
             const el = document.getElementById('selection_summary');
             const btn = document.getElementById('link_button');
+            const rejectBtn = document.getElementById('reject_button');
             if (!selectedQrCode || !selectedSubmission) {
                 el.innerHTML = '<span class="empty">Select one QR code and one submission to continue.</span>';
                 btn.disabled = true;
+                if (rejectBtn) rejectBtn.disabled = true;
                 return;
             }
             const sub = sunmintItems.find(function (s) { return s.telegram_message_id === selectedSubmission; });
@@ -368,6 +375,7 @@
                 escapeHtml((sub && sub.submitted_name) || 'selected') + ' submission planted ' +
                 escapeHtml((sub && sub.planting_date) || 'N/A') + '.';
             btn.disabled = false;
+            if (rejectBtn) rejectBtn.disabled = false;
         }
 
         function selectQr(qrCode) {
