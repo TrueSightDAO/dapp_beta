@@ -341,7 +341,7 @@
             sunmintItems.forEach(function (item) {
                 const opt = document.createElement('option');
                 opt.value = item.telegram_message_id;
-                opt.textContent = (item.submitted_name || '(unknown)') + ' — ' + (item.species || 'N/A') +
+                opt.textContent = '#' + item.telegram_message_id + ' · ' + (item.submitted_name || '(unknown)') + ' — ' + (item.species || 'N/A') +
                     ' · planted ' + (item.planting_date || 'N/A') +
                     (item.latitude && item.longitude ? ' · ' + item.latitude + ', ' + item.longitude : '');
                 if (item.telegram_message_id === selectedSubmission) opt.selected = true;
