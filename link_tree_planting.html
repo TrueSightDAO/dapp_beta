@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Governor-only: link a Sunmint tree-planting submission to a sold Agroverse QR code.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Tree Planting · TrueSight DAO</title>
+
+    <meta property="og:title" content="Link Tree Planting — TrueSight DAO">
+    <meta property="og:description" content="Governor-only: link a Sunmint tree-planting submission to a sold Agroverse QR code.">
+    <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+    <meta property="og:type" content="website">
+
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260702c"></script>
+    <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/permissions.js"></script>
+    <script src="./scripts/edgar_payload_helper.js"></script>
+
+    <style>
+        /* TrueSight DApp — light "Saffron Monk" / earthen palette to match the rest of the DApp */
+        :root {
+            --bg: #f5f5f5;
+            --surface: #ffffff;
+            --surface-hover: #f7f7f7;
+            --border: #e2e2e2;
+            --text: #333333;
+            --text-muted: #777777;
+            --accent: #166534;
+            --accent-hover: #1f7a44;
+            --green: #166534;
+            --green-bg: #e8f5e9;
+            --red: #dc3545;
+            --red-bg: #fdecea;
+            --yellow: #92710a;
+            --yellow-bg: #fff8e1;
+            --radius: 8px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: var(--surface);
+            padding: 1.25rem;
+            border-radius: var(--radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 1.8rem;
+            color: var(--text);
+            margin: 0.5rem 0 1rem;
+            text-align: center;
+        }
+        #welcome {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+        #description {
+            font-style: italic;
+            color: #555;
+            line-height: 1.5;
+            margin: 0.8rem 0 1.2rem;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+        .status-badge.governor {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .status-badge.readonly {
+            border-color: var(--text-muted);
+            color: var(--text-muted);
+        }
+        details.settings {
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.6rem 0.9rem;
+            background: #fafafa;
+        }
+        details.settings summary {
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+        }
+        details.settings .field {
+            margin: 0.6rem 0;
+        }
+        details.settings label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 0.2rem;
+        }
+        details.settings input[type="text"],
+        details.settings input[type="password"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0.4rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .picker {
+            margin: 1rem 0;
+        }
+        .picker label {
+            display: block;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+            font-size: 0.95rem;
+        }
+        .picker select {
+            width: 100%;
+            padding: 0.55rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            color: var(--text);
+            background: var(--surface);
+            cursor: pointer;
+        }
+        .picker select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .picker select:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+        .selection-summary {
+            margin: 1.25rem 0;
+            padding: 0.9rem;
+            background: var(--green-bg);
+            border: 1px solid #cfe6d2;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+        }
+        .selection-summary .empty { color: var(--text-muted); }
+        #link_button {
+            display: block;
+            width: 100%;
+            padding: 0.7rem;
+            margin-top: 0.5rem;
+            background: var(--green);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        #link_button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+        #link_button:not(:disabled):hover {
+            opacity: 0.85;
+        }
+        #report_output {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            display: none;
+            font-size: 0.9rem;
+        }
+        #report_output.success { background: var(--green-bg); color: #1b5e20; border: 1px solid #cfe6d2; }
+        #report_output.error { background: var(--red-bg); color: #842029; border: 1px solid #f5c2c7; }
+        #submissionResult { display: none; margin-top: 1rem; }
+        #submissionResult pre {
+            background: #f5f5f5;
+            padding: 0.6rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
+        }
+        #status { margin: 0.5rem 0; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
+    <div id="gateContainer"></div>
+    <div id="content" class="container" style="display:none;">
+        <div style="text-align: center;">
+            <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
+        <h1>Link Tree Planting</h1>
+        <div id="welcome"></div>
+        <p id="description">
+            Governor-only. Pick a sold QR code and a pending Sunmint tree-planting submission,
+            then confirm the link. This flips the QR to ASSIGNED_TO_TREE, copies the planting
+            evidence onto the QR row, books the ledger fulfillment entry, and emails the QR owner.
+        </p>
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <span class="status-badge" id="authBadge">Checking authorization…</span>
+        </div>
+
+        <p class="settings-note" style="font-size:0.85rem;color:#666;margin-bottom:1rem;">
+            Lists below are read from the public DAO JSON caches
+            (<code>lineage-assets</code>: <code>sold_pending_tree.json</code> + <code>sunmint_pending.json</code>).
+        </p>
+
+        <div id="status"></div>
+
+        <div class="picker">
+            <label for="qr_select">Sold QR codes pending tree link</label>
+            <select id="qr_select" disabled onchange="selectQr(this.value)">
+                <option value="">Loading…</option>
+            </select>
+        </div>
+
+        <div class="picker">
+            <label for="sunmint_select">Sunmint submissions pending link</label>
+            <select id="sunmint_select" disabled onchange="selectSubmission(this.value)">
+                <option value="">Loading…</option>
+            </select>
+        </div>
+
+        <div class="selection-summary" id="selection_summary">
+            <span class="empty">Select one QR code and one submission to continue.</span>
+        </div>
+
+        <div id="photo_preview" style="display:none;margin-top:1rem;text-align:center;">
+            <img id="tree_photo" alt="Tree photo" style="max-width:100%;max-height:340px;border-radius:8px;border:1px solid var(--border,#e2e2e2);"/>
+            <p id="photo_caption" style="margin:0.35rem 0 0;font-size:0.8rem;color:#666;"></p>
+        </div>
+
+        <div class="action-row" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;">
+            <button type="button" id="link_button" disabled onclick="submitLink()">Link Tree Planting</button>
+            <button type="button" id="reject_button" disabled onclick="submitReject()">Mark Invalid</button>
+            <input type="text" id="reject_reason_input" placeholder="Reason (optional)" style="flex:1;min-width:220px;padding:0.5rem 0.75rem;border:1px solid var(--border,#e2e2e2);border-radius:var(--radius,8px);font-size:0.9rem;">
+        </div>
+        <p style="margin:0.35rem 0 0;font-size:0.8rem;color:#666;">Mark Invalid flips the SunMint submission to INVALID (governor-only). It does NOT change the QR code status, book ledger entries, or email the owner.</p>
+
+        <div id="report_output"></div>
+        <div id="submissionResult">
+            <strong>Signed request:</strong>
+            <pre id="requestPre"></pre>
+            <strong>Server response:</strong>
+            <pre id="responsePre"></pre>
+        </div>
+    </div>
+
+    <script>
+        const PAGE_ACTION = 'tree_planting.link';
+
+        const API_ENDPOINT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+            || 'https://edgar.truesight.me/dao/submit_contribution';
+        // Lists come from public lineage-assets JSON caches (review_queue convention:
+        // raw.githubusercontent.com, no keys). Generated by scripts/sync_pending_caches.py.
+        const SOLD_PENDING_TREE_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sold_pending_tree.json';
+        const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
+
+        const publicKey = (function () { try { return localStorage.getItem('publicKey') || ''; } catch (_) { return ''; } })();
+        const privateKey = (function () { try { return localStorage.getItem('privateKey') || ''; } catch (_) { return ''; } })();
+
+        let contributorName = '';
+        let qrItems = [];
+        let sunmintItems = [];
+        let selectedQrCode = null;
+        let selectedSubmission = null;
+
+        function setStatus(text) {
+            const el = document.getElementById('status');
+            if (el) el.textContent = text || '';
+        }
+
+        function escapeHtml(s) {
+            return (s == null ? '' : String(s)).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function renderQrList() {
+            const sel = document.getElementById('qr_select');
+            sel.innerHTML = '';
+            if (!qrItems.length) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No sold QR codes pending a tree link.';
+                sel.appendChild(opt);
+                sel.disabled = true;
+                return;
+            }
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select a sold QR code…';
+            sel.appendChild(placeholder);
+            qrItems.forEach(function (item) {
+                const opt = document.createElement('option');
+                opt.value = item.qr_code;
+                opt.textContent = item.qr_code + ' · ' + (item.farm || '(no farm)') +
+                    ' · ' + (item.country || '') +
+                    (item.harvest_year ? ' · ' + item.harvest_year : '') +
+                    ' · minted ' + (item.minted_at || 'N/A');
+                if (item.qr_code === selectedQrCode) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+        }
+
+        function renderSunmintList() {
+            const sel = document.getElementById('sunmint_select');
+            sel.innerHTML = '';
+            if (!sunmintItems.length) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No pending Sunmint submissions.';
+                sel.appendChild(opt);
+                sel.disabled = true;
+                return;
+            }
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select a submission…';
+            sel.appendChild(placeholder);
+            sunmintItems.forEach(function (item) {
+                const opt = document.createElement('option');
+                opt.value = item.telegram_message_id;
+                opt.textContent = '#' + item.telegram_message_id + ' · ' + (item.submitted_name || '(unknown)') + ' — ' + (item.species || 'N/A') +
+                    ' · planted ' + (item.planting_date || 'N/A') +
+                    (item.latitude && item.longitude ? ' · ' + item.latitude + ', ' + item.longitude : '');
+                if (item.telegram_message_id === selectedSubmission) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+        }
+
+        function updateSelectionSummary() {
+            const el = document.getElementById('selection_summary');
+            const btn = document.getElementById('link_button');
+            const rejectBtn = document.getElementById('reject_button');
+            if (!selectedQrCode || !selectedSubmission) {
+                el.innerHTML = '<span class="empty">Select one QR code and one submission to continue.</span>';
+                btn.disabled = true;
+                if (rejectBtn) rejectBtn.disabled = true;
+                return;
+            }
+            const sub = sunmintItems.find(function (s) { return s.telegram_message_id === selectedSubmission; });
+            el.innerHTML = 'Will link QR <strong>' + escapeHtml(selectedQrCode) + '</strong> to the ' +
+                escapeHtml((sub && sub.submitted_name) || 'selected') + ' submission planted ' +
+                escapeHtml((sub && sub.planting_date) || 'N/A') + '.';
+            // Show the tree photo for the selected submission (public cache photo_url).
+            const photoEl = document.getElementById('photo_preview');
+            const imgEl = document.getElementById('tree_photo');
+            const capEl = document.getElementById('photo_caption');
+            if (sub && sub.photo_url) {
+                imgEl.src = sub.photo_url;
+                imgEl.onerror = function () {
+                    // Photo missing in the repo (or GitHub CDN lag) - show a graceful placeholder, not a broken image 404.
+                    this.onerror = null;
+                    this.removeAttribute('src');
+                    capEl.textContent = (sub.submitted_name || 'Submission') + ' - tree photo unavailable';
+                };
+                capEl.textContent = (sub.submitted_name || 'Submission') + ' \u00b7 planted ' +
+                    (sub.planting_date || 'N/A') +
+                    (sub.latitude && sub.longitude ? ' \u00b7 ' + sub.latitude + ', ' + sub.longitude : '');
+                photoEl.style.display = 'block';
+            } else {
+                photoEl.style.display = 'none';
+                imgEl.removeAttribute('src');
+            }
+            btn.disabled = false;
+            if (rejectBtn) rejectBtn.disabled = false;
+        }
+
+        function selectQr(qrCode) {
+            selectedQrCode = qrCode || null;
+            updateSelectionSummary();
+        }
+
+        function selectSubmission(messageId) {
+            selectedSubmission = messageId || null;
+            updateSelectionSummary();
+        }
+
+        async function loadQrList() {
+            const sel = document.getElementById('qr_select');
+            try {
+                const res = await fetch(SOLD_PENDING_TREE_URL, { cache: 'no-cache' });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'Failed to load QR codes');
+                qrItems = data.items || [];
+                renderQrList();
+            } catch (err) {
+                sel.innerHTML = '<option value="">Error loading QR codes: ' + escapeHtml(err.message) + '</option>';
+                sel.disabled = true;
+            }
+        }
+
+        async function loadSunmintList() {
+            const sel = document.getElementById('sunmint_select');
+            try {
+                const res = await fetch(SUNMINT_PENDING_URL, { cache: 'no-cache' });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'Failed to load Sunmint submissions');
+                sunmintItems = data.items || [];
+                renderSunmintList();
+            } catch (err) {
+                sel.innerHTML = '<option value="">Error loading Sunmint submissions: ' + escapeHtml(err.message) + '</option>';
+                sel.disabled = true;
+            }
+        }
+
+        function loadLists() {
+            renderQrList();
+            renderSunmintList();
+            loadQrList();
+            loadSunmintList();
+        }
+
+        async function submitLink() {
+            const reportOutput = document.getElementById('report_output');
+            const linkButton = document.getElementById('link_button');
+            if (!selectedQrCode || !selectedSubmission) return;
+
+            if (!privateKey) {
+                reportOutput.textContent = 'No private key found. Redirecting to the Digital Signature Creator...';
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
+                return;
+            }
+
+            linkButton.disabled = true;
+            linkButton.textContent = 'Linking…';
+            reportOutput.style.display = 'none';
+
+            try {
+                const attrPairs = [
+                    ['QR Code', selectedQrCode],
+                    ['SunMint Submission Message ID', selectedSubmission],
+                    ['Updated by', contributorName || 'Unknown']
+                ];
+
+                const helper = new EdgarPayloadHelper({
+                    digitalSignature: publicKey,
+                    generationSource: window.location.href
+                });
+
+                const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                    eventName: 'TREE PLANTING LINK EVENT',
+                    attributes: attrPairs,
+                    privateKey: privateKey
+                });
+
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: shareText, request_transaction_id: requestTransactionId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    reportOutput.textContent = 'Submitted. The link is applied by the GAS handler on its next cron run (or immediately if the webhook is wired) — refresh the lists in a minute to confirm.';
+                    reportOutput.className = 'success';
+                } else {
+                    reportOutput.textContent = 'Submission failed: ' + (result.message || response.statusText);
+                    reportOutput.className = 'error';
+                }
+                reportOutput.style.display = 'block';
+
+                document.getElementById('requestPre').textContent = shareText;
+                document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('submissionResult').style.display = 'block';
+
+                if (response.ok && result.status === 'success') {
+                    // Clear the selection on success (both the state and the list highlighting) —
+                    // on failure, leave the selection in place so the operator can just retry.
+                    selectedQrCode = null;
+                    selectedSubmission = null;
+                    renderQrList();
+                    renderSunmintList();
+                }
+            } catch (err) {
+                reportOutput.textContent = 'Error: ' + err.message;
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+            } finally {
+                linkButton.textContent = 'Link Tree Planting';
+                // Recomputes disabled state from the current selection (cleared on success, kept on
+                // failure) — must run last so it isn't overridden by an unconditional enable/disable.
+                updateSelectionSummary();
+            }
+        }
+
+        async function submitReject() {
+            const reportOutput = document.getElementById('report_output');
+            const rejectButton = document.getElementById('reject_button');
+            const reasonInput = document.getElementById('reject_reason_input');
+            if (!selectedQrCode || !selectedSubmission) return;
+
+            if (!privateKey) {
+                reportOutput.textContent = 'No private key found. Redirecting to the Digital Signature Creator...';
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
+                return;
+            }
+
+            rejectButton.disabled = true;
+            rejectButton.textContent = 'Marking Invalid…';
+            reportOutput.style.display = 'none';
+
+            try {
+                const attrPairs = [
+                    ['QR Code', selectedQrCode],
+                    ['SunMint Submission Message ID', selectedSubmission],
+                    ['Updated by', contributorName || 'Unknown']
+                ];
+                const reason = (reasonInput && reasonInput.value.trim()) || '';
+                if (reason) attrPairs.push(['Reason', reason]);
+
+                const helper = new EdgarPayloadHelper({
+                    digitalSignature: publicKey,
+                    generationSource: window.location.href
+                });
+
+                const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                    eventName: 'TREE PLANTING REJECT EVENT',
+                    attributes: attrPairs,
+                    privateKey: privateKey
+                });
+
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: shareText, request_transaction_id: requestTransactionId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    reportOutput.textContent = 'Submitted. The submission is marked INVALID by the GAS handler on its next cron run (or immediately if the webhook is wired) — refresh the lists in a minute to confirm.';
+                    reportOutput.className = 'success';
+                } else {
+                    reportOutput.textContent = 'Submission failed: ' + (result.message || response.statusText);
+                    reportOutput.className = 'error';
+                }
+                reportOutput.style.display = 'block';
+
+                document.getElementById('requestPre').textContent = shareText;
+                document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('submissionResult').style.display = 'block';
+
+                if (response.ok && result.status === 'success') {
+                    selectedQrCode = null;
+                    selectedSubmission = null;
+                    if (reasonInput) reasonInput.value = '';
+                    renderQrList();
+                    renderSunmintList();
+                }
+            } catch (err) {
+                reportOutput.textContent = 'Error: ' + err.message;
+                reportOutput.className = 'error';
+                reportOutput.style.display = 'block';
+            } finally {
+                rejectButton.textContent = 'Mark Invalid';
+                updateSelectionSummary();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const authBadge = document.getElementById('authBadge');
+
+            if (!publicKey) {
+                authBadge.textContent = 'Not signed in';
+                authBadge.className = 'status-badge readonly';
+                document.getElementById('gateContainer').innerHTML =
+                    '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                    '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Sign in first</h2>' +
+                    '<p style="margin:0;">No digital signature found. Redirecting to the Digital Signature Creator...</p></div>';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
+                return;
+            }
+
+            const ASSET_VERIFY_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
+                || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+
+            // Cache-first identity lookup (dao_members.json from GitHub CDN, ~50-150ms)
+            // with GAS assetVerify fallback (~1-5s cold-start) per UX_CONVENTIONS.md:
+            // a cache miss must NOT immediately declare the key invalid -- a brand-new
+            // signature may not be in the cron-published snapshot yet.
+            (async function () {
+                let data = null;
+                try {
+                    const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                    if (lookup && lookup.contributor) {
+                        data = { contributor_name: lookup.contributor.name };
+                    }
+                } catch (_) { /* cache unavailable; fall through to GAS */ }
+
+                if (!data) {
+                    try {
+                        const response = await fetch(ASSET_VERIFY_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
+                        data = await response.json();
+                    } catch (err) {
+                        authBadge.textContent = 'Signature check failed';
+                        authBadge.className = 'status-badge readonly';
+                        document.getElementById('gateContainer').innerHTML =
+                            '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                            '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature check failed</h2>' +
+                            '<p style="margin:0;">Could not verify your signature: ' + escapeHtml(err.message) + '</p></div>';
+                        return;
+                    }
+                }
+
+                if (!data || data.error) {
+                    authBadge.textContent = 'Signature not registered';
+                    authBadge.className = 'status-badge readonly';
+                    document.getElementById('gateContainer').innerHTML =
+                        '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                        '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature not registered</h2>' +
+                        '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger. Use <a href="./create_signature.html">the Digital Signature Creator</a> to register it first.</p></div>';
+                    return;
+                }
+
+                contributorName = data.contributor_name || '';
+                document.getElementById('welcome').textContent = 'Signed in as ' + (contributorName || '(contributor)');
+                return window.Permissions.requireRole({
+                    action: PAGE_ACTION,
+                    publicKey: publicKey,
+                    denyContainerId: 'gateContainer',
+                    onAllowed: function (check) {
+                        authBadge.textContent = 'Governor';
+                        authBadge.className = 'status-badge governor';
+                        document.getElementById('content').style.display = 'block';
+                        loadLists();
+                    },
+                    onDenied: function (check) {
+                        authBadge.textContent = 'Not a governor';
+                        authBadge.className = 'status-badge readonly';
+                    }
+                });
+            })();
+        });
+    </script>
+    <script src="./js/dapp_footer_links.js?v=1"></script>
+</body>
+</html>
