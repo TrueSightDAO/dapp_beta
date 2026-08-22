@@ -439,9 +439,10 @@
             if (!selectedQrCode || !selectedSubmission) return;
 
             if (!privateKey) {
-                reportOutput.textContent = 'No private key found. Sign in via create_signature.html first.';
+                reportOutput.textContent = 'No private key found. Redirecting to the Digital Signature Creator...';
                 reportOutput.className = 'error';
                 reportOutput.style.display = 'block';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
                 return;
             }
 
@@ -515,9 +516,10 @@
             if (!selectedQrCode || !selectedSubmission) return;
 
             if (!privateKey) {
-                reportOutput.textContent = 'No private key found. Sign in via create_signature.html first.';
+                reportOutput.textContent = 'No private key found. Redirecting to the Digital Signature Creator...';
                 reportOutput.className = 'error';
                 reportOutput.style.display = 'block';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
                 return;
             }
 
@@ -593,7 +595,8 @@
                 document.getElementById('gateContainer').innerHTML =
                     '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
                     '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Sign in first</h2>' +
-                    '<p style="margin:0;">No digital signature found. Use <a href="./create_signature.html">the Digital Signature Creator</a> first.</p></div>';
+                    '<p style="margin:0;">No digital signature found. Redirecting to the Digital Signature Creator...</p></div>';
+                setTimeout(function () { window.location.href = './create_signature.html'; }, 2000);
                 return;
             }
 
