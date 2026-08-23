@@ -313,10 +313,11 @@
             qrItems.forEach(function (item) {
                 const opt = document.createElement('option');
                 opt.value = item.qr_code;
+                const stateTag = (item.status && item.status !== 'SOLD') ? ' · [' + item.status + ']' : '';
                 opt.textContent = item.qr_code + ' · ' + (item.farm || '(no farm)') +
                     ' · ' + (item.country || '') +
                     (item.harvest_year ? ' · ' + item.harvest_year : '') +
-                    ' · minted ' + (item.minted_at || 'N/A');
+                    ' · minted ' + (item.minted_at || 'N/A') + stateTag;
                 if (item.qr_code === selectedQrCode) opt.selected = true;
                 sel.appendChild(opt);
             });
