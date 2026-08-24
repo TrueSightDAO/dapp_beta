@@ -18,6 +18,9 @@
     <script src="./routes.js"></script>
     <script src="./menu.js?v=20260702c"></script>
     <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/currencies_cache.js"></script>
+    <script src="./scripts/dapp_combobox.js"></script>
 
     <style>
         body {
@@ -262,12 +265,12 @@
         <div id="info" style="display: none;">
             <div class="form-row">
                 <label for="fundHandlerInput">Fund Handler</label>
-                <input type="text" id="fundHandlerInput" placeholder="Enter fund handler name" disabled>
+                <input type="text" id="fundHandlerInput" autocomplete="off" placeholder="Enter fund handler name" disabled>
             </div>
             
             <div class="form-row">
                 <label for="currencyInput">Currency Name</label>
-                <input type="text" id="currencyInput" placeholder="Exact Currencies tab name (e.g. Bialetti Moka Express 18 Cup...)" disabled>
+                <input type="text" id="currencyInput" autocomplete="off" placeholder="Exact Currencies tab name (e.g. Bialetti Moka Express 18 Cup...)" disabled>
             </div>
             
             <div class="form-row">
@@ -285,6 +288,10 @@
                 <label>Upload Proof of Purchase (PDF or Image):</label>
                 <div id="paste-area" class="paste-area">Click to select or paste (Ctrl+V) a file or image</div>
                 <img id="uploaded-file-preview" style="display: none;" alt="Uploaded File Preview">
+                <!-- Persistent hidden file input: MUST be in the DOM at load for the
+                     native picker to open reliably on iOS Safari / mobile browsers
+                     (a detached createElement input + .click() often fails there). -->
+                <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none" tabindex="-1" aria-hidden="true">
             </div>
 
             <div class="form-row">
@@ -396,15 +403,14 @@
         }
 
         function triggerFileSelect() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*,application/pdf';
-            input.onchange = (event) => {
-                if (event.target.files.length > 0) {
-                    handleFile(event.target.files[0]);
-                }
-            };
-            input.click();
+            // Click the persistent hidden input declared in the markup instead of
+            // creating a detached one: a createElement'd input that is never appended
+            // to the DOM often fails to open the native picker on iOS Safari and some
+            // mobile browsers. Its change handler is bound once in DOMContentLoaded.
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.click();
+            }
         }
 
         function handleFile(selectedFile) {
@@ -434,6 +440,32 @@
             
             updateFileInfo();
             updateEventPreview();
+        }
+
+        function setupDappComboboxes() {
+            // Fund Handler — pick an existing contributor (dao_members_cache) or type a new name.
+            DappCombobox.attach({
+                inputEl: document.getElementById('fundHandlerInput'),
+                optionsSource: async () => {
+                    const snapshot = await window.DaoMembersCache.fetchSnapshot();
+                    const contributors = (snapshot && snapshot.contributors) || [];
+                    const names = contributors.map((c) => c && c.name).filter(Boolean);
+                    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+                },
+                onSelect: () => updateEventPreview(),
+                allowNewValue: true,
+                placeholder: 'Type to search fund handlers...'
+            });
+            // Currency Name — pick an existing currency (treasury cache) or type a brand-new one.
+            // allowNewValue MUST stay true: this form is how new Currency rows get created
+            // (e.g. "Stand-Up Pouch Kraft w/Zip 10x15cm (per unit) - Brazil" was first typed here).
+            DappCombobox.attach({
+                inputEl: document.getElementById('currencyInput'),
+                optionsSource: () => window.CurrenciesCache.fetchCurrencies(),
+                onSelect: () => updateEventPreview(),
+                allowNewValue: true,
+                placeholder: 'Type to search currencies...'
+            });
         }
 
         function updateEventPreview() {
@@ -617,6 +649,13 @@
 
             // File upload event listeners
             document.getElementById('paste-area').addEventListener('click', triggerFileSelect);
+            document.getElementById('fileInput').addEventListener('change', (event) => {
+                if (event.target.files.length > 0) {
+                    handleFile(event.target.files[0]);
+                }
+                // Reset value so re-selecting the same file still fires change.
+                event.target.value = '';
+            });
             document.getElementById('paste-area').addEventListener('dragover', (e) => {
                 e.preventDefault();
                 e.currentTarget.classList.add('dragover');
@@ -632,13 +671,29 @@
                 }
             });
             document.addEventListener('paste', (e) => {
-                if (e.clipboardData && e.clipboardData.files.length > 0) {
-                    handleFile(e.clipboardData.files[0]);
+                const clipboardData = e.clipboardData;
+                if (!clipboardData) return;
+                // Prefer .files (standard); fall back to .items — some browsers /
+                // mobile paste flows only populate items with kind === 'file'.
+                let pastedFile = null;
+                if (clipboardData.files && clipboardData.files.length > 0) {
+                    pastedFile = clipboardData.files[0];
+                } else if (clipboardData.items) {
+                    for (const item of clipboardData.items) {
+                        if (item.kind === 'file') {
+                            pastedFile = item.getAsFile();
+                            break;
+                        }
+                    }
+                }
+                if (pastedFile) {
+                    handleFile(pastedFile);
                 }
             });
 
             // Initialize
             updateEventPreview();
+            setupDappComboboxes();
         });
     </script>
     <script src="./js/dapp_footer_links.js?v=1"></script>

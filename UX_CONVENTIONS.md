@@ -254,6 +254,12 @@ Used by `view_inventory_holdings.html`. Fall back to GAS on `not_found`/`error`.
 **Files Using This Pattern:**
 - `update_qr_code.html` - QR code selection, member selection
 - `report_inventory_movement.html` - Manager selection, item selection, recipient selection
+- `report_asset_receipt.html` - Fund Handler selection, Currency Name selection
+
+**Shared component:** `scripts/dapp_combobox.js` is the standard implementation
+going forward — see DAPP_UX_COMPONENTS.md. `report_contribution.html` and
+`report_inventory_movement.html` still carry their own pre-existing hand-rolled
+versions pending a future consolidation; do not copy their code into new pages.
 
 ---
 
