@@ -239,4 +239,38 @@ test.describe('Asset receipt form — combobox + file input UX', () => {
     const chooser = await chooserPromise;
     expect(chooser).toBeTruthy();
   });
+
+  test('(g) uploaded image preview is constrained inside the container (no overflow)', async ({
+    page,
+  }) => {
+    await openForm(page);
+
+    await page.locator('#fileInput').setInputFiles({
+      name: 'big-receipt.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'),
+    });
+
+    const img = page.locator('#uploaded-file-preview');
+    await expect(img).toBeVisible();
+
+    // Gary reported the preview overflowed its box. CSS must constrain it:
+    // max-width resolves to the container width (never 'none'), object-fit
+    // contain, and the rendered img box never exceeds the container box.
+    const dims = await img.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const container = el.closest('.container');
+      const cbox = container ? container.getBoundingClientRect() : { width: Infinity };
+      const ibox = el.getBoundingClientRect();
+      return {
+        maxWidth: cs.maxWidth,
+        objectFit: cs.objectFit,
+        imgWidth: ibox.width,
+        containerWidth: cbox.width,
+      };
+    });
+    expect(dims.maxWidth).not.toBe('none');
+    expect(dims.objectFit).toBe('contain');
+    expect(dims.imgWidth).toBeLessThanOrEqual(dims.containerWidth + 1);
+  });
 });

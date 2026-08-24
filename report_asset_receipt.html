@@ -222,6 +222,22 @@
             }
         }
 
+        /* Uploaded image preview must NEVER overflow the container (Gary reported
+           it blew out of the box). Constrain to container width + max height;
+           object-fit: contain preserves aspect ratio. */
+        #uploaded-file-preview {
+            display: none;
+            max-width: 100%;
+            max-height: 320px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            margin: 0.6rem auto 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
         /* Upload proof-of-purchase area -- must LOOK like a button (Gary reported it
            read as static hint text). Real <button type="button"> for keyboard
            accessibility; styled as a dashed dropzone so it also reads as droppable. */
