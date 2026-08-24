@@ -220,4 +220,23 @@ test.describe('Asset receipt form — combobox + file input UX', () => {
       'Waiting for file selection...'
     );
   });
+
+  test('(f) upload area is a real button that opens the native file picker', async ({
+    page,
+  }) => {
+    await openForm(page);
+
+    const pasteArea = page.locator('#paste-area');
+    await expect(pasteArea).toBeVisible();
+    // Must be a semantic <button> (keyboard-accessible) -- Gary reported the
+    // upload area read as plain hint text, not a clickable control.
+    const tag = await pasteArea.evaluate((el) => el.tagName);
+    expect(tag).toBe('BUTTON');
+
+    // Clicking it must open the native file picker (via the hidden #fileInput).
+    const chooserPromise = page.waitForEvent('filechooser');
+    await pasteArea.click();
+    const chooser = await chooserPromise;
+    expect(chooser).toBeTruthy();
+  });
 });
