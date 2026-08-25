@@ -302,6 +302,7 @@
                     <input type="number" id="targetAmountInput" min="0.00000001" step="any" placeholder="Amount received (e.g. 4985.00)" disabled>
                 </div>
                 <div class="help-text">The amount that ARRIVED in this currency's account, as shown on the receipt.</div>
+                <div id="currencyListFreshness" class="help-text hidden"></div>
             </div>
 
             <div class="form-row">
@@ -476,11 +477,28 @@
                     .map(s => String(s).trim())
                     .filter(Boolean)
                     .sort((a, b) => a.localeCompare(b));
+                renderCurrencyListFreshness(data);
                 console.log(`[currencies] loaded ${CURRENCY_OPTIONS.length} from agroverse-inventory/currencies.json`);
             } catch (err) {
                 console.error('Error loading currencies.json — combobox will show empty list (free-text still works):', err);
                 CURRENCY_OPTIONS = [];
             }
+        }
+
+        // Surface currencies.json's own freshness (generatedAt) as a small caption
+        // near the pickers — turns an invisible stale-cache failure into a visible
+        // one. Hidden unless the field is present and parseable (free-text typing
+        // still works regardless).
+        function renderCurrencyListFreshness(data) {
+            const el = document.getElementById('currencyListFreshness');
+            if (!el) return;
+            const generatedAt = data && data.generatedAt;
+            if (!generatedAt) return;
+            const d = new Date(generatedAt);
+            if (isNaN(d.getTime())) return;
+            const date = d.toUTCString().replace(/ GMT$/, ' UTC');
+            el.textContent = 'Currency list updated: ' + date;
+            el.classList.remove('hidden');
         }
 
         // Wire a single combobox: shows full option list on focus, filters as
