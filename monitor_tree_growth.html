@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Monitor tree growth — record a video measurement with the calibration card">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor Tree Growth</title>
+
+  <meta property="og:title" content="Monitor Tree Growth">
+  <meta property="og:description" content="Monitor tree growth — record a video measurement with the calibration card">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://dapp.truesight.me/monitor_tree_growth.html">
+  <meta property="og:type" content="website">
+
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260702c"></script>
+  <script src="./tdg_balance.js"></script>
+  <script src="./scripts/dao_members_cache.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 1rem;
+      padding: 1rem;
+      min-height: 100vh;
+      box-sizing: border-box;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background-color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 1.8rem; color: #333; margin: 0.5rem 0 1rem; text-align: center; }
+    #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; font-size: 1rem; text-align: center; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+    #welcome { font-size: 1.2rem; font-weight: bold; margin: 0.8rem 0; text-align: center; display: none; }
+    .status { color: #28a745; }
+    .error { color: #dc3545; }
+    .warning { color: #ffc107; }
+    .info-box {
+      margin: 1rem 0; background-color: #f8f9fa; padding: 0.8rem;
+      border: 1px solid #ddd; border-radius: 5px; font-size: 0.95rem; overflow: scroll;
+    }
+    .info { font-weight: bold; text-align: left; font-size: 1rem; margin: 0.5rem 0; }
+    .info-location { font-weight: normal; margin-left: 1.5rem; line-height: 1.4; }
+    .button-container { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+    button {
+      padding: 0.8rem 1rem; cursor: pointer; font-size: 1rem; border: none;
+      border-radius: 8px; background-color: #4CAF50; color: white;
+      transition: background-color 0.2s, transform 0.1s; margin: 0.5rem 0;
+      width: 100%; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    button:hover { background-color: #45a049; transform: scale(1.02); }
+    button:active { transform: scale(0.98); }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
+    #action-status { margin: 0.5rem 0; font-size: 1rem; text-align: center; }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .loading { color: #6c757d; font-style: italic; animation: pulse 2s infinite ease-in-out; }
+    @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    #cameraPreview { width: 100%; max-width: 100%; height: auto; border-radius: 5px; margin: 1rem 0; display: none; }
+    label { display: block; margin: 0.5rem 0 0.2rem; font-size: 0.95rem; color: #333; }
+    select, input[type="number"], input[type="text"] {
+      margin-bottom: 0.8rem; width: 100%; padding: 0.5rem;
+      border-radius: 5px; border: 1px solid #ddd; font-size: 0.95rem;
+    }
+    input.invalid, select.invalid { border-color: #dc3545; background-color: #fff0f0; }
+    .dist-badge { color: #555; font-size: 0.85rem; }
+    @media (max-width: 600px) {
+      body { margin: 0.5rem; padding: 0.5rem; }
+      h1 { font-size: 1.5rem; }
+      .container { padding: 0.8rem; }
+      #description { font-size: 0.95rem; }
+      #status { font-size: 0.95rem; }
+      button { padding: 1rem; font-size: 0.95rem; }
+      #cameraPreview { max-width: 100%; }
+    }
+    #submissionResult { margin-top: 1.5rem; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px; padding: 0.8rem 1rem;
+      font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.82rem; line-height: 1.4;
+      white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto;
+    }
+    @media print {
+      pre { white-space: pre-wrap !important; word-break: break-word !important; overflow: visible !important; max-height: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+  <div id="tdgBalanceBadge"></div>
+  <div id="google_translate_element" style="text-align: right; margin: 1rem;"></div>
+  <div class="container">
+    <div style="text-align: center;">
+      <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSightDAO Logo"/>
+    </div>
+    <h1>Monitor Tree Growth</h1>
+    <p id="description" class="fade-in">Checking connection to update instructions...</p>
+    <div id="welcome" style="display: none;"></div>
+    <p id="status" class="fade-in">Setting up your signature...</p>
+    <div id="info" style="display: none;">
+      <div class="info-box">
+        <div class="info">Your Location:</div>
+        <div class="info-location" id="location">Waiting for geolocation...</div>
+
+        <label for="treeSelect">Select Tree (nearest first)</label>
+        <select id="treeSelect">
+          <option value="">Loading nearby trees...</option>
+        </select>
+        <label for="treeIdManual">Or enter Tree ID manually</label>
+        <input type="text" id="treeIdManual" placeholder="e.g. FOUNDERHAUS_BOUGAINVILLEA_20260821_1">
+        <div id="speciesLabel" style="font-size:0.9rem; color:#555; margin-bottom:0.6rem;"></div>
+
+        <label for="dbhInput">DBH (cm) — diameter at breast height (1.3 m). Hold the calibration card against the trunk, in frame.</label>
+        <input type="number" id="dbhInput" step="0.1" min="0.5" placeholder="e.g. 12.5">
+      </div>
+
+      <video id="cameraPreview" autoplay playsinline muted></video>
+      <canvas id="captureCanvas" style="display: none;"></canvas>
+
+      <div class="button-container">
+        <button id="recordButton" style="display:none;" aria-label="Record Video">Start Recording</button>
+        <button id="submitButton" style="display:none;" aria-label="Submit Report">Submit Report</button>
+      </div>
+      <div id="action-status" aria-live="polite"></div>
+
+      <div id="submissionResult" style="display:none;" aria-live="polite">
+        <h3>Transaction request (signed payload sent to Edgar)</h3>
+        <pre id="requestPre"></pre>
+        <h3>Edgar response</h3>
+        <pre id="responsePre"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
+        || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+    const EDGAR_PING = (window.Routes && window.Routes.edgar && window.Routes.edgar.ping)
+        || 'https://edgar.truesight.me/ping';
+    const EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+        || 'https://edgar.truesight.me/dao/submit_contribution';
+
+    const TREE_INDEX_URLS = [
+      'https://sunmint.truesight.me/trees/index.geojson',
+      'https://truesight.me/sunmint/trees/index.geojson'
+    ];
+
+    let latitude = null;
+    let longitude = null;
+    let stream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let videoFile = null;
+    let photoFile = null;
+    let treeIndex = null;
+    let newKeysGenerated = false;
+    let isSignatureRegistered = false;
+    let isPostSubmission = false;
+
+    function arrayBufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+    async function isOnline() {
+      if (!navigator.onLine) return false;
+      try {
+        const response = await fetch(EDGAR_PING, { method: 'HEAD', timeout: 5000 });
+        return response.ok;
+      } catch { return false; }
+    }
+    async function copyToClipboard(text) {
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch (err) { console.error('Failed to copy to clipboard:', err); return false; }
+    }
+    function encodeSignature(signature) {
+      try {
+        let encoded = encodeURIComponent(signature);
+        encoded = encoded.replace(/%20/g, '+').replace(/'/g, '%27').replace(/"/g, '%22');
+        return encoded;
+      } catch (e) { return signature; }
+    }
+    function isValidSignature(signature) {
+      if (!signature) return false;
+      const regex = /^[A-Za-z0-9+/=]+$/;
+      if (!regex.test(signature)) return false;
+      if (signature.length < 100 || signature.length > 5000) return false;
+      return true;
+    }
+
+    async function checkSignatureRegistration(publicKey) {
+      const statusElement = document.getElementById('status');
+      if (!isValidSignature(publicKey)) {
+        statusElement.textContent = 'Invalid digital signature format';
+        statusElement.className = 'error fade-in';
+        return null;
+      }
+      try {
+        try {
+          const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+          if (lookup.contributor) return { contributor_name: lookup.contributor.name };
+        } catch (_) { /* cache unavailable; fall through to GAS */ }
+        const encodedSignature = encodeSignature(publicKey);
+        const url = `${API_ENDPOINT}?signature=${encodedSignature}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('Error checking registration:', error);
+        statusElement.textContent = 'Error verifying signature: ' + error.message;
+        statusElement.className = 'error fade-in';
+        return { error: error.message };
+      }
+    }
+
+    async function generateKeyPair() {
+      const statusElement = document.getElementById('status');
+      const welcomeElement = document.getElementById('welcome');
+      statusElement.textContent = 'Generating new digital signature...';
+      statusElement.className = 'loading fade-in';
+      welcomeElement.style.display = 'none';
+      try {
+        const keyPair = await window.crypto.subtle.generateKey(
+          { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+          true, ["sign", "verify"]
+        );
+        const publicKey = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+        const privateKey = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+        const publicKeyBase64 = arrayBufferToBase64(publicKey);
+        const privateKeyBase64 = arrayBufferToBase64(privateKey);
+        localStorage.setItem('publicKey', publicKeyBase64);
+        localStorage.setItem('privateKey', privateKeyBase64);
+        newKeysGenerated = true;
+        statusElement.textContent = 'Signature created successfully';
+        statusElement.className = 'status fade-in';
+      } catch (error) {
+        statusElement.textContent = 'Error creating signature: ' + error.message;
+        statusElement.className = 'error fade-in';
+        welcomeElement.style.display = 'none';
+        throw error;
+      }
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    async function loadTreeIndex() {
+      for (const url of TREE_INDEX_URLS) {
+        try {
+          const resp = await fetch(url, { cache: 'no-store' });
+          if (!resp.ok) continue;
+          const geojson = await resp.json();
+          return (geojson.features || []).map(f => {
+            const p = f.properties || {};
+            return {
+              id: p.tree_id || f.id || 'unknown',
+              lat: f.geometry && f.geometry.coordinates ? f.geometry.coordinates[1] : null,
+              lng: f.geometry && f.geometry.coordinates ? f.geometry.coordinates[0] : null,
+              species: p.species || '',
+              last_measured: p.last_measured || ''
+            };
+          });
+        } catch (_) { /* try next */ }
+      }
+      return null;
+    }
+
+    function populateTreeDropdown(trees) {
+      const select = document.getElementById('treeSelect');
+      select.innerHTML = '';
+      if (!trees || trees.length === 0) {
+        select.innerHTML = '<option value="">No nearby trees found — enter Tree ID manually</option>';
+        return;
+      }
+      const sorted = trees.slice().sort((a, b) => (a._dist || 0) - (b._dist || 0));
+      sorted.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        const distText = (t._dist !== undefined && t._dist !== null)
+          ? ` — ${Math.round(t._dist)} m` : '';
+        opt.textContent = `${t.id}${distText}${t.species ? ' (' + t.species + ')' : ''}`;
+        select.appendChild(opt);
+      });
+      select.insertAdjacentHTML('afterbegin', '<option value="">Select a tree…</option>');
+    }
+
+    function startCamera() {
+      const video = document.getElementById('cameraPreview');
+      const recordButton = document.getElementById('recordButton');
+      const actionStatus = document.getElementById('action-status');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        actionStatus.textContent = 'Camera not supported on this device.';
+        actionStatus.className = 'error';
+        return false;
+      }
+      const constraints = {
+        video: isMobileDevice()
+          ? { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : true
+      };
+      return navigator.mediaDevices.getUserMedia(constraints)
+        .then(function (s) {
+          stream = s;
+          video.srcObject = stream;
+          video.style.display = 'block';
+          recordButton.style.display = 'block';
+          actionStatus.textContent = 'Camera started. Select a tree, hold the calibration card against the trunk, then record a short video walking around the tree.';
+          actionStatus.className = 'status';
+          return true;
+        })
+        .catch(function (error) {
+          actionStatus.textContent = 'Error accessing camera: ' + error.message;
+          actionStatus.className = 'error';
+          return false;
+        });
+    }
+
+    function stopCamera() {
+      if (stream && stream.getTracks) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+        const video = document.getElementById('cameraPreview');
+        video.srcObject = null;
+        video.style.display = 'none';
+      }
+    }
+
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) reject(new Error('Geolocation not supported on this device.'));
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            latitude = position.coords.latitude.toFixed(6);
+            longitude = position.coords.longitude.toFixed(6);
+            resolve({ latitude, longitude });
+          },
+          error => reject(new Error('Error getting location: ' + error.message)),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+    }
+
+    function startRecording() {
+      const recordButton = document.getElementById('recordButton');
+      const actionStatus = document.getElementById('action-status');
+      if (!stream || !window.MediaRecorder) {
+        actionStatus.textContent = 'Recording not supported — submit with a photo instead.';
+        actionStatus.className = 'error';
+        return;
+      }
+      recordedChunks = [];
+      videoFile = null;
+      photoFile = null;
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        videoFile = new File([videoBlob], 'tree_monitor_video.webm', { type: 'video/webm' });
+        capturePhoto();
+        actionStatus.textContent = 'Video captured (' + Math.round(videoFile.size / 1024) + ' KB). Enter DBH and submit.';
+        actionStatus.className = 'status';
+        recordButton.textContent = 'Re-record';
+      };
+      mediaRecorder.start();
+      recordButton.textContent = 'Stop Recording';
+      recordButton.style.background = '#dc3545';
+      actionStatus.textContent = 'Recording… walk around the tree with the calibration card in frame (max 20 s).';
+      actionStatus.className = 'status';
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+      }, 20000);
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+      const recordButton = document.getElementById('recordButton');
+      recordButton.textContent = 'Start Recording';
+      recordButton.style.background = '#4CAF50';
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById('cameraPreview');
+      const canvas = document.getElementById('captureCanvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return new Promise(resolve => {
+        canvas.toBlob(blob => {
+          photoFile = new File([blob], 'tree_monitor_photo.jpg', { type: 'image/jpeg' });
+          resolve();
+        }, 'image/jpeg', 0.9);
+      });
+    }
+
+    function getSelectedTree() {
+      const select = document.getElementById('treeSelect');
+      const manual = document.getElementById('treeIdManual').value.trim();
+      const fromSelect = select && select.value ? select.value : '';
+      const treeId = fromSelect || manual;
+      let species = '';
+      if (treeIndex && fromSelect) {
+        const t = treeIndex.find(x => x.id === fromSelect);
+        if (t && t.species) species = t.species;
+      }
+      return { treeId, species };
+    }
+
+    async function submitMonitorReport() {
+      const actionStatus = document.getElementById('action-status');
+      const submitButton = document.getElementById('submitButton');
+      const publicKey = localStorage.getItem('publicKey');
+      const privateKey = localStorage.getItem('privateKey');
+
+      const { treeId, species } = getSelectedTree();
+      const dbh = parseFloat(document.getElementById('dbhInput').value);
+
+      if (!treeId) {
+        actionStatus.textContent = 'Please select or enter a tree.';
+        actionStatus.className = 'error';
+        return;
+      }
+      if (!dbh || isNaN(dbh) || dbh <= 0) {
+        actionStatus.textContent = 'Please enter a valid DBH (cm).';
+        actionStatus.className = 'error';
+        return;
+      }
+      if (!latitude || !longitude) {
+        actionStatus.textContent = 'Location not available. Please allow location access and try again.';
+        actionStatus.className = 'error';
+        return;
+      }
+
+      try {
+        if (!videoFile) await capturePhoto();
+        const measuredAt = new Date().toISOString();
+        const now = new Date();
+        const pad = (n) => n.toString().padStart(2, '0');
+        const yyyymmddhhmmss = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const safePublicKey = publicKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+        const videoDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/${yyyymmddhhmmss}_${safePublicKey}_monitor.webm`;
+        const photoDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/${yyyymmddhhmmss}_${safePublicKey}_monitor.jpg`;
+
+        const nearbySummary = treeIndex
+          ? treeIndex
+              .filter(t => t.id !== treeId)
+              .map(t => t._dist !== undefined ? `${t.id}:${Math.round(t._dist)}m` : t.id)
+              .slice(0, 5)
+              .join(', ')
+          : '';
+
+        const requestText = `[TREE GROWTH MONITORING EVENT]\n- Tree ID: ${treeId}\n- Species: ${species || 'unknown'}\n- DBH (cm): ${dbh}\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Measurement Time: ${measuredAt}\n- Video URL: ${videoDestinationURL}\n- Photo URL: ${photoDestinationURL}\n- Nearby Trees: ${nearbySummary || 'n/a'}\n- Submission Source: ${window.location.href}\n--------`;
+
+        const privateKeyObj = await window.crypto.subtle.importKey(
+          "pkcs8", base64ToArrayBuffer(privateKey),
+          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+        );
+        const encoder = new TextEncoder();
+        const signature = await window.crypto.subtle.sign(
+          "RSASSA-PKCS1-v1_5", privateKeyObj, encoder.encode(requestText)
+        );
+        const requestHash = arrayBufferToBase64(signature);
+        const shareText = `${requestText}\n\nMy Digital Signature: ${publicKey}\n\nRequest Transaction ID: ${requestHash}\n\nThis submission was generated using ${window.location.href}\n\nVerify submission here: https://dapp.truesight.me/verify_request.html` + (isSignatureRegistered ? '' : `\n\n<a href="https://truesightdao.github.io/dapp/create_signature.html">Register your account</a> to complete your digital signature registration.`);
+
+        if (await isOnline()) {
+          const formData = new FormData();
+          formData.append('text', shareText);
+          if (videoFile) formData.append('attachment', videoFile, 'tree_monitor_video.webm');
+          if (photoFile) formData.append('attachment', photoFile, 'tree_monitor_photo.jpg');
+
+          const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+          if (!resp.ok) throw new Error(await resp.text());
+
+          const respText = await resp.text();
+          let respPretty = respText;
+          try { respPretty = JSON.stringify(JSON.parse(respText), null, 2); } catch (_) { /* keep raw */ }
+
+          actionStatus.innerHTML = `Report sent successfully via API. View: <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">https://truesight.me/submissions/raw-telegram-chatlogs</a>` + (newKeysGenerated && !isSignatureRegistered ? ' <a href="https://truesightdao.github.io/dapp/create_signature.html">Register your account</a> to complete your digital signature registration.' : '');
+          actionStatus.className = 'status';
+          document.getElementById('requestPre').textContent = shareText;
+          document.getElementById('responsePre').textContent = respPretty;
+          document.getElementById('submissionResult').style.display = 'block';
+          isPostSubmission = true;
+        } else {
+          if (isMobileDevice() && navigator.share) {
+            await navigator.share({ text: shareText, files: videoFile ? [videoFile, photoFile] : [photoFile] });
+            actionStatus.innerHTML = `Internet or server not available. Please share the report to our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels.`;
+            actionStatus.className = 'error';
+          } else {
+            if (await copyToClipboard(shareText)) {
+              actionStatus.innerHTML = `Internet or server not available. Report copied to clipboard. Please paste it into our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the video/photo.`;
+              actionStatus.className = 'error';
+            } else {
+              actionStatus.innerHTML = `Internet or server not available. Please manually share the report below to our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the video/photo:<br><br><pre>${shareText}</pre>`;
+              actionStatus.className = 'error';
+            }
+          }
+        }
+        try { stopCamera(); } catch (e) { console.error('Error stopping camera:', e); }
+      } catch (error) {
+        actionStatus.textContent = `Error generating report: ${error.message}. Please try again or contact support.`;
+        actionStatus.className = 'error';
+      }
+    }
+
+    window.onload = async function () {
+      const statusElement = document.getElementById('status');
+      const welcomeElement = document.getElementById('welcome');
+      const infoElement = document.getElementById('info');
+      const descriptionElement = document.getElementById('description');
+      const submitButton = document.getElementById('submitButton');
+      const recordButton = document.getElementById('recordButton');
+
+      let publicKey = localStorage.getItem('publicKey');
+      let privateKey = localStorage.getItem('privateKey');
+
+      if (!publicKey || !privateKey || !isValidSignature(publicKey)) {
+        try {
+          await generateKeyPair();
+          publicKey = localStorage.getItem('publicKey');
+          privateKey = localStorage.getItem('privateKey');
+        } catch (error) {
+          statusElement.textContent = 'Failed to generate a digital signature: ' + error.message;
+          statusElement.className = 'error fade-in';
+          return;
+        }
+      }
+
+      const registration = await checkSignatureRegistration(publicKey);
+      if (registration && registration.contributor_name) {
+        isSignatureRegistered = true;
+        welcomeElement.textContent = 'Welcome, ' + registration.contributor_name + '!';
+        welcomeElement.style.display = 'block';
+      } else if (registration && registration.error) {
+        statusElement.textContent = 'Error verifying your signature: ' + registration.error;
+        statusElement.className = 'error fade-in';
+      }
+
+      statusElement.textContent = 'Loading your trees...';
+      statusElement.className = 'status fade-in';
+
+      try {
+        await getLocation();
+        document.getElementById('location').textContent = `Lat ${latitude}, Lng ${longitude}`;
+      } catch (error) {
+        document.getElementById('location').textContent = 'Location unavailable — you can still record; GPS required for submission.';
+      }
+
+      treeIndex = await loadTreeIndex();
+      if (treeIndex && latitude && longitude) {
+        treeIndex.forEach(t => {
+          if (t.lat && t.lng) t._dist = haversine(parseFloat(latitude), parseFloat(longitude), t.lat, t.lng);
+        });
+        populateTreeDropdown(treeIndex);
+      } else {
+        document.getElementById('treeSelect').innerHTML = '<option value="">Nearby trees unavailable — enter Tree ID manually</option>';
+      }
+
+      descriptionElement.textContent = 'Measure your tree with the calibration card — the video is analyzed to estimate growth and carbon (PM002).';
+      infoElement.style.display = 'block';
+      statusElement.textContent = 'Ready.';
+      statusElement.className = 'status fade-in';
+
+      recordButton.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+        else startRecording();
+      });
+      submitButton.addEventListener('click', submitMonitorReport);
+
+      const started = await startCamera();
+      if (!started) submitButton.style.display = 'block';
+    };
+  </script>
+</body>
+</html>
