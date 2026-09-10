@@ -305,6 +305,9 @@
           <option value="Jatoba (Native)">Jatoba (Native)</option>
           <option value="Other">Other (specify)</option>
         </select>
+        <!-- Optional: associate this planting with an existing SunMint plot (e.g. CR-PA-P2). Blank = no association. -->
+        <label for="plotId">Plot ID (optional):</label>
+        <input type="text" id="plotId" name="plotId" placeholder="e.g. CR-PA-P2" autocomplete="off">
         <!-- Hidden fields for cost/currency - auto-populated with defaults -->
         <input type="hidden" id="treeCost" name="treeCost" value="0">
         <input type="hidden" id="currency" name="currency" value="">
@@ -685,8 +688,11 @@
         ? `\n- Cost: ${treeCost} ${finalCurrency}` 
         : '';
       
+      const plotId = (document.getElementById('plotId')?.value || '').trim();
+      const plotIdLine = plotId ? `\n- Plot ID: ${plotId}` : '';
+
       const telegramLink = 'https://t.me/TrueSightDAO';
-      const whatsappLink = 'https://wa.me/14423405782?text=' + encodeURIComponent(`[TREE PLANTING EVENT]\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Species: ${treeSpecies}${costLine}\n- Planting Time: ${new Date().toISOString()}\n--------`);
+      const whatsappLink = 'https://wa.me/14423405782?text=' + encodeURIComponent(`[TREE PLANTING EVENT]\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Species: ${treeSpecies}${costLine}${plotIdLine}\n- Planting Time: ${new Date().toISOString()}\n--------`);
 
       if (!stream || !video.srcObject) {
         console.error('Camera stream is null or not initialized.');
@@ -719,7 +725,7 @@
         const safePublicKey = publicKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
         const photoCaptureDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/${yyyymmddhhmmss}_${safePublicKey}.jpg`;
 
-        const requestText = `[TREE PLANTING EVENT]\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Species: ${treeSpecies}${costLine}\n- Planting Time: ${plantingTime}\n- Photo URL: ${photoCaptureDestinationURL}\n- Submission Source: ${window.location.href}\n--------`;
+        const requestText = `[TREE PLANTING EVENT]\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Species: ${treeSpecies}${costLine}${plotIdLine}\n- Planting Time: ${plantingTime}\n- Photo URL: ${photoCaptureDestinationURL}\n- Submission Source: ${window.location.href}\n--------`;
 
         const privateKeyObj = await window.crypto.subtle.importKey(
           "pkcs8",
