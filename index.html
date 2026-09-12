@@ -371,6 +371,24 @@
       <h2>Inventory & ledger</h2>
       <p style="color:#555;font-size:0.95rem;">Ledger operations, QR batching, shipping, and repackaging — tools tied to inventory on the Main Ledger and managed AGL sheets.</p>
       <div class="module-card">
+        <h3><a href="./report_asset_receipt.html">Asset Receipt Reporter</a></h3>
+        <p>Record a non-serialized physical asset purchased for the DAO — creates the positive inventory leg on offchain transactions.</p>
+        <p><strong>Features</strong>:</p>
+        <ul>
+          <li>Select fund handler and currency (exact Currencies tab name)</li>
+          <li>Specify unit count and description</li>
+          <li>Attach proof of purchase (PDF or image)</li>
+          <li>Signed [ASSET RECEIPT EVENT] submitted to Edgar</li>
+        </ul>
+        <p><strong>Usage</strong>:</p>
+        <ol>
+          <li>For the cash outflow, record the <a href="./report_contribution.html">DAO Contribution Report</a> first.</li>
+          <li>Open <a href="./report_asset_receipt.html">Asset Receipt Reporter</a>.</li>
+          <li>Pick fund handler + currency, set the unit count, describe the purchase.</li>
+          <li>Attach proof of purchase and submit with your digital signature.</li>
+        </ol>
+      </div>
+      <div class="module-card">
         <h3><a href="./report_dao_expenses.html">Inventory Expense Reporter</a></h3>
         <p>Report DAO inventory expenses.</p>
         <p><strong>Features</strong>:</p>
