@@ -1,59 +1,113 @@
 /**
- * CurrenciesCache — shared session-memoized fetch of the offchain treasury
- * snapshot, used to power the Currency Name datalist on report_asset_receipt.html.
+ * CurrenciesCache — shared session-memoized currency-name list for the
+ * Currency Name combobox on report_asset_receipt.html.
  *
- * Source: https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_offchain_treasury.json
- * Published by treasury-cache-publisher (cron) into the treasury-cache repo.
+ * Sources (both unioned, catalog first):
+ *   1. CATALOG  — agroverse-inventory/currencies.json
+ *      The canonical list, generated directly from the Main Ledger "Currencies"
+ *      tab (column A) by go_to_market/scripts/sync_agroverse_currencies.py.
+ *      Authoritative: contains every catalogued currency, even ones with no
+ *      current holdings.
+ *   2. SNAPSHOT — treasury-cache/dao_offchain_treasury.json
+ *      The offchain treasury snapshot (treasury-cache-publisher). Its items[]
+ *      is holdings-derived only, so it can carry a held-but-uncatalogued
+ *      currency. Unioned in as a safety net so nothing selectable is lost.
  *
- * Mirrors scripts/dao_members_cache.js structure & conventions exactly:
- * one in-flight promise is shared across all callers on a page, so multiple
- * consumers fetch the snapshot at most once per page load.
+ * If one source fails the other is still used; only if BOTH fail does
+ * fetchCurrencies() reject. Mirrors scripts/dao_members_cache.js structure
+ * (one in-flight promise shared per page).
  *
  * Exposes:
- *   window.CurrenciesCache.fetchSnapshot()
- *       → Promise<snapshot JSON>.
- *   window.CurrenciesCache.fetchCurrencies()
- *       → Promise<string[]> — de-duplicated, sorted list of items[].currency.
- *   window.CurrenciesCache.invalidate()
- *       → drops the memoized promise; next call refetches.
- *   window.CurrenciesCache.DEFAULT_URL — the raw.githubusercontent.com URL.
+ *   window.CurrenciesCache.fetchSnapshot()   -> Promise<treasury snapshot JSON>
+ *   window.CurrenciesCache.fetchCatalog()    -> Promise<string[]>
+ *   window.CurrenciesCache.fetchCurrencies() -> Promise<string[]> (deduped, sorted)
+ *   window.CurrenciesCache.invalidate()      -> drops memoized promises
+ *   window.CurrenciesCache.DEFAULT_URL / CATALOG_URL
  */
 (function (global) {
   const DEFAULT_URL =
       'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_offchain_treasury.json';
+  const CATALOG_URL =
+      'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/currencies.json';
 
-  let cachedPromise = null;
-  let cachedUrl = null;
+  let cachedSnapshotPromise = null;
+  let cachedSnapshotUrl = null;
+  let cachedCatalogPromise = null;
+  let cachedCatalogUrl = null;
 
-  function resolveUrl() {
+  function resolveSnapshotUrl() {
     return (global.Routes && global.Routes.currenciesCache) || DEFAULT_URL;
   }
 
+  function resolveCatalogUrl() {
+    return (global.Routes && global.Routes.currenciesCatalog) || CATALOG_URL;
+  }
+
   function fetchSnapshot() {
-    const url = resolveUrl();
-    if (cachedPromise && cachedUrl === url) return cachedPromise;
-    cachedUrl = url;
-    cachedPromise = global.fetch(url, { cache: 'no-cache' }).then(function (resp) {
+    const url = resolveSnapshotUrl();
+    if (cachedSnapshotPromise && cachedSnapshotUrl === url) return cachedSnapshotPromise;
+    cachedSnapshotUrl = url;
+    cachedSnapshotPromise = global.fetch(url, { cache: 'no-cache' }).then(function (resp) {
       if (!resp.ok) {
-        cachedPromise = null; // don't pin a bad response for the rest of the session
+        cachedSnapshotPromise = null; // don't pin a bad response for the session
         throw new Error('dao_offchain_treasury.json HTTP ' + resp.status);
       }
       return resp.json();
     }).catch(function (err) {
-      cachedPromise = null;
+      cachedSnapshotPromise = null;
       throw err;
     });
-    return cachedPromise;
+    return cachedSnapshotPromise;
   }
 
-  // De-duplicated, alphabetically sorted list of currency names (items[].currency).
+  function fetchCatalog() {
+    const url = resolveCatalogUrl();
+    if (cachedCatalogPromise && cachedCatalogUrl === url) return cachedCatalogPromise;
+    cachedCatalogUrl = url;
+    cachedCatalogPromise = global.fetch(url, { cache: 'no-cache' }).then(function (resp) {
+      if (!resp.ok) {
+        cachedCatalogPromise = null;
+        throw new Error('currencies.json HTTP ' + resp.status);
+      }
+      return resp.json();
+    }).then(function (data) {
+      if (Array.isArray(data)) return data;
+      return (data && data.currencies) || [];
+    }).catch(function (err) {
+      cachedCatalogPromise = null;
+      throw err;
+    });
+    return cachedCatalogPromise;
+  }
+
+  function currenciesFromSnapshot(snapshot) {
+    const items = (snapshot && snapshot.items) || [];
+    const out = [];
+    for (let i = 0; i < items.length; i++) {
+      const currency = items[i] && items[i].currency;
+      if (currency) out.push(currency);
+    }
+    return out;
+  }
+
+  // De-duplicated, alphabetically sorted union of the catalog and the snapshot.
   function fetchCurrencies() {
-    return fetchSnapshot().then(function (snapshot) {
-      const items = (snapshot && snapshot.items) || [];
+    const catalog = fetchCatalog().catch(function () { return null; });
+    const snapshot = fetchSnapshot()
+        .then(currenciesFromSnapshot)
+        .catch(function () { return null; });
+
+    return Promise.all([catalog, snapshot]).then(function (results) {
+      const catalogList = results[0];
+      const snapshotList = results[1];
+      if (catalogList === null && snapshotList === null) {
+        throw new Error('currencies cache unavailable: catalog and snapshot both failed');
+      }
       const seen = {};
       const currencies = [];
-      for (let i = 0; i < items.length; i++) {
-        const currency = items[i] && items[i].currency;
+      const merged = (catalogList || []).concat(snapshotList || []);
+      for (let i = 0; i < merged.length; i++) {
+        const currency = merged[i];
         if (currency && !seen[currency]) {
           seen[currency] = true;
           currencies.push(currency);
@@ -64,13 +118,17 @@
   }
 
   function invalidate() {
-    cachedPromise = null;
-    cachedUrl = null;
+    cachedSnapshotPromise = null;
+    cachedSnapshotUrl = null;
+    cachedCatalogPromise = null;
+    cachedCatalogUrl = null;
   }
 
   global.CurrenciesCache = {
     DEFAULT_URL: DEFAULT_URL,
+    CATALOG_URL: CATALOG_URL,
     fetchSnapshot: fetchSnapshot,
+    fetchCatalog: fetchCatalog,
     fetchCurrencies: fetchCurrencies,
     invalidate: invalidate
   };
