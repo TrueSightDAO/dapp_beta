@@ -82,8 +82,28 @@
     }
 
     function validateDescription(description) {
-        if (!description) return false;
-        return !/[\n\r]/.test(description);
+        // Multiline descriptions are ALLOWED (2026-09-12). We only require some
+        // non-whitespace content; the parser-safe single-line form is produced
+        // separately by normalizeDescription() at submit time.
+        if (description === null || description === undefined) return false;
+        return String(description).trim().length > 0;
+    }
+
+    /**
+     * Collapses a (possibly multiline) description into the single line the
+     * Edgar expense parser expects. _extractField reads "- Label: value" up to
+     * the next "\n- " or end-of-line, so a raw newline -- or worse, a wrapped
+     * continuation line starting with "- " -- would silently truncate the value.
+     * Logical lines are joined with " | ".
+     */
+    function normalizeDescription(description) {
+        if (description === null || description === undefined) return '';
+        return String(description)
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map(function (line) { return line.trim(); })
+            .filter(function (line) { return line.length > 0; })
+            .join(' | ');
     }
 
     function generateExpenseFileName(originalFileName, contributorName) {
@@ -102,6 +122,7 @@
         extractCleanCurrency: extractCleanCurrency,
         buildSubmitPayload: buildSubmitPayload,
         validateDescription: validateDescription,
+        normalizeDescription: normalizeDescription,
         generateExpenseFileName: generateExpenseFileName
     };
 

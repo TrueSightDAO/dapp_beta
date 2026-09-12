@@ -466,6 +466,11 @@
                 <input type="number" id="quantityInput" min="0.01" step="0.01" disabled>
             </div>
             <div class="form-row">
+                <label for="descriptionInput">Expense Description:</label>
+                <textarea id="descriptionInput" maxlength="500" placeholder="Enter expense description (line breaks allowed)"></textarea>
+                <div class="char-count"><span id="charCount">0</span>/500 characters</div>
+            </div>
+            <div class="form-row">
                 <span class="field-label" id="attachmentLabel">Attachment</span>
                 <button type="button" id="paste-area" class="paste-area" aria-labelledby="attachmentLabel">Click to select or paste (Ctrl+V) a file or image</button>
                 <div id="attachmentStatus" role="status" aria-live="polite"></div>
@@ -480,11 +485,6 @@
                     <div class="info">Current Location:</div>
                     <div class="info-location" id="location">Waiting for geolocation...</div>
                 </div>
-            </div>
-            <div class="form-row">
-                <label for="descriptionInput">Expense Description:</label>
-                <textarea id="descriptionInput" maxlength="500" placeholder="Enter expense description"></textarea>
-                <div class="char-count"><span id="charCount">0</span>/500 characters</div>
             </div>
             <div id="submitButtonHolder">
                 <button id="submitButton" disabled aria-label="Submit Expense Report">Submit Expense Report</button>
@@ -1622,7 +1622,8 @@
             // Ledger is provided via Target Ledger
             const resourceName = extractCleanCurrency(rawResourceValue);
             const quantity = document.getElementById('quantityInput').value;
-            const description = document.getElementById('descriptionInput').value;
+            const description = window.expenseFormUtils.normalizeDescription(
+                document.getElementById('descriptionInput').value);
             
             // Target ledger: use explicit selection, or extract from resource (e.g. [AGL15] USD)
             const targetLedgerValue = ledgerValue && ledgerValue.toLowerCase() !== 'offchain'
@@ -1923,15 +1924,12 @@
                 const charCount = document.getElementById('charCount');
 
                 descriptionInput.addEventListener('input', function() {
-                    this.value = this.value.replace(/[\n\r]/g, '');
+                    // Multiline descriptions are supported (2026-09-12): newlines
+                    // are preserved here and collapsed to the parser-safe single
+                    // line only at submit time. Enter therefore inserts a line
+                    // break instead of being swallowed.
                     charCount.textContent = this.value.length;
                     updateSubmitButtonState();
-                });
-
-                descriptionInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                    }
                 });
 
                 const pasteArea = document.getElementById('paste-area');
