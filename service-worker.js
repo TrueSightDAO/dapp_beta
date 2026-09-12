@@ -1,6 +1,6 @@
 importScripts('./routes.js');
 
-const CACHE_NAME = 'qr-scanner-cache-v18';
+const CACHE_NAME = 'qr-scanner-cache-v19';
 
 /**
  * Apps Script web apps + Edgar GAS proxy — must not use the Cache API or HTTP cache
@@ -53,6 +53,7 @@ const URLS_TO_CACHE = [
   './js/dapp_footer_links.js?v=1',
   './js/notifications.js?v=20260603a',
   './scripts/dao_members_cache.js',
+  './scripts/edgar_submission.js',
   './scripts/currencies_cache.js',
   './asset-receipt-form-utils.js',
   './expense-form-utils.js',
