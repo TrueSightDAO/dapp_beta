@@ -19,6 +19,7 @@
     <script src="./menu.js?v=20260702c"></script>
     <script src="./tdg_balance.js"></script>
     <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/edgar_submission.js?v=20260913a"></script>
     <script src="./expense-form-utils.js?v=20260912c"></script>
     <script src="./js/treasury_cache.js"></script>
 
@@ -1696,18 +1697,20 @@
                 const shareText = `${requestText}\n\nMy Digital Signature: ${publicKey}\n\nRequest Transaction ID: ${requestHash}\n\nThis submission was generated using ${window.location.href}\n\nVerify submission here: https://dapp.truesight.me/verify_request.html`;
 
                 if (await isOnline()) {
-                    const formData = new FormData();
-                    formData.append('text', shareText);
-                    formData.append('attachment', file, fileName);
-
-                    const resp = await fetch(EDGAR_SUBMIT, {
-                        method: 'POST',
-                        body: formData
+                    // iOS WebKit intermittently drops the multipart body on
+                    // fetch()+FormData POSTs. Post via XMLHttpRequest and retry until
+                    // Edgar confirms a verified signature, so the signed report
+                    // actually reaches the ledger.
+                    const sendableFile = await EdgarSubmission.toSendableBlob(file);
+                    const submission = await EdgarSubmission.submitWithRetry({
+                        url: EDGAR_SUBMIT,
+                        text: shareText,
+                        file: sendableFile,
+                        fileName: fileName,
+                        attempts: 3
                     });
 
-                    if (!resp.ok) throw new Error(await resp.text());
-
-                    const result = await resp.json();
+                    const result = submission.result;
                     
                     // Make expense location clickable after successful upload
                     if (result.fileUploadedToGithub && fileName) {

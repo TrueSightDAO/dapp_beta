@@ -19,6 +19,7 @@
     <script src="./menu.js?v=20260702c"></script>
     <script src="./tdg_balance.js"></script>
     <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/edgar_submission.js?v=20260913a"></script>
     <script src="./scripts/currencies_cache.js?v=20260912a"></script>
     <script src="./scripts/dapp_combobox.js"></script>
     <script src="./asset-receipt-form-utils.js?v=20260912a"></script>
@@ -594,20 +595,21 @@
                 const shareText = `${requestText}\n\nMy Digital Signature: ${publicKey}\n\nRequest Transaction ID: ${requestHash}\n\nThis submission was generated using ${window.location.href}\n\nVerify submission here: https://dapp.truesight.me/verify_request.html`;
 
                 if (await isOnline()) {
-                    const formData = new FormData();
-                    formData.append('text', shareText);
-                    if (file) {
-                        formData.append('attachment', file, fileName);
-                    }
-
-                    const resp = await fetch(EDGAR_SUBMIT, {
-                        method: 'POST',
-                        body: formData
+                    // iOS WebKit intermittently sends fetch()+FormData POSTs with an
+                    // empty body when the attachment is a camera file, which Edgar
+                    // records as an unverified "[No Text Provided]" row. Post via
+                    // XMLHttpRequest with the attachment materialised in memory, and
+                    // retry until Edgar confirms a verified signature.
+                    const sendableFile = await EdgarSubmission.toSendableBlob(file);
+                    const submission = await EdgarSubmission.submitWithRetry({
+                        url: EDGAR_SUBMIT,
+                        text: shareText,
+                        file: sendableFile,
+                        fileName: fileName,
+                        attempts: 3
                     });
 
-                    if (!resp.ok) throw new Error(await resp.text());
-
-                    const result = await resp.json();
+                    const result = submission.result;
 
                     // Make file location clickable after successful upload
                     if (result.fileUploadedToGithub && file) {
