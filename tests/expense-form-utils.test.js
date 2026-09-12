@@ -9,6 +9,7 @@ const {
     normalizeLedgerName,
     buildSubmitPayload,
     validateDescription,
+    normalizeDescription,
     generateExpenseFileName,
     extractClipboardFile,
     hasAttachableFile,
@@ -104,9 +105,10 @@ passed += test('raw USD, ledger offchain → USD, offchain', () => {
 // validateDescription
 console.log('\nvalidateDescription:');
 passed += test('valid description', () => assert.strictEqual(validateDescription('Office supplies'), true));
-passed += test('rejects newline', () => assert.strictEqual(validateDescription('Line1\nLine2'), false));
-passed += test('rejects carriage return', () => assert.strictEqual(validateDescription('Line1\rLine2'), false));
+passed += test('accepts newline (multiline now allowed)', () => assert.strictEqual(validateDescription('Line1\nLine2'), true));
+passed += test('accepts carriage return (multiline now allowed)', () => assert.strictEqual(validateDescription('Line1\rLine2'), true));
 passed += test('empty → false', () => assert.strictEqual(validateDescription(''), false));
+passed += test('whitespace-only → false', () => assert.strictEqual(validateDescription('   \n  '), false));
 
 // generateExpenseFileName
 console.log('\ngenerateExpenseFileName:');
@@ -164,6 +166,17 @@ passed += test('accepts an explicit allowedTypes override', () =>
 console.log('\nPASSTHROUGH_MIME_TYPES:');
 passed += test('is the four types the expense form accepts', () =>
     assert.deepStrictEqual(PASSTHROUGH_MIME_TYPES, ['image/png', 'image/jpeg', 'image/gif', 'application/pdf']));
+
+// normalizeDescription
+console.log('\nnormalizeDescription:');
+passed += test('single line unchanged', () => assert.strictEqual(normalizeDescription('Office supplies'), 'Office supplies'));
+passed += test('joins logical lines with a pipe', () => assert.strictEqual(normalizeDescription('Line1\nLine2'), 'Line1 | Line2'));
+passed += test('CRLF normalised', () => assert.strictEqual(normalizeDescription('A\r\nB'), 'A | B'));
+passed += test('blank lines dropped', () => assert.strictEqual(normalizeDescription('A\n\n\nB'), 'A | B'));
+passed += test('no leading newline before the next field marker', () => assert.ok(!/\n/.test(normalizeDescription('A\n- not a new field'))));
+passed += test('line starting with dash stays inline', () => assert.strictEqual(normalizeDescription('A\n- B'), 'A | - B'));
+passed += test('trims surrounding whitespace', () => assert.strictEqual(normalizeDescription('  A  \n  B  '), 'A | B'));
+passed += test('null -> empty', () => assert.strictEqual(normalizeDescription(null), ''));
 
 console.log('\n---');
 console.log(`Passed: ${passed}, Failed: ${failed}`);
