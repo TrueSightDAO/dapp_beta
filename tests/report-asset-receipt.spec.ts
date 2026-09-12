@@ -221,6 +221,48 @@ test.describe('Asset receipt form — combobox + file input UX', () => {
     );
   });
 
+  test('(h) after submit the button becomes a reset control and clears the form', async ({
+    page,
+  }) => {
+    await openForm(page);
+
+    // Fill a valid form.
+    await page.locator('#fundHandlerInput').fill('Gary Teh');
+    await page.locator('#currencyInput').fill('Ceremonial Cacao');
+    await page.locator('#amountInput').fill('7');
+    await page.locator('#descriptionInput').fill('Receipt for 7 units');
+    await expect(page.locator('#submitButton')).toBeEnabled();
+
+    // Mock a successful Edgar submission (the form POSTs multipart FormData).
+    await page.route('**/dao/submit_contribution', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, fileUploadedToGithub: false }),
+      })
+    );
+
+    await page.locator('#submitButton').click();
+
+    // Button flips to the reset control and stays clickable.
+    await expect(page.locator('#submitButton')).toHaveText('Submit another one');
+    await expect(page.locator('#submitButton')).toBeEnabled();
+
+    // Signed payload panel is surfaced.
+    await expect(page.locator('#requestPre')).toContainText('[ASSET RECEIPT EVENT]');
+
+    // Clicking it clears the form instead of re-submitting.
+    await page.locator('#submitButton').click();
+
+    await expect(page.locator('#fundHandlerInput')).toHaveValue('');
+    await expect(page.locator('#currencyInput')).toHaveValue('');
+    await expect(page.locator('#descriptionInput')).toHaveValue('');
+    await expect(page.locator('#amountInput')).toHaveValue('1');
+    await expect(page.locator('#submitButton')).toHaveText('Submit Asset Receipt Report');
+    // Empty form -> disabled again (validation re-evaluated after the reset).
+    await expect(page.locator('#submitButton')).toBeDisabled();
+  });
+
   test('(f) upload area is a real button that opens the native file picker', async ({
     page,
   }) => {
