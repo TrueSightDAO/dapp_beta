@@ -19,7 +19,7 @@
     <script src="./menu.js?v=20260702c"></script>
     <script src="./tdg_balance.js"></script>
     <script src="./scripts/dao_members_cache.js"></script>
-    <script src="./expense-form-utils.js"></script>
+    <script src="./expense-form-utils.js?v=20260912c"></script>
     <script src="./js/treasury_cache.js"></script>
 
     <style>
@@ -320,18 +320,39 @@
             margin-right: auto;
         }
         .paste-area {
-            border: 2px dashed #ccc;
+            border: 2px dashed #007bff;
             padding: 1rem;
             text-align: center;
             margin-top: 0.5rem;
             border-radius: 5px;
             cursor: pointer;
-            background-color: #f8f9fa;
+            background-color: #e7f0ff;
             font-size: 1rem;
-            color: #333;
+            color: #0056b3;
+            font-family: inherit;
+            width: 100%;
         }
         .paste-area:hover {
-            background-color: #e9ecef;
+            background-color: #d6e6ff;
+        }
+        .paste-area:focus-visible {
+            outline: 3px solid #0056b3;
+            outline-offset: 2px;
+        }
+        .field-label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        #attachmentStatus {
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+            min-height: 1.2rem;
+            color: #1a7f37;
+        }
+        #attachmentStatus.error {
+            color: #c0392b;
         }
         @media (max-width: 600px) {
             body {
@@ -445,8 +466,9 @@
                 <input type="number" id="quantityInput" min="0.01" step="0.01" disabled>
             </div>
             <div class="form-row">
-                <label for="attachmentInput">Attachment:</label>
-                <div id="paste-area" class="paste-area">Click to select or paste (Ctrl+V) a file or image</div>
+                <span class="field-label" id="attachmentLabel">Attachment</span>
+                <button type="button" id="paste-area" class="paste-area" aria-labelledby="attachmentLabel">Click to select or paste (Ctrl+V) a file or image</button>
+                <div id="attachmentStatus" role="status" aria-live="polite"></div>
                 <img id="uploaded-file-preview" style="display: none;" alt="Uploaded File Preview">
                 <div class="info-box">
                     <div class="info">Original File Name:</div>
@@ -635,14 +657,13 @@
         }
 
         function handleFile(file) {
-            const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'application/pdf'];
-            if (!allowedTypes.includes(file.type)) {
-                document.getElementById('outputMessage').textContent = 'Unsupported file type. Please select or paste an image or PDF.';
-                document.getElementById('outputMessage').className = 'error';
+            if (window.expenseFormUtils.PASSTHROUGH_MIME_TYPES.indexOf(file.type) === -1) {
+                showAttachmentStatus('Unsupported file type. Please select or paste an image (PNG/JPEG/GIF) or a PDF.', true);
                 return;
             }
 
             uploadedFile = file;
+            showAttachmentStatus('');
             const fileExtension = file.type === 'application/pdf' ? '.pdf' : file.type.split('/')[1];
             const fileName = file.name || `pasted_file_${new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)}.${fileExtension}`;
             updateFileInfo(fileName);
@@ -668,22 +689,42 @@
             updateSubmitButtonState();
         }
 
+        // Status line under the attachment control (announced via aria-live).
+        function showAttachmentStatus(message, isError) {
+            const el = document.getElementById('attachmentStatus');
+            if (!el) return;
+            el.textContent = message || '';
+            el.className = isError ? 'error' : '';
+        }
+
+        /**
+         * Handles a paste ANYWHERE on the page. Pasting an image/PDF (e.g. while
+         * focused in the Expense Description box) attaches it; pasting plain text
+         * is left completely alone so the browser's normal text paste still works.
+         */
         function handlePaste(event) {
-            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-            let file = null;
-            for (const item of items) {
-                if (item.kind === 'file') {
-                    file = item.getAsFile();
-                    break;
-                }
+            const clipboardData = event.clipboardData || (event.originalEvent && event.originalEvent.clipboardData);
+            if (!clipboardData) return;
+
+            const file = window.expenseFormUtils.extractClipboardFile(clipboardData);
+
+            if (!file) {
+                // Plain text / empty clipboard: let the browser paste normally and
+                // stay silent -- this is not an error.
+                return;
             }
 
-            if (file) {
-                handleFile(file);
-            } else {
-                document.getElementById('outputMessage').textContent = 'No valid file found in clipboard. Please paste an image or PDF.';
-                document.getElementById('outputMessage').className = 'error';
+            if (window.expenseFormUtils.PASSTHROUGH_MIME_TYPES.indexOf(file.type) === -1) {
+                // A file WAS pasted but we cannot accept it. The user meant to
+                // attach something, so say so rather than silently ignoring it.
+                showAttachmentStatus('Unsupported file type. Please paste an image (PNG/JPEG/GIF) or a PDF, or use the button above.', true);
+                return;
             }
+
+            // Consume the paste so the file doesn't also land in whatever field
+            // the user happened to be focused on (e.g. the description textarea).
+            event.preventDefault();
+            handleFile(file);
         }
 
         function resetForm() {
@@ -722,6 +763,7 @@
             charCount.textContent = '0';
             uploadedFilePreview.src = '';
             uploadedFilePreview.style.display = 'none';
+            showAttachmentStatus('');
             updateFileInfo('');
             output.textContent = '';
             output.className = '';
@@ -1893,8 +1935,25 @@
                 });
 
                 const pasteArea = document.getElementById('paste-area');
-                pasteArea.addEventListener('paste', handlePaste);
                 pasteArea.addEventListener('click', triggerFileSelect);
+
+                // Listen on the DOCUMENT, not just the drop zone. A <div> can never
+                // receive focus, so the old paste-area-only listener was unreachable
+                // dead code -- which is why pasting into the description box did
+                // nothing. Listening at document level makes Ctrl+V attach an image
+                // from wherever the user's cursor happens to be.
+                document.addEventListener('paste', handlePaste);
+
+                // Drag & drop, matching report_asset_receipt.html.
+                ['dragover', 'dragleave', 'drop'].forEach((evtName) => {
+                    pasteArea.addEventListener(evtName, (e) => {
+                        e.preventDefault();
+                        pasteArea.classList.toggle('dragover', evtName === 'dragover');
+                        if (evtName === 'drop' && e.dataTransfer && e.dataTransfer.files.length > 0) {
+                            handleFile(e.dataTransfer.files[0]);
+                        }
+                    });
+                });
                 document.getElementById('submitButton').addEventListener('click', onSubmit);
                 updateButtonText();
             } catch (error) {

@@ -9,8 +9,25 @@ const {
     normalizeLedgerName,
     buildSubmitPayload,
     validateDescription,
-    generateExpenseFileName
+    generateExpenseFileName,
+    extractClipboardFile,
+    hasAttachableFile,
+    PASSTHROUGH_MIME_TYPES
 } = require('../expense-form-utils.js');
+
+// Minimal stand-ins for the browser objects the extractor touches.
+function fakeFile(name, type) {
+    return { name, type };
+}
+function clipboard({ files = [], items = [] }) {
+    return { files, items };
+}
+function fileItem(file) {
+    return { kind: 'file', getAsFile: () => file };
+}
+function stringItem(str) {
+    return { kind: 'string', getAsString: () => str };
+}
 
 function test(name, fn) {
     try {
@@ -101,6 +118,52 @@ passed += test('sanitizes special chars', () => {
     const f = generateExpenseFileName('file (1).pdf', 'Test User');
     assert.ok(!f.includes(' ') && !f.includes('(') && !f.includes(')'));
 });
+
+// extractClipboardFile
+console.log('\nextractClipboardFile:');
+passed += test('prefers .files when present', () => {
+    const f = fakeFile('a.png', 'image/png');
+    assert.strictEqual(extractClipboardFile(clipboard({ files: [f] })), f);
+});
+passed += test('falls back to .items kind=file (mobile Safari behaviour)', () => {
+    const f = fakeFile('b.png', 'image/png');
+    assert.strictEqual(extractClipboardFile(clipboard({ items: [fileItem(f)] })), f);
+});
+passed += test('skips string items and finds the file among them', () => {
+    const f = fakeFile('c.pdf', 'application/pdf');
+    const cd = clipboard({ items: [stringItem('hello'), fileItem(f)] });
+    assert.strictEqual(extractClipboardFile(cd), f);
+});
+passed += test('null clipboardData -> null', () =>
+    assert.strictEqual(extractClipboardFile(null), null));
+passed += test('undefined clipboardData -> null', () =>
+    assert.strictEqual(extractClipboardFile(undefined), null));
+passed += test('plain text clipboard -> null (no file to attach)', () =>
+    assert.strictEqual(extractClipboardFile(clipboard({ items: [stringItem('just text')] })), null));
+passed += test('empty clipboard -> null', () =>
+    assert.strictEqual(extractClipboardFile(clipboard({})), null));
+passed += test('item whose getAsFile() returns null -> null', () =>
+    assert.strictEqual(extractClipboardFile(clipboard({ items: [{ kind: 'file', getAsFile: () => null }] })), null));
+
+// hasAttachableFile
+console.log('\nhasAttachableFile:');
+passed += test('png is attachable', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({ files: [fakeFile('a.png', 'image/png')] })), true));
+passed += test('pdf is attachable', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({ files: [fakeFile('a.pdf', 'application/pdf')] })), true));
+passed += test('gif is attachable', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({ files: [fakeFile('a.gif', 'image/gif')] })), true));
+passed += test('text/plain file is NOT attachable', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({ files: [fakeFile('a.txt', 'text/plain')] })), false));
+passed += test('no file -> false', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({})), false));
+passed += test('accepts an explicit allowedTypes override', () =>
+    assert.strictEqual(hasAttachableFile(clipboard({ files: [fakeFile('a.txt', 'text/plain')] }), ['text/plain']), true));
+
+// PASSTHROUGH_MIME_TYPES
+console.log('\nPASSTHROUGH_MIME_TYPES:');
+passed += test('is the four types the expense form accepts', () =>
+    assert.deepStrictEqual(PASSTHROUGH_MIME_TYPES, ['image/png', 'image/jpeg', 'image/gif', 'application/pdf']));
 
 console.log('\n---');
 console.log(`Passed: ${passed}, Failed: ${failed}`);
