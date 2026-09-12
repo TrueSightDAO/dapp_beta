@@ -19,7 +19,7 @@
     <script src="./menu.js?v=20260702c"></script>
     <script src="./tdg_balance.js"></script>
     <script src="./scripts/dao_members_cache.js"></script>
-    <script src="./scripts/currencies_cache.js"></script>
+    <script src="./scripts/currencies_cache.js?v=20260912a"></script>
     <script src="./scripts/dapp_combobox.js"></script>
 
     <style>
@@ -499,7 +499,7 @@
                 allowNewValue: true,
                 placeholder: 'Type to search fund handlers...'
             });
-            // Currency Name — pick an existing currency (treasury cache) or type a brand-new one.
+            // Currency Name — pick an existing currency (Currencies tab catalog + holdings) or type a brand-new one.
             // allowNewValue MUST stay true: this form is how new Currency rows get created
             // (e.g. "Stand-Up Pouch Kraft w/Zip 10x15cm (per unit) - Brazil" was first typed here).
             DappCombobox.attach({
