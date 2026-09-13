@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Define a QR-ready serializable currency (SKU) end-to-end via Edgar - no spreadsheet access required">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Define QR-Ready Currency</title>
+  <meta property="og:title" content="Define QR-Ready Currency">
+  <meta property="og:description" content="Define a serializable currency so it can be QR-minted immediately">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260702c"></script>
+  <script src="./tdg_balance.js"></script>
+  <script src="./js/treasury_cache.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; margin: 1rem; padding: 1rem; min-height: 100vh; box-sizing: border-box; background-color: #f5f5f5; }
+    .container { max-width: 640px; width: 100%; background-color: white; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { font-size: 1.8rem; color: #333; margin: 0.5rem 0 1rem; text-align: center; }
+    #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; font-size: 1rem; text-align: center; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+    .status { color: #28a745; } .error { color: #dc3545; } .loading { color: #6c757d; font-style: italic; }
+    .form-row { margin: 1rem 0; text-align: left; }
+    label { display: block; margin-bottom: 0.4rem; font-weight: bold; color: #333; }
+    select, input[type="text"], input[type="number"], input[type="url"] { width: 100%; padding: 0.8rem; font-size: 1rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+    select:disabled, input:disabled { background-color: #f0f0f0; cursor: not-allowed; }
+    .help-text { font-size: 0.85rem; color: #666; margin-top: 0.3rem; }
+    .hidden { display: none; }
+    .combobox { position: relative; }
+    .combobox input { padding-right: 2.2rem; }
+    .combobox-toggle { position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #666; cursor: pointer; font-size: 0.85rem; padding: 0.3rem; line-height: 1; }
+    .combobox-list { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: white; border: 1px solid #bbb; border-radius: 4px; max-height: 260px; overflow-y: auto; z-index: 1000; margin: 0; padding: 0; list-style: none; box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+    .combobox-list[hidden] { display: none; }
+    .combobox-list li { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.92rem; border-bottom: 1px solid #f0f0f0; }
+    .combobox-list li:last-child { border-bottom: none; }
+    .combobox-list li.active, .combobox-list li:hover { background: #eef5ff; }
+    .combobox-list li.empty { color: #999; cursor: default; font-style: italic; background: none; }
+    .paste-area { border: 2px dashed #ccc; padding: 1.2rem; text-align: center; cursor: pointer; background-color: #f9f9f9; border-radius: 8px; font-size: 0.95rem; color: #555; }
+    .paste-area:hover { background-color: #f0f0f0; }
+    .paste-area.dragover { background-color: #e8f4fd; border-color: #007bff; }
+    #imagePreview { max-width: 100%; height: auto; border-radius: 8px; margin: 0.6rem 0; display: none; }
+    button { background-color: #007bff; color: white; border: none; padding: 1rem 2rem; font-size: 1rem; border-radius: 4px; cursor: pointer; margin: 0.5rem auto; width: 100%; max-width: 320px; display: block; }
+    button:hover { background-color: #0056b3; }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
+    .info-box { margin: 1rem 0; background-color: #f8f9fa; padding: 0.8rem; border: 1px solid #ddd; border-radius: 5px; font-size: 0.95rem; }
+    .info { font-weight: bold; margin: 0.3rem 0 0.1rem 0; }
+    .info-location { font-family: monospace; font-size: 0.9rem; color: #666; word-break: break-all; margin-bottom: 0.5rem; }
+    #submissionResult pre { background: #2d2d2d; color: #f8f8f2; padding: 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; }
+    .unit-row { display: none; }
+    @media (max-width: 768px) { .container { padding: 0.8rem; } h1 { font-size: 1.5rem; } }
+  </style>
+</head>
+<body>
+  <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+  <div id="tdgBalanceBadge"></div>
+  <div class="container">
+    <h1>Define QR-Ready Currency</h1>
+    <p id="description">Define a new serializable currency (SKU) so it can be QR-minted immediately &mdash; no spreadsheet access required. Pick a SKU to autofill, or define one by hand.</p>
+    <p id="status">Verifying your digital signature&hellip;</p>
+
+    <div id="info" style="display:none;">
+
+      <div class="form-row">
+        <label for="skuSelect">SKU (Agroverse catalog) &mdash; optional</label>
+        <div class="combobox">
+          <input type="text" id="skuSelect" placeholder="Type to search the SKU catalog..." autocomplete="off">
+          <button type="button" class="combobox-toggle" aria-label="Show options">&#9660;</button>
+          <ul class="combobox-list" role="listbox" hidden></ul>
+        </div>
+        <div class="help-text" id="skuFreshness"></div>
+        <div class="help-text" id="skuMeta"></div>
+      </div>
+
+      <div class="form-row">
+        <label for="currencyInput">Currency (name) <span style="color:#dc3545;">*</span></label>
+        <input type="text" id="currencyInput" placeholder="e.g. Ceremonial Cacao (250g)" autocomplete="off">
+        <div class="help-text">Column A. Must be unique &mdash; an existing name is skipped (idempotent).</div>
+      </div>
+
+      <div class="form-row">
+        <label for="skuIdInput">SKU Product ID</label>
+        <input type="text" id="skuIdInput" placeholder="e.g. oscar-bahia-ceremonial-cacao-200g" autocomplete="off">
+        <div class="help-text">Column M. Autofilled by the SKU picker. When present, the handler infers Serializable from real SKU stock.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="priceInput">Price in USD</label>
+        <input type="number" id="priceInput" min="0" step="any" placeholder="e.g. 25.00">
+        <div class="help-text">Column B.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="serializableSelect">Serializable</label>
+        <select id="serializableSelect">
+          <option value="">Auto &mdash; infer from SKU stock</option>
+          <option value="TRUE">TRUE</option>
+          <option value="FALSE">FALSE</option>
+        </select>
+        <div class="help-text">Column C. "Auto" omits the field when a SKU Product ID is set so the handler infers it from stock; otherwise it defaults to TRUE.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="unitSelect">Unit</label>
+        <select id="unitSelect">
+          <option value="">Select a unit (optional)</option>
+          <option value="oz">ounces (oz)</option>
+          <option value="grams">grams</option>
+        </select>
+        <div class="help-text">Pick one &mdash; only the matching weight column is written (K for grams, L for ounces). No conversion is applied.</div>
+      </div>
+
+      <div class="form-row unit-row" id="weightOzRow">
+        <label for="weightOzInput">Unit Weight (ounces)</label>
+        <input type="number" id="weightOzInput" min="0" step="any" placeholder="e.g. 8.82">
+        <div class="help-text">Column L.</div>
+      </div>
+
+      <div class="form-row unit-row" id="weightGramsRow">
+        <label for="weightGramsInput">Unit Weight (grams)</label>
+        <input type="number" id="weightGramsInput" min="0" step="any" placeholder="e.g. 250">
+        <div class="help-text">Column K.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="ledgerSelect">Ledger</label>
+        <select id="ledgerSelect"><option value="">Loading ledgers...</option></select>
+        <div class="help-text">Column F.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="landingPageInput">Landing Page</label>
+        <input type="text" id="landingPageInput" placeholder="https://truesight.me/shop/...">
+        <div class="help-text">Column E. Required for QR-readiness (the QR resolves here).</div>
+      </div>
+
+      <div class="form-row">
+        <label for="yearInput">Year</label>
+        <input type="number" id="yearInput" min="2000" max="2100" step="1" placeholder="e.g. 2026">
+        <div class="help-text">Column J.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="productImageInput">Product Image (URL)</label>
+        <input type="text" id="productImageInput" placeholder="https://... or upload below">
+        <div class="help-text">Column D. Type a URL, paste/upload an image below, or leave the SKU's own image.</div>
+        <div id="imagePasteArea" class="paste-area">Click to upload, or paste/drag an image here</div>
+        <img id="imagePreview" alt="Product image preview">
+        <div class="info-box" style="margin-top:0.6rem;">
+          <div class="info">Uploaded image filename:</div>
+          <div class="info-location" id="imageFileName">No file selected</div>
+          <div class="info">Uploaded image location:</div>
+          <div class="info-location" id="imageLocation">Waiting for file selection&hellip;</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="farmInput">Farm Name</label>
+        <div class="combobox">
+          <input type="text" id="farmInput" placeholder="Type or pick a farm..." autocomplete="off">
+          <button type="button" class="combobox-toggle" aria-label="Show options">&#9660;</button>
+          <ul class="combobox-list" role="listbox" hidden></ul>
+        </div>
+        <div class="help-text">Column G. Pick from known farms or type a new one.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="stateInput">State</label>
+        <div class="combobox">
+          <input type="text" id="stateInput" placeholder="Type or pick a state..." autocomplete="off">
+          <button type="button" class="combobox-toggle" aria-label="Show options">&#9660;</button>
+          <ul class="combobox-list" role="listbox" hidden></ul>
+        </div>
+        <div class="help-text">Column H.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="countryInput">Country</label>
+        <div class="combobox">
+          <input type="text" id="countryInput" placeholder="Type or pick a country..." autocomplete="off">
+          <button type="button" class="combobox-toggle" aria-label="Show options">&#9660;</button>
+          <ul class="combobox-list" role="listbox" hidden></ul>
+        </div>
+        <div class="help-text">Column I.</div>
+      </div>
+
+      <button id="submitButton" disabled>Submit Currency Definition</button>
+    </div>
+
+    <div id="outputMessage" class="hidden"></div>
+
+    <div id="submissionResult" style="display:none;" aria-live="polite">
+      <h3>Transaction request (signed payload sent to Edgar)</h3>
+      <pre id="requestPre"></pre>
+      <h3>Edgar response</h3>
+      <pre id="responsePre"></pre>
+    </div>
+  </div>
+
+  <script>
+    var REPO_BASE_URL = 'https://github.com/TrueSightDAO/.github/tree/main/assets/';
+    var DAO_FORMS_BASE = (window.Routes && window.Routes.gas && window.Routes.gas.daoForms)
+        || 'https://script.google.com/macros/s/AKfycbztpV3TUIRn3ftNW1aGHAKw32OBJrp_p1Pr9mMAttoyWFZyQgBRPU2T6eGhkmJtz7xV/exec';
+    var EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+        || 'https://edgar.truesight.me/dao/submit_contribution';
+    var SKUS_JSON_URL = 'https://raw.githubusercontent.com/TrueSightDAO/agroverse-inventory/main/skus.json';
+
+    var SKUS = [];
+    var SKU_LABELS = [];
+    var FARM_OPTIONS = [];
+    var STATE_OPTIONS = [];
+    var COUNTRY_OPTIONS = [];
+    var attachedImageFile = null;
+    var attachedImageName = '';
+    var isPostSubmission = false;
+
+    function val(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+
+    function base64ToArrayBuffer(base64) {
+      var binaryString = window.atob(base64);
+      var bytes = new Uint8Array(binaryString.length);
+      for (var i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      return bytes.buffer;
+    }
+    function arrayBufferToBase64(buffer) {
+      var binary = '';
+      var bytes = new Uint8Array(buffer);
+      for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      return window.btoa(binary);
+    }
+    function isMobileDevice() { return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent); }
+    function isOnline() { return navigator.onLine; }
+    async function copyToClipboard(text) { try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; } }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+    function skuLabel(s) { return s.productName ? (s.productName + ' - ' + s.productId) : s.productId; }
+
+    function findSkuByLabel(label) {
+      var l = String(label || '').trim().toLowerCase();
+      for (var i = 0; i < SKUS.length; i++) {
+        if (skuLabel(SKUS[i]).toLowerCase() === l) return SKUS[i];
+        if (String(SKUS[i].productId || '').toLowerCase() === l) return SKUS[i];
+      }
+      return null;
+    }
+
+    function generateImageFileName(originalFileName) {
+      var timestamp = Date.now();
+      var extension = originalFileName.split('.').pop();
+      var nameWithoutExt = originalFileName.replace(/\.[^/.]+$/, '');
+      return 'currency_image_' + timestamp + '_' + nameWithoutExt + '.' + extension;
+    }
+
+    // SKU catalog: agroverse-inventory/skus.json (emitted by the update_store_inventory
+    // GAS). It may not exist yet on a fresh deploy -> degrade to an empty picker and
+    // free-text, with a visible note so the gap is never silent.
+    async function loadSkus() {
+      var fresh = document.getElementById('skuFreshness');
+      try {
+        var res = await fetch(SKUS_JSON_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        SKUS = (data && Array.isArray(data.skus)) ? data.skus : (Array.isArray(data) ? data : []);
+        SKU_LABELS = SKUS.map(skuLabel).sort(function (a, b) { return a.localeCompare(b); });
+        if (fresh) {
+          var gen = data && data.generatedAt;
+          fresh.textContent = SKU_LABELS.length
+            ? ('SKU catalog: ' + SKU_LABELS.length + ' products loaded' + (gen ? ' (updated ' + new Date(gen).toUTCString().replace(/ GMT$/, ' UTC') + ')' : ''))
+            : 'SKU catalog loaded but empty.';
+        }
+        console.log('[skus] loaded ' + SKU_LABELS.length + ' from skus.json');
+      } catch (err) {
+        SKUS = []; SKU_LABELS = [];
+        if (fresh) fresh.textContent = 'SKU catalog not available yet (skus.json missing) - define fields by hand below.';
+        console.warn('[skus] load failed:', err.message);
+      }
+    }
+
+    function applySku(label) {
+      var s = findSkuByLabel(label);
+      var meta = document.getElementById('skuMeta');
+      if (!s) { if (meta) meta.textContent = ''; return; }
+      if (!val('currencyInput')) document.getElementById('currencyInput').value = s.productName || s.productId || '';
+      document.getElementById('skuIdInput').value = s.productId || '';
+      if (s.priceUsd !== '' && s.priceUsd != null) document.getElementById('priceInput').value = s.priceUsd;
+      if (s.imagePath) document.getElementById('productImageInput').value = s.imagePath;
+      if (s.farm) document.getElementById('farmInput').value = s.farm;
+      if (s.weightOz != null && !isNaN(s.weightOz)) {
+        document.getElementById('unitSelect').value = 'oz';
+        applyUnitSelection();
+        document.getElementById('weightOzInput').value = s.weightOz;
+      }
+      if (meta) meta.textContent = 'Autofilled from SKU: ' + (s.productName || '') + ' (stock ' + (s.storeInventory != null ? s.storeInventory : '?') + ')';
+      updateSubmitButtonState();
+    }
+
+    // Generic combobox: shows the list on focus, filters as you type, supports
+    // keyboard nav, and always accepts a free-text value not in the list.
+    function wireCombobox(inputId, getOptions, onCommit) {
+      var input = document.getElementById(inputId);
+      if (!input) return;
+      var wrap = input.closest('.combobox');
+      var list = wrap.querySelector('.combobox-list');
+      var toggle = wrap.querySelector('.combobox-toggle');
+      var activeIdx = -1;
+
+      function render(filter) {
+        var q = (filter || '').trim().toLowerCase();
+        var all = getOptions() || [];
+        var filtered = q ? all.filter(function (c) { return c.toLowerCase().indexOf(q) !== -1; }) : all.slice();
+        if (filtered.length === 0) {
+          list.innerHTML = '<li class="empty">No match - your typed value will be used as-is</li>';
+        } else {
+          list.innerHTML = filtered.slice(0, 400).map(function (c) {
+            return '<li role="option" data-val="' + escapeHtml(c) + '">' + escapeHtml(c) + '</li>';
+          }).join('');
+        }
+        activeIdx = -1;
+      }
+      function open() { if (input.disabled) return; render(input.value); list.hidden = false; }
+      function close() { list.hidden = true; activeIdx = -1; }
+      function setActive(i) {
+        var items = list.querySelectorAll('li[data-val]');
+        if (!items.length) return;
+        activeIdx = Math.max(0, Math.min(i, items.length - 1));
+        items.forEach(function (el, idx) { el.classList.toggle('active', idx === activeIdx); });
+        items[activeIdx].scrollIntoView({ block: 'nearest' });
+      }
+      function commit(v) {
+        input.value = v;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        if (onCommit) onCommit(v);
+        close();
+      }
+      input.addEventListener('focus', open);
+      input.addEventListener('input', function () { render(input.value); list.hidden = false; if (onCommit) onCommit(input.value); });
+      input.addEventListener('keydown', function (e) {
+        var items = list.querySelectorAll('li[data-val]');
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+        else if (e.key === 'Enter') { if (activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); commit(items[activeIdx].getAttribute('data-val')); } }
+        else if (e.key === 'Escape') { close(); }
+      });
+      if (toggle) toggle.addEventListener('click', function () { if (list.hidden) { input.focus(); open(); } else { close(); } });
+      list.addEventListener('mousedown', function (e) {
+        var li = e.target.closest('li[data-val]');
+        if (li) { e.preventDefault(); commit(li.getAttribute('data-val')); }
+      });
+      document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) close(); });
+    }
+
+    async function loadLedgers() {
+      var sel = document.getElementById('ledgerSelect');
+      try {
+        var res = await fetch(DAO_FORMS_BASE + '?ledgers=true');
+        var ledgers = await res.json();
+        sel.innerHTML = '<option value="">Select a ledger</option>';
+        var off = document.createElement('option');
+        off.value = 'offchain';
+        off.textContent = 'offchain (Main Ledger - Default)';
+        off.dataset.ledgerName = 'offchain';
+        sel.appendChild(off);
+        (ledgers || []).forEach(function (l) {
+          var o = document.createElement('option');
+          o.value = l.ledger_url;
+          o.textContent = l.ledger_name;
+          o.dataset.ledgerName = l.ledger_name;
+          sel.appendChild(o);
+        });
+        sel.disabled = false;
+      } catch (e) {
+        console.error('ledgers load failed', e);
+        sel.innerHTML = '<option value="">Error loading ledgers</option>';
+      }
+    }
+
+    // Farm / State / Country seed lists.
+    // Primary source (Gary's decision): distinct non-empty col G/H/I of the Currencies tab.
+    // There is no dedicated endpoint for those columns yet, so we try an optional
+    // ?currency_fields=true on the dao_forms GAS and otherwise derive what we can from
+    // skus.json's `farm` field. The pickers stay free-text so a value is always enterable.
+    function addOptions(target, values) {
+      (values || []).forEach(function (v) {
+        var s = String(v || '').trim();
+        if (s && target.indexOf(s) === -1) target.push(s);
+      });
+      target.sort(function (a, b) { return a.localeCompare(b); });
+    }
+    async function loadCurrencyFieldOptions() {
+      try {
+        var res = await fetch(DAO_FORMS_BASE + '?currency_fields=true');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        if (data && (data.farms || data.states || data.countries)) {
+          addOptions(FARM_OPTIONS, data.farms);
+          addOptions(STATE_OPTIONS, data.states);
+          addOptions(COUNTRY_OPTIONS, data.countries);
+          return;
+        }
+        throw new Error('no field arrays');
+      } catch (e) {
+        console.warn('[currency_fields] endpoint unavailable:', e.message);
+      }
+      var skuFarms = SKUS.map(function (s) { return s.farm; }).filter(Boolean);
+      addOptions(FARM_OPTIONS, skuFarms);
+    }
+
+    function applyUnitSelection() {
+      var unit = val('unitSelect');
+      document.getElementById('weightOzRow').style.display = (unit === 'oz') ? 'block' : 'none';
+      document.getElementById('weightGramsRow').style.display = (unit === 'grams') ? 'block' : 'none';
+      if (unit !== 'oz') document.getElementById('weightOzInput').value = '';
+      if (unit !== 'grams') document.getElementById('weightGramsInput').value = '';
+    }
+
+    function updateSubmitButtonState() {
+      var btn = document.getElementById('submitButton');
+      if (isPostSubmission) { btn.disabled = false; return; }
+      btn.disabled = !val('currencyInput');
+    }
+
+    function handleImageFile(sel) {
+      var allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+      if (allowed.indexOf(sel.type) === -1) {
+        var out = document.getElementById('outputMessage');
+        out.textContent = 'Unsupported image type. Please pick a PNG, JPG, GIF, or WEBP.';
+        out.className = 'error'; out.classList.remove('hidden');
+        return;
+      }
+      attachedImageFile = sel;
+      attachedImageName = sel.name;
+      var img = document.getElementById('imagePreview');
+      var reader = new FileReader();
+      reader.onload = function (e) { img.src = e.target.result; img.style.display = 'block'; };
+      reader.readAsDataURL(sel);
+      updateImageInfo();
+    }
+    function updateImageInfo() {
+      var fn = document.getElementById('imageFileName');
+      var loc = document.getElementById('imageLocation');
+      if (attachedImageFile) {
+        var generated = generateImageFileName(attachedImageName);
+        fn.textContent = attachedImageName;
+        loc.innerHTML = REPO_BASE_URL + generated;
+      } else {
+        fn.textContent = 'No file selected';
+        loc.textContent = 'Waiting for file selection\u2026';
+      }
+    }
+    function triggerImageSelect() {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = function (ev) { if (ev.target.files.length > 0) handleImageFile(ev.target.files[0]); };
+      input.click();
+    }
+
+    function buildPayloadText() {
+      var ledgerSel = document.getElementById('ledgerSelect');
+      var chosen = ledgerSel.options[ledgerSel.selectedIndex];
+      var ledgerName = chosen ? (chosen.dataset.ledgerName || chosen.textContent || '').trim() : '';
+      var productImage = val('productImageInput') || (attachedImageFile ? REPO_BASE_URL + generateImageFileName(attachedImageName) : '');
+      var serializable = val('serializableSelect');
+      var skuId = val('skuIdInput');
+      var unit = val('unitSelect');
+
+      var lines = [
+        '[CURRENCY DEFINITION EVENT]',
+        '- Currency: ' + val('currencyInput'),
+        '- Price in USD: ' + val('priceInput'),
+        '- Serializable: ' + (serializable || (skuId ? '' : 'TRUE')),
+        '- Product Image: ' + productImage,
+        '- Landing Page: ' + val('landingPageInput'),
+        '- Ledger: ' + ledgerName,
+        '- Farm Name: ' + val('farmInput'),
+        '- State: ' + val('stateInput'),
+        '- Country: ' + val('countryInput'),
+        '- Year: ' + val('yearInput')
+      ];
+      if (unit === 'grams') {
+        lines.push('- Unit Weight (grams): ' + val('weightGramsInput'));
+      } else if (unit === 'oz') {
+        lines.push('- Unit Weight (ounces): ' + val('weightOzInput'));
+      }
+      lines.push('- SKU Product ID: ' + skuId);
+      lines.push('--------');
+      return lines.join('\n');
+    }
+
+    function resetForm() {
+      ['currencyInput', 'skuIdInput', 'priceInput', 'productImageInput', 'landingPageInput', 'yearInput',
+       'farmInput', 'stateInput', 'countryInput', 'weightOzInput', 'weightGramsInput', 'skuSelect'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = '';
+      });
+      document.getElementById('serializableSelect').value = '';
+      document.getElementById('unitSelect').value = '';
+      applyUnitSelection();
+      var meta = document.getElementById('skuMeta'); if (meta) meta.textContent = '';
+      attachedImageFile = null; attachedImageName = '';
+      var img = document.getElementById('imagePreview'); img.style.display = 'none'; img.src = '';
+      updateImageInfo();
+      var out = document.getElementById('outputMessage'); out.className = 'hidden'; out.innerHTML = '';
+      isPostSubmission = false;
+      document.getElementById('submitButton').textContent = 'Submit Currency Definition';
+      updateSubmitButtonState();
+    }
+
+    function handleSubmitButtonClick() { if (isPostSubmission) { resetForm(); } else { submitDefinition(); } }
+
+    async function submitDefinition() {
+      var out = document.getElementById('outputMessage');
+      var btn = document.getElementById('submitButton');
+      try {
+        btn.disabled = true;
+        out.textContent = 'Submitting\u2026'; out.className = 'loading'; out.classList.remove('hidden');
+
+        var publicKey = localStorage.getItem('publicKey');
+        if (!publicKey) throw new Error('Digital signature not found. Please generate your signature first.');
+
+        var requestText = buildPayloadText();
+        var privateKeyObj = await window.crypto.subtle.importKey(
+          'pkcs8', base64ToArrayBuffer(localStorage.getItem('privateKey')),
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+        var signature = await window.crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKeyObj, new TextEncoder().encode(requestText));
+        var requestHash = arrayBufferToBase64(signature);
+
+        var telegramLink = 'https://t.me/TrueSightDAO';
+        var shareText = requestText + '\n\nMy Digital Signature: ' + publicKey + '\n\nRequest Transaction ID: ' + requestHash +
+          '\n\nThis submission was generated using ' + window.location.href +
+          '\n\nVerify submission here: https://dapp.truesight.me/verify_request.html';
+        var whatsappLink = 'https://wa.me/?text=' + encodeURIComponent(shareText);
+
+        if (await isOnline()) {
+          var formData = new FormData();
+          formData.append('text', shareText);
+          if (attachedImageFile) formData.append('attachment', attachedImageFile, generateImageFileName(attachedImageName));
+          var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
+          if (!resp.ok) throw new Error(await resp.text());
+          var result = await resp.json();
+          out.innerHTML = 'Currency definition sent to Edgar successfully.<br>View: <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">https://truesight.me/submissions/raw-telegram-chatlogs</a>';
+          document.getElementById('requestPre').textContent = shareText;
+          document.getElementById('responsePre').textContent = JSON.stringify(result, null, 2);
+          document.getElementById('submissionResult').style.display = 'block';
+          out.className = 'status';
+          isPostSubmission = true;
+          btn.textContent = 'Submit Another Definition';
+          btn.disabled = false;
+          return;
+        } else if (isMobileDevice() && navigator.share) {
+          await navigator.share({ text: shareText });
+          out.innerHTML = 'Internet unavailable. Shared to your chosen app.';
+          out.className = 'error';
+        } else if (await copyToClipboard(shareText)) {
+          out.innerHTML = 'Internet unavailable. Definition copied to clipboard - paste it into <a href="' + telegramLink + '" target="_blank">Telegram</a> or <a href="' + whatsappLink + '" target="_blank">WhatsApp</a>.';
+          out.className = 'error';
+        } else {
+          out.innerHTML = 'Internet unavailable and clipboard failed. Copy the definition below and share it:<br><br><pre>' + escapeHtml(shareText) + '</pre>';
+          out.className = 'error';
+        }
+      } catch (err) {
+        out.innerHTML = 'Error submitting currency definition: ' + escapeHtml(err.message) + '. Please try again.';
+        out.className = 'error';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      var statusElement = document.getElementById('status');
+      var publicKey = localStorage.getItem('publicKey');
+      if (!publicKey) {
+        statusElement.textContent = 'No digital signature found. Please generate your digital signature first by visiting the main menu.';
+        statusElement.className = 'error';
+        return;
+      }
+      statusElement.textContent = 'Verifying your digital signature\u2026';
+      statusElement.className = 'loading';
+      await new Promise(function (r) { setTimeout(r, 500); });
+
+      statusElement.textContent = 'Loading catalogs\u2026';
+      await Promise.all([loadSkus(), loadLedgers()]);
+      await loadCurrencyFieldOptions();
+
+      wireCombobox('skuSelect', function () { return SKU_LABELS; }, applySku);
+      wireCombobox('farmInput', function () { return FARM_OPTIONS; });
+      wireCombobox('stateInput', function () { return STATE_OPTIONS; });
+      wireCombobox('countryInput', function () { return COUNTRY_OPTIONS; });
+
+      statusElement.textContent = '';
+      statusElement.className = '';
+      document.getElementById('info').style.display = 'block';
+
+      document.getElementById('unitSelect').addEventListener('change', applyUnitSelection);
+      document.getElementById('currencyInput').addEventListener('input', updateSubmitButtonState);
+      document.getElementById('imagePasteArea').addEventListener('click', triggerImageSelect);
+      document.getElementById('imagePasteArea').addEventListener('dragover', function (e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); });
+      document.getElementById('imagePasteArea').addEventListener('dragleave', function (e) { e.currentTarget.classList.remove('dragover'); });
+      document.getElementById('imagePasteArea').addEventListener('drop', function (e) {
+        e.preventDefault(); e.currentTarget.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleImageFile(e.dataTransfer.files[0]);
+      });
+      document.addEventListener('paste', function (e) {
+        if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) handleImageFile(e.clipboardData.files[0]);
+      });
+      document.getElementById('submitButton').addEventListener('click', handleSubmitButtonClick);
+
+      applyUnitSelection();
+      updateSubmitButtonState();
+    });
+  </script>
+  <script src="./js/dapp_footer_links.js?v=1"></script>
+</body>
+</html>
