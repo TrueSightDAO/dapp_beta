@@ -28,6 +28,8 @@
     { title: 'Restock Recommender', url: './restock_recommender.html', section: 'Inventory & ledger' },
     { title: 'Cacao Bag Scanner', url: './scanner.html', section: 'Retail & field activity' },
     { title: 'Sales Reporter', url: './report_sales.html', section: 'Retail & field activity' },
+    { title: 'Reservation Reporter', url: './report_reservation.html', section: 'Retail & field activity' },
+    { title: 'Reservation Settlement Reporter', url: './report_reservation_settlement.html', section: 'Retail & field activity' },
     { title: 'Stores Nearby', url: './stores_nearby.html', section: 'Retail & field activity' },
     { title: 'Stores by Status', url: './stores_by_status.html', section: 'Retail & field activity' },
     { title: 'Store Interaction History', url: './store_interaction_history.html', section: 'Retail & field activity' },
