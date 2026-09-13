@@ -606,6 +606,20 @@
                     </small>
                 </div>
                 
+                <!-- Pallet configuration (plastic HDPE is the default; wood kept for legacy) -->
+                <div class="form-row" id="palletConfigRow" style="display: none;">
+                    <label for="palletType">Pallet Type:</label>
+                    <select id="palletType">
+                        <option value="plastic" selected>Plastic HDPE (10 kg) — ISPM#15-exempt</option>
+                        <option value="wood">Wood (35 kg) — heat-treated</option>
+                    </select>
+                    <label for="palletCount" style="margin-top: 0.5rem;">Number of Pallets:</label>
+                    <input type="number" id="palletCount" value="1" min="1" step="1" style="width: 6rem;">
+                    <small style="color: #666; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
+                        Plastic pallets need no fumigation / phytosanitary certificate.
+                    </small>
+                </div>
+
                 <!-- Freight lane (client-side estimates from agroverse-freight-audit JSON) -->
                 <div id="freightLaneSection" class="form-row" style="display: none;">
                     <label for="freightLaneSelect">Freight lane:</label>
@@ -691,8 +705,35 @@
             });
         }
         
+        // Pallet packaging weights (kg per pallet). Plastic HDPE is the default
+        // (ISPM#15-exempt; no fumigation / phytosanitary certificate required).
+        const PALLET_UNIT_WEIGHTS_KG = { plastic: 10, wood: 35 };
+        const PALLET_TYPE_LABELS = { plastic: 'Plastic 10 kg', wood: 'Wood 35 kg' };
+
+        function getPalletType() {
+            const sel = document.getElementById('palletType');
+            const val = sel ? sel.value : 'plastic';
+            return PALLET_UNIT_WEIGHTS_KG[val] ? val : 'plastic';
+        }
+
+        function getPalletCount() {
+            const input = document.getElementById('palletCount');
+            const n = parseInt(input ? input.value : '1', 10);
+            return (isNaN(n) || n < 1) ? 1 : n;
+        }
+
+        function getPalletUnitWeightKg() {
+            return PALLET_UNIT_WEIGHTS_KG[getPalletType()] || 10;
+        }
+
         function getPalletPackagingWeightKg() {
-            return 35;
+            return getPalletUnitWeightKg() * getPalletCount();
+        }
+
+        function getPalletPackagingDescription() {
+            const n = getPalletCount();
+            return 'Packaging - Pallet (' + PALLET_TYPE_LABELS[getPalletType()] + ' × ' + n +
+                ' = ' + getPalletPackagingWeightKg() + ' kg)';
         }
         
         function computeManifestWeightKg() {
@@ -1153,6 +1194,16 @@
             document.getElementById('packagingType').addEventListener('change', function() {
                 updateShippingManifest();
                 updateWeightSummary();
+            });
+            // Pallet type / count affect packaging weight
+            ['palletType', 'palletCount'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', function() {
+                        updateShippingManifest();
+                        updateWeightSummary();
+                    });
+                }
             });
             // Set up manager search input
             const managerSearchInput = document.getElementById('managerSearchInput');
@@ -1674,8 +1725,8 @@
                 packagingWeightGrams = baseBoxOz / 0.035274;
                 packagingDescription = 'Packaging - Box (11.5 oz)';
             } else if (packagingType === 'pallet') {
-                packagingWeightGrams = 35 * 1000;
-                packagingDescription = 'Packaging - Pallet (35 kg)';
+                packagingWeightGrams = getPalletPackagingWeightKg() * 1000;
+                packagingDescription = getPalletPackagingDescription();
             }
             
             if (packagingWeightGrams > 0) {
@@ -1744,8 +1795,8 @@
                 const baseBoxOz = 11.5;
                 packagingWeightGrams = baseBoxOz / 0.035274; // Convert oz to grams
             } else if (packagingType === 'pallet') {
-                // Pallet: 35 kg
-                packagingWeightGrams = 35 * 1000;
+                // Pallet: per-type unit weight × pallet count
+                packagingWeightGrams = getPalletPackagingWeightKg() * 1000;
             }
             
             const totalWeightGrams = productWeightGrams + packagingWeightGrams;
@@ -1811,6 +1862,12 @@
                 }
             }
             
+            // Show pallet config only for pallet (freight) packaging
+            const palletConfigRow = document.getElementById('palletConfigRow');
+            if (palletConfigRow) {
+                palletConfigRow.style.display = (packagingTypeSelect.value === 'pallet') ? 'block' : 'none';
+            }
+
             // Disable packaging type selection (auto-set based on shipping type)
             packagingTypeSelect.disabled = true;
             
@@ -2099,7 +2156,7 @@
             const managerName = document.getElementById('managerSelect').options[document.getElementById('managerSelect').selectedIndex].text;
             const packagingType = document.getElementById('packagingType').value;
             const shippingType = document.getElementById('shippingType').value;
-            const packagingTypeText = packagingType === 'box' ? 'Box' : 'Pallet';
+            const packagingTypeText = packagingType === 'box' ? 'Box' : getPalletPackagingDescription();
             const shippingTypeText = shippingType === 'local' ? 'Local Shipping (USPS)' : 'Freight';
             
             // Logo URL (using raw.githubusercontent.com for direct access)
@@ -2258,8 +2315,8 @@
                 packagingWeightGrams = packagingOz / 0.035274;
                 packagingDescription = 'Packaging - Box';
             } else if (packagingType === 'pallet') {
-                packagingWeightGrams = 35 * 1000;
-                packagingDescription = 'Packaging - Pallet';
+                packagingWeightGrams = getPalletPackagingWeightKg() * 1000;
+                packagingDescription = getPalletPackagingDescription();
             }
             
             if (yPos > 270) {
