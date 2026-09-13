@@ -14,6 +14,7 @@
     { title: 'DAO Contribution Reporter', url: './report_contribution.html', section: 'Community Contributions' },
     { title: 'Content Feedback Submission', url: './submit_feedback.html', section: 'Community Contributions' },
     { title: 'Capital Injection Reporter', url: './report_capital_injection.html', section: 'Inventory & ledger' },
+    { title: 'Define Currency', url: './define_currency.html', section: 'Inventory & ledger' },
     { title: 'Currency Conversion Reporter', url: './currency_conversion.html', section: 'Inventory & ledger' },
     { title: 'Inventory Expense Reporter', url: './report_dao_expenses.html', section: 'Inventory & ledger' },
     { title: 'Asset Receipt Reporter', url: './report_asset_receipt.html', section: 'Inventory & ledger' },
