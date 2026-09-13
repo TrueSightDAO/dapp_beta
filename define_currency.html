@@ -213,6 +213,7 @@
     var COUNTRY_OPTIONS = [];
     var attachedImageFile = null;
     var attachedImageName = '';
+    var attachedImageGeneratedName = '';
     var isPostSubmission = false;
 
     function val(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
@@ -431,6 +432,7 @@
       }
       attachedImageFile = sel;
       attachedImageName = sel.name;
+      attachedImageGeneratedName = generateImageFileName(attachedImageName);
       var img = document.getElementById('imagePreview');
       var reader = new FileReader();
       reader.onload = function (e) { img.src = e.target.result; img.style.display = 'block'; };
@@ -441,9 +443,8 @@
       var fn = document.getElementById('imageFileName');
       var loc = document.getElementById('imageLocation');
       if (attachedImageFile) {
-        var generated = generateImageFileName(attachedImageName);
         fn.textContent = attachedImageName;
-        loc.innerHTML = REPO_BASE_URL + generated;
+        loc.innerHTML = REPO_BASE_URL + attachedImageGeneratedName;
       } else {
         fn.textContent = 'No file selected';
         loc.textContent = 'Waiting for file selection\u2026';
@@ -461,7 +462,7 @@
       var ledgerSel = document.getElementById('ledgerSelect');
       var chosen = ledgerSel.options[ledgerSel.selectedIndex];
       var ledgerName = chosen ? (chosen.dataset.ledgerName || chosen.textContent || '').trim() : '';
-      var productImage = val('productImageInput') || (attachedImageFile ? REPO_BASE_URL + generateImageFileName(attachedImageName) : '');
+      var productImage = val('productImageInput') || (attachedImageFile ? REPO_BASE_URL + attachedImageGeneratedName : '');
       var serializable = val('serializableSelect');
       var skuId = val('skuIdInput');
       var unit = val('unitSelect');
@@ -498,7 +499,7 @@
       document.getElementById('unitSelect').value = '';
       applyUnitSelection();
       var meta = document.getElementById('skuMeta'); if (meta) meta.textContent = '';
-      attachedImageFile = null; attachedImageName = '';
+      attachedImageFile = null; attachedImageName = ''; attachedImageGeneratedName = '';
       var img = document.getElementById('imagePreview'); img.style.display = 'none'; img.src = '';
       updateImageInfo();
       var out = document.getElementById('outputMessage'); out.className = 'hidden'; out.innerHTML = '';
@@ -535,7 +536,7 @@
         if (await isOnline()) {
           var formData = new FormData();
           formData.append('text', shareText);
-          if (attachedImageFile) formData.append('attachment', attachedImageFile, generateImageFileName(attachedImageName));
+          if (attachedImageFile) formData.append('attachment', attachedImageFile, attachedImageGeneratedName);
           var resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
           if (!resp.ok) throw new Error(await resp.text());
           var result = await resp.json();
