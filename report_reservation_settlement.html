@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Settle a reservation — the buyer has collected the reserved item.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservation Settlement Reporter</title>
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260913a"></script>
+    <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f5f5f5; margin:1rem; display:flex; flex-direction:column; align-items:center; }
+        .container { max-width:600px; width:100%; background:#fff; padding:1rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); }
+        h1 { font-size:1.5rem; text-align:center; margin-bottom:.6rem; }
+        #intro { font-size:.95rem; color:#333; text-align:center; margin-bottom:1rem; line-height:1.45; }
+        .form-row { margin-bottom:1rem; }
+        label { font-weight:bold; display:block; margin-bottom:.3rem; }
+        input[type=text], input[type=email] { width:100%; padding:.7rem; font-size:1rem; box-sizing:border-box; border:1px solid #ccc; border-radius:5px; }
+        .req { color:#c00; }
+        .hint { font-size:.8rem; color:#666; margin-top:.25rem; }
+        #reportButton { background:#28a745; color:#fff; padding:.8rem 2rem; font-size:1.1rem; border:none; border-radius:8px; cursor:pointer; width:100%; }
+        #reportButton:disabled { background:#ccc; cursor:not-allowed; }
+        #output { margin:1rem 0; padding:1rem; text-align:center; font-size:.95rem; word-wrap:break-word; }
+        .status { color:#555; } .error { color:#c00; } .success { color:#28a745; }
+        pre { text-align:left; white-space:pre-wrap; word-break:break-word; font-size:.75rem; background:#f7f7f7; padding:.6rem; border-radius:5px; max-height:220px; overflow:auto; }
+        #submissionResult { display:none; margin-top:1rem; }
+        #submissionResult h3 { font-size:.95rem; margin:.6rem 0 .3rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Reservation Settlement Reporter</h1>
+    <p id="intro">
+        Settle a reservation: the buyer has now <strong>collected</strong> the reserved item. This sets the QR to
+        <code>SOLD</code>, drops the inventory off its current holder, books the <code>Cacao Tree To Be Planted</code>
+        liability, and emails the buyer.
+    </p>
+
+    <div class="form-row">
+        <label for="qrSelect">QR Code <span class="req">*</span></label>
+        <input type="text" id="qrSelect" list="qrList" placeholder="Scan or type the reserved QR code..." autocomplete="off">
+        <datalist id="qrList"></datalist>
+        <div class="hint" id="qrHint">The item being collected. It must currently be <code>RESERVED</code>, else the settlement is ignored.</div>
+    </div>
+
+    <div class="form-row">
+        <label for="buyerEmailInput">Buyer Email</label>
+        <input type="email" id="buyerEmailInput" placeholder="buyer@example.com">
+        <div class="hint">Recipient of the confirmation email.</div>
+    </div>
+
+    <div class="form-row">
+        <label for="noteInput">Note</label>
+        <input type="text" id="noteInput" placeholder="Optional note">
+    </div>
+
+    <div class="form-row">
+        <label for="proofInput">Proof (optional)</label>
+        <input type="file" id="proofInput" accept="image/*,application/pdf">
+    </div>
+
+    <input type="button" id="reportButton" value="Submit Settlement">
+
+    <div id="output"></div>
+
+    <div id="submissionResult">
+        <h3>Signed payload</h3>
+        <pre id="requestPre"></pre>
+        <h3>Edgar response</h3>
+        <pre id="responsePre"></pre>
+    </div>
+</div>
+
+<script src="./js/dapp_footer_links.js?v=1"></script>
+<script>
+    const EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+        || 'https://edgar.truesight.me/dao/submit_contribution';
+    const EDGAR_PING = (window.Routes && window.Routes.edgar && window.Routes.edgar.ping)
+        || 'https://edgar.truesight.me/ping';
+    const QR_CODE_BASE = (window.Routes && window.Routes.gas && window.Routes.gas.qrCodes) || '';
+    const TELEGRAM_LINK = 'https://t.me/TrueSightDAO';
+
+    let proofFile = null;
+
+    function arrayBufferToBase64(buffer) { return btoa(String.fromCharCode(...new Uint8Array(buffer))); }
+    function base64ToArrayBuffer(b64) {
+        const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+    }
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+    async function isOnline() {
+        try { await fetch(EDGAR_PING, { method: 'HEAD', cache: 'no-store' }); return true; } catch (e) { return false; }
+    }
+    async function copyToClipboard(text) {
+        try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+    }
+
+    async function loadQrCodes() {
+        if (!QR_CODE_BASE) return;
+        const hint = document.getElementById('qrHint');
+        try {
+            const res = await fetch(QR_CODE_BASE + '?list=true');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            const items = data.items || [];
+            const dl = document.getElementById('qrList');
+            items.forEach(function (it) {
+                const q = it.qr_code || it.key;
+                if (q) { const o = document.createElement('option'); o.value = q; dl.appendChild(o); }
+            });
+            hint.textContent = items.length + ' QR code(s) loaded. The item must currently be RESERVED.';
+        } catch (err) {
+            hint.textContent = 'Could not load QR codes (' + err.message + ') — you can still type the code manually.';
+        }
+    }
+
+    function updateButtonState() {
+        document.getElementById('reportButton').disabled = !document.getElementById('qrSelect').value.trim();
+    }
+
+    async function submitSettlement() {
+        const out = document.getElementById('output');
+        const qr = document.getElementById('qrSelect').value.trim();
+        const buyerEmail = document.getElementById('buyerEmailInput').value.trim();
+        const note = document.getElementById('noteInput').value.trim();
+        if (!qr) { out.className = 'error'; out.textContent = 'Please provide the QR code being settled.'; return; }
+
+        const fileName = proofFile ? proofFile.name : '';
+        const requestText = `[RESERVATION SETTLEMENT EVENT]
+- QR Code: ${qr}
+- Buyer Email: ${buyerEmail || '(none)'}
+- Note: ${note || '(none)'}
+- Attached Filename: ${fileName || 'None'}
+- Submission Source: ${window.location.href}
+--------`;
+
+        const publicKey = localStorage.getItem('publicKey');
+        const privateKey = localStorage.getItem('privateKey');
+        if (!publicKey || !privateKey) {
+            out.className = 'error';
+            out.innerHTML = 'No signing keys found in this browser. Please create or import your identity first.';
+            return;
+        }
+        let requestHash = '';
+        try {
+            const keyObj = await window.crypto.subtle.importKey(
+                'pkcs8', base64ToArrayBuffer(privateKey),
+                { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+            const sig = await window.crypto.subtle.sign(
+                'RSASSA-PKCS1-v1_5', keyObj, new TextEncoder().encode(requestText));
+            requestHash = arrayBufferToBase64(sig);
+        } catch (err) {
+            out.className = 'error';
+            out.textContent = 'Signing failed: ' + err.message;
+            return;
+        }
+        const shareText = `${requestText}
+
+My Digital Signature: ${publicKey}
+
+Request Transaction ID: ${requestHash}
+
+This submission was generated using ${window.location.href}
+
+Verify submission here: https://dapp.truesight.me/verify_request.html`;
+
+        const wa = 'https://wa.me/?text=' + encodeURIComponent(requestText);
+
+        if (await isOnline()) {
+            try {
+                const fd = new FormData();
+                fd.append('text', shareText);
+                if (proofFile) fd.append('attachment', proofFile, proofFile.name);
+                const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: fd });
+                if (!resp.ok) throw new Error(await resp.text());
+                const respText = await resp.text();
+                let pretty = respText;
+                try { pretty = JSON.stringify(JSON.parse(respText), null, 2); } catch (e) { /* raw */ }
+                out.className = 'success';
+                out.innerHTML = 'Settlement submitted to Edgar. View: <a href="https://truesight.me/submissions/raw-telegram-chatlogs" target="_blank">raw telegram chatlogs</a>';
+                document.getElementById('requestPre').textContent = shareText;
+                document.getElementById('responsePre').textContent = pretty;
+                document.getElementById('submissionResult').style.display = 'block';
+                return;
+            } catch (err) {
+                out.className = 'error';
+                out.textContent = 'Submission failed: ' + err.message + '. Falling back to manual share.';
+            }
+        }
+
+        if (isMobileDevice() && navigator.share) {
+            try {
+                await navigator.share({ text: shareText });
+                out.className = 'status';
+                out.innerHTML = 'Shared. If you cancelled, post it to our <a href="' + TELEGRAM_LINK + '" target="_blank">Telegram</a> or <a href="' + wa + '" target="_blank">WhatsApp</a>.';
+                return;
+            } catch (e) { /* fall through */ }
+        }
+        if (await copyToClipboard(shareText)) {
+            out.className = 'status';
+            out.innerHTML = 'Copied to clipboard. Please paste it into our <a href="' + TELEGRAM_LINK + '" target="_blank">Telegram</a> or <a href="' + wa + '" target="_blank">WhatsApp</a> channels.<pre>' + shareText + '</pre>';
+        } else {
+            out.className = 'error';
+            out.innerHTML = 'Please copy the report below and share it to our <a href="' + TELEGRAM_LINK + '" target="_blank">Telegram</a> or <a href="' + wa + '" target="_blank">WhatsApp</a> channels:<pre>' + shareText + '</pre>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('qr');
+        if (q) document.getElementById('qrSelect').value = q;
+        loadQrCodes();
+        document.getElementById('proofInput').addEventListener('change', function (e) {
+            proofFile = e.target.files[0] || null;
+        });
+        document.getElementById('reportButton').addEventListener('click', submitSettlement);
+        document.getElementById('qrSelect').addEventListener('input', updateButtonState);
+        document.getElementById('reportButton').disabled = true;
+        updateButtonState();
+    });
+</script>
+</body>
+</html>
