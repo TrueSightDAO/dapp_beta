@@ -461,7 +461,7 @@
     function buildPayloadText() {
       var ledgerSel = document.getElementById('ledgerSelect');
       var chosen = ledgerSel.options[ledgerSel.selectedIndex];
-      var ledgerName = chosen ? (chosen.dataset.ledgerName || chosen.textContent || '').trim() : '';
+      var ledgerName = (ledgerSel.value && chosen) ? (chosen.dataset.ledgerName || chosen.textContent || '').trim() : '';
       var productImage = val('productImageInput') || (attachedImageFile ? REPO_BASE_URL + attachedImageGeneratedName : '');
       var serializable = val('serializableSelect');
       var skuId = val('skuIdInput');
