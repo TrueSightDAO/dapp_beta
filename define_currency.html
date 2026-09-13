@@ -410,7 +410,7 @@
       });
       target.sort(function (a, b) { return a.localeCompare(b); });
     }
-    async function loadCurrencyFieldOptions() {
+    async function loadCurrencyFieldOptions(skusPromise) {
       try {
         var res = await fetch(DAO_FORMS_BASE + '?currency_fields=true');
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -424,6 +424,11 @@
         throw new Error('no field arrays');
       } catch (e) {
         console.warn('[currency_fields] endpoint unavailable:', e.message);
+      }
+      // Fallback seeds farms from the SKU list. When this runs in parallel with
+      // loadSkus(), the caller passes that promise so we await it before reading SKUS.
+      if (skusPromise && typeof skusPromise.then === 'function') {
+        try { await skusPromise; } catch (e) { /* loadSkus already logged */ }
       }
       var skuFarms = SKUS.map(function (s) { return s.farm; }).filter(Boolean);
       addOptions(FARM_OPTIONS, skuFarms);
@@ -599,11 +604,12 @@
       }
       statusElement.textContent = 'Verifying your digital signature\u2026';
       statusElement.className = 'loading';
-      await new Promise(function (r) { setTimeout(r, 500); });
 
       statusElement.textContent = 'Loading catalogs\u2026';
-      await Promise.all([loadSkus(), loadLedgers()]);
-      await loadCurrencyFieldOptions();
+      // Load all three catalogs in parallel. loadCurrencyFieldOptions receives the
+      // loadSkus() promise so its SKU-based fallback never reads a half-filled SKUS.
+      var skusPromise = loadSkus();
+      await Promise.all([skusPromise, loadLedgers(), loadCurrencyFieldOptions(skusPromise)]);
 
       // Personalized greeting (convention §9): mirror governor_contributor_admin.html —
       // resolve the contributor name from the cached dao_members.json by public key.
