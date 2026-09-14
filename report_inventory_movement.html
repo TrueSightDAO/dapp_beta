@@ -19,6 +19,7 @@
     <script src="./tdg_balance.js"></script>
     <script src="./scripts/dao_members_cache.js"></script>
     <script src="./scripts/permissions.js"></script>
+    <script src="./scripts/edgar_submission.js?v=20260913a"></script>
     
     <style>
         body {
@@ -1028,10 +1029,15 @@
                         "RSASSA-PKCS1-v1_5", privateKeyObj, new TextEncoder().encode(reqText));
                     const shareText = `${reqText}\n\nMy Digital Signature: ${publicKey}\n\nRequest Transaction ID: ${arrayBufferToBase64(signature)}\n\nThis submission was generated using ${window.location.href}\n\nVerify submission here: https://dapp.truesight.me/verify_request.html`;
 
-                    const formData = new FormData();
-                    formData.append('text', shareText);
-                    const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
-                    if (resp.ok) { successCount++; }
+                    // iOS WebKit drops fetch()+FormData bodies carrying a camera
+                    // file; post via XHR and count it only when Edgar verifies the
+                    // submission (see scripts/edgar_submission.js).
+                    const submission = await EdgarSubmission.submitWithRetry({
+                        url: EDGAR_SUBMIT,
+                        text: shareText,
+                        attempts: 3
+                    });
+                    if (EdgarSubmission.isDelivered(submission.result)) { successCount++; }
                 } catch (err) {
                     console.error(`Failed to submit ${qr.key}:`, err);
                 }
@@ -2940,20 +2946,21 @@
                 const shareText = `${requestText}\n\nMy Digital Signature: ${publicKey}\n\nRequest Transaction ID: ${requestHash}\n\nThis submission was generated using ${window.location.href}\n\nVerify submission here: https://dapp.truesight.me/verify_request.html`;
 
                 if (await isOnline()) {
-                    const formData = new FormData();
-                    formData.append('text', shareText);
-                    if (file) {
-                        formData.append('attachment', file, fileName);
-                    }
-
-                    const resp = await fetch(EDGAR_SUBMIT, {
-                        method: 'POST',
-                        body: formData
+                    // iOS WebKit intermittently sends fetch()+FormData POSTs with an
+                    // empty body when the attachment is a camera file, which Edgar
+                    // records as an unverified "[No Text Provided]" row. Post via
+                    // XMLHttpRequest with the attachment materialised in memory, and
+                    // retry until Edgar confirms a verified signature.
+                    const sendableFile = await EdgarSubmission.toSendableBlob(file);
+                    const submission = await EdgarSubmission.submitWithRetry({
+                        url: EDGAR_SUBMIT,
+                        text: shareText,
+                        file: sendableFile,
+                        fileName: fileName,
+                        attempts: 3
                     });
 
-                    if (!resp.ok) throw new Error(await resp.text());
-
-                    const result = await resp.json();
+                    const result = submission.result;
                     
                     // Make inventory location clickable after successful upload
                     if (result.fileUploadedToGithub && fileName) {
