@@ -8,7 +8,10 @@
  *
  *   Source files:
  *     https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/permissions.json
+ *     https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/public_keys/<sha256>.json
+ *       (point-lookup of the signed-in RSA — O(1), no monolith scan; preferred)
  *     https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_members.json
+ *       (monolith fallback when the per-key file is missing/unavailable)
  *
  * IMPORTANT: this is the UX gate only. Every privileged endpoint (Edgar,
  * tokenomics GAS) MUST also enforce the same rule server-side; the client
@@ -33,6 +36,8 @@
 (function (global) {
   const DEFAULT_URL =
       'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/permissions.json';
+  const PER_KEY_BASE_URL =
+      'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/public_keys/';
 
   let cachedPromise = null;
   let cachedUrl = null;
@@ -71,14 +76,78 @@
     return false;
   }
 
-  function check(action, publicKey) {
+  // ---- Point-lookup the signed-in RSA via the content-addressed per-key file ----
+  // treasury-cache/public_keys/<sha256(publicKeyBase64)>.json — one small file,
+  // O(1), no monolith scan. Falls back to the dao_members.json monolith scan when
+  // the per-key surface is unavailable (network/crypto error) or the key is not
+  // yet in it (brand-new signature). A key present but NOT ACTIVE is an
+  // authoritative deny — no fallback (mirrors TreasuryCache.verifyPublicKey).
+
+  function perKeyUrl(hash) {
+    const base = (global.Routes && global.Routes.publicKeys) || PER_KEY_BASE_URL;
+    return base + hash + '.json';
+  }
+
+  function sha256Hex(str) {
+    if (!global.crypto || !global.crypto.subtle) {
+      return Promise.reject(new Error('WebCrypto unavailable'));
+    }
+    const data = new TextEncoder().encode(str);
+    return global.crypto.subtle.digest('SHA-256', data).then(function (buf) {
+      const bytes = new Uint8Array(buf);
+      let out = '';
+      for (let i = 0; i < bytes.length; i++) {
+        out += bytes[i].toString(16).padStart(2, '0');
+      }
+      return out;
+    });
+  }
+
+  function fetchPerKey(publicKeyBase64) {
+    return sha256Hex(publicKeyBase64).then(function (hash) {
+      return global.fetch(perKeyUrl(hash), { cache: 'no-cache' }).then(function (resp) {
+        if (resp.status === 404) return { state: 'missing' };
+        if (!resp.ok) return { state: 'error' };
+        return resp.json().then(function (rec) { return { state: 'found', record: rec }; });
+      });
+    });
+  }
+
+  function monolithLookup(publicKey) {
     if (!global.DaoMembersCache) {
       return Promise.reject(new Error(
           'Permissions.check requires DaoMembersCache (load scripts/dao_members_cache.js first)'));
     }
+    return global.DaoMembersCache.findByPublicKey(publicKey).then(function (lookup) {
+      return { contributor: lookup.contributor, key: lookup.key, source: 'monolith' };
+    });
+  }
+
+  function resolveContributor(publicKey) {
+    if (!publicKey) return monolithLookup(publicKey);
+    return fetchPerKey(publicKey).then(function (r) {
+      if (r.state === 'found') {
+        const rec = r.record;
+        if (rec && rec.status === 'ACTIVE') {
+          return {
+            contributor: { name: rec.contributor, roles: (rec.roles || []).slice() },
+            key: { public_key: rec.public_key || publicKey, status: rec.status },
+            source: 'per-key',
+          };
+        }
+        return { contributor: null, key: null, source: 'per-key' }; // known-inactive → deny
+      }
+      // 'missing' (brand-new key?) or 'error' → fall back to the monolith scan.
+      return monolithLookup(publicKey);
+    }).catch(function () {
+      return monolithLookup(publicKey);
+    });
+  }
+
+  function check(action, publicKey) {
     return Promise.all([
       fetchManifest(),
-      global.DaoMembersCache.findByPublicKey(publicKey),
+      resolveContributor(publicKey),
     ]).then(function (results) {
       const manifest = results[0];
       const lookup = results[1];
@@ -177,7 +246,9 @@
 
   global.Permissions = {
     DEFAULT_URL: DEFAULT_URL,
+    PER_KEY_BASE_URL: PER_KEY_BASE_URL,
     fetchManifest: fetchManifest,
+    resolveContributor: resolveContributor,
     check: check,
     requireRole: requireRole,
     invalidate: invalidate,
