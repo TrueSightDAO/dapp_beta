@@ -36,6 +36,7 @@
     { title: 'Partner Check-in', url: './partner_check_in.html', section: 'Retail & field activity' },
     { title: 'Outbound Review', url: './warmup_review.html', section: 'Retail & field activity' },
     { title: 'Register Your Farm', url: './register_farm.html', section: 'Sunmint Tree Planting Program' },
+    { title: 'Register Payout (PIX)', url: './payout_registration.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Report Tree Planting', url: './report_tree_planting.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Link Tree to QR', url: './link_tree_planting.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Digital Signature Creator', url: './create_signature.html', section: 'Identity & Governance' },
