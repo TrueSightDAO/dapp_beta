@@ -181,8 +181,8 @@
             <input type="text" id="treeIds" placeholder="e.g. 20260907_CEPO_1, 20260907_CEPO_2" autocomplete="off">
             <div class="hint">Comma- or space-separated. Cover N trees in one row. Leave blank for a general disbursement.</div>
 
-            <label for="status">Status</label>
-            <select id="status">
+            <label for="payoutStatus">Status</label>
+            <select id="payoutStatus">
                 <option value="live">live &mdash; captured as it happened</option>
                 <option value="backfill">backfill &mdash; reconstructed after the fact</option>
             </select>
@@ -300,7 +300,7 @@
                     recipientName: $('recipientName').value,
                     recipientPkHash: $('recipientPkHash').value,
                     treeIds: $('treeIds').value,
-                    status: $('status').value,
+                    status: $('payoutStatus').value,
                     receiptUrl: $('receiptUrl').value,
                     submissionSource: window.location.href
                 };
