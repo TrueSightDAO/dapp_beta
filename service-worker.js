@@ -38,6 +38,7 @@ const URLS_TO_CACHE = [
   './partner_check_in.html',
   './report_sales.html',
   './report_tree_planting.html',
+  './report_payout_event.html',
   './scanner.html',
   './submit_feedback.html',
   './verify_request.html',
@@ -46,7 +47,7 @@ const URLS_TO_CACHE = [
   './governor_permissions.html',
   './program_registrations_review.html',
   // Scripts
-  './menu.js?v=20260913a',
+  './menu.js?v=20260914a',
   './routes.js',
   './service-worker.js',
   './js/treasury_cache.js',
@@ -57,6 +58,7 @@ const URLS_TO_CACHE = [
   './scripts/currencies_cache.js',
   './asset-receipt-form-utils.js',
   './expense-form-utils.js',
+  './payout-event-utils.js',
   './scripts/permissions.js',
   // External libraries
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',

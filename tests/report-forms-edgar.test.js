@@ -10,7 +10,8 @@ const FORMS = [
   'report_contribution.html',
   'report_dao_expenses.html',
   'report_asset_receipt.html',
-  'report_inventory_movement.html'
+  'report_inventory_movement.html',
+  'report_payout_event.html'
 ];
 
 let passed = 0, failed = 0;
