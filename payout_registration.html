@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Register your PIX payout key once for the CRF Anapu tree-planting support program. Your PIX key is stored privately and never published.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payout Registration - TrueSight DAO</title>
+
+  <!-- Open Graph tags for WhatsApp and social media previews -->
+  <meta property="og:title" content="Payout Registration - TrueSight DAO">
+  <meta property="og:description" content="Register your PIX payout key once for the CRF Anapu tree-planting support program.">
+  <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <meta property="og:url" content="https://dapp.truesight.me/payout_registration.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TrueSight DAO">
+
+  <!-- Twitter Card tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Payout Registration - TrueSight DAO">
+  <meta name="twitter:description" content="Register your PIX payout key once for the CRF Anapu tree-planting support program.">
+  <meta name="twitter:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+  <script src="./routes.js"></script>
+  <script src="./menu.js?v=20260913a"></script>
+  <script src="./tdg_balance.js"></script>
+  <script src="./scripts/dao_members_cache.js"></script>
+  <script src="./payout-registration-utils.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 1rem;
+      padding: 1rem;
+      min-height: 100vh;
+      box-sizing: border-box;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background-color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 1.8rem; color: #333; margin: 0.5rem 0 1rem; text-align: center; }
+    #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; font-size: 1rem; text-align: center; }
+    #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+    #status.success, .status { color: #28a745; }
+    #status.error, .error { color: #dc3545; }
+    .loading { color: #6c757d; font-style: italic; animation: pulse 2s infinite ease-in-out; }
+    @keyframes pulse { 0%{opacity:.5}50%{opacity:1}100%{opacity:.5} }
+    label { display: block; margin: 0.5rem 0 0.2rem; font-size: 0.95rem; color: #333; }
+    input, select { margin-bottom: 0.8rem; width: 100%; padding: 0.5rem; border-radius: 5px; border: 1px solid #ddd; font-size: 0.95rem; box-sizing: border-box; }
+    input.invalid, select.invalid { border-color: #dc3545; background-color: #fff0f0; }
+    .input-group { margin: 1rem 0; text-align: left; }
+    .hint { font-size: 0.8rem; color: #777; margin: -0.5rem 0 0.8rem; }
+    .privacy-note {
+      background: #eef5ec; border: 1px solid #cfe0c9; border-radius: 8px;
+      padding: 0.7rem 0.9rem; margin: 1rem 0; font-size: 0.85rem; color: #2e5a28; line-height: 1.5;
+    }
+    .privacy-note strong { color: #1b3d17; }
+    button { padding: 0.8rem 1.5rem; cursor: pointer; font-size: 1.1rem; border: none; border-radius: 8px;
+      background-color: #4CAF50; color: white; margin: 0.5rem 0; width: 100%; max-width: 300px; }
+    button:hover { background-color: #45a049; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .button-container { display: flex; flex-direction: column; align-items: center; }
+    #submissionResult { margin-top: 1.5rem; display: none; }
+    #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+    #submissionResult pre {
+      background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+      padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+      word-break: break-word; max-height: 360px; overflow: auto;
+    }
+    @media print {
+      pre { white-space: pre-wrap !important; overflow: visible !important; max-height: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+  <div id="tdgBalanceBadge"></div>
+  <div class="container">
+
+    <div style="text-align: center;">
+      <img id="logo" height="200px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSightDAO Logo"/>
+    </div>
+    <h1>Payout Registration</h1>
+    <p id="description" class="fade-in">
+      Register your PIX key <strong>once</strong> so the CRF Anapu tree-planting support
+      (R$ 5.00 per tree) can be paid directly to you. You only need to do this once.
+    </p>
+
+    <div class="privacy-note">
+      <strong>Your PIX key is private.</strong> It is sent only to a restricted payout
+      register — it is <em>never</em> written to the public DAO ledger. Please confirm the
+      key carefully: a mistyped key means a payment that cannot be delivered.
+      If you have no PIX key, leave it blank and tell us how you can be paid instead.
+    </div>
+
+    <div class="input-group">
+      <label for="studentName">Your full name</label>
+      <input type="text" id="studentName" placeholder="e.g., Maria da Silva" autocomplete="name" required>
+
+      <label for="studentEmail">Your email (used to link you to your tree-planting records)</label>
+      <input type="email" id="studentEmail" placeholder="you@example.com" autocomplete="email" required>
+      <div class="hint">Use the same email you use on the SunMint planting app, so your trees and your payout match up.</div>
+
+      <label for="programSlug">Program</label>
+      <input type="text" id="programSlug" value="crf-anapu" readonly>
+
+      <label for="pixKeyType">PIX key type</label>
+      <select id="pixKeyType">
+        <option value="">Detect automatically</option>
+        <option value="CPF">CPF</option>
+        <option value="CNPJ">CNPJ</option>
+        <option value="EMAIL">Email</option>
+        <option value="PHONE">Phone</option>
+        <option value="EVP">Random key (EVP)</option>
+      </select>
+
+      <label for="pixKey">PIX key</label>
+      <input type="text" id="pixKey" placeholder="CPF, CNPJ, email, phone (+55…) or random key" autocomplete="off">
+      <div class="hint">Leave blank if you have no PIX key — see below.</div>
+
+      <label for="accountHolder">Whose PIX account is this?</label>
+      <input type="text" id="accountHolder" placeholder="Name on the account (if not yours)">
+      <div class="hint">If you are under 18 and the key belongs to a parent or guardian, enter their name.</div>
+
+      <label for="relationship">Relationship to you</label>
+      <select id="relationship">
+        <option value="self">It is my own account</option>
+        <option value="parent">Parent</option>
+        <option value="guardian">Guardian</option>
+        <option value="other">Other</option>
+      </select>
+
+      <label for="noKeyChannel">No PIX key? How can you be paid?</label>
+      <input type="text" id="noKeyChannel" placeholder="e.g., guardian's bank account / in person">
+    </div>
+
+    <div class="button-container">
+      <button id="submitButton" type="button">Submit Payout Registration</button>
+    </div>
+
+    <div id="status" class="fade-in" aria-live="polite"></div>
+
+    <!-- §9b submission result rendering (adapted: the raw key is deliberately NOT
+         echoed — see note below). -->
+    <div id="submissionResult">
+      <h3>What we recorded (PIX key redacted for your privacy)</h3>
+      <pre id="requestPre"></pre>
+      <h3>Register response</h3>
+      <pre id="responsePre"></pre>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------------------
+    // PRIVATE PAYOUT SINK.
+    //
+    // This page deliberately does NOT submit to Edgar. Edgar's intake is
+    // republished as a public raw chatlog, so a PIX key (often a CPF) sent
+    // there would become public — an LGPD violation. Instead the raw key goes
+    // ONLY to a restricted Web-App endpoint that appends it to a PRIVATE sheet
+    // readable by the payout operator.
+    //
+    // SINK PROVISIONING IS GOVERNOR-GATED (see plans/CRF_ANAPU_SUNMINT_COHORT_PROPOSAL.md
+    // §11). Until PAYOUT_SINK_URL is set to the restricted deployment's /exec URL,
+    // this page validates + redacts locally and tells the student their key was
+    // NOT yet transmitted, rather than leaking it anywhere.
+    // ---------------------------------------------------------------------------
+    const PAYOUT_SINK_URL = ''; // e.g. 'https://script.google.com/macros/s/AKfy…/exec'
+    const SUBMISSION_SOURCE = window.location.href;
+    const U = window.PayoutRegistrationUtils;
+
+    function $(id) { return document.getElementById(id); }
+    function setStatus(msg, cls) { const s = $('status'); s.textContent = msg; s.className = cls || ''; }
+
+    function currentFields() {
+      return {
+        studentName: $('studentName').value,
+        studentEmail: $('studentEmail').value,
+        pkHash: '', // optional: filled from localStorage identity if present
+        programSlug: $('programSlug').value,
+        pixKeyType: $('pixKeyType').value,
+        pixKey: $('pixKey').value,
+        accountHolder: $('accountHolder').value,
+        relationship: $('relationship').value,
+        noKeyChannel: $('noKeyChannel').value,
+        submissionSource: SUBMISSION_SOURCE
+      };
+    }
+
+    function validate() {
+      const f = currentFields();
+      ['studentName', 'studentEmail', 'pixKey'].forEach(function (id) { $(id).classList.remove('invalid'); });
+      setStatus('');
+      if (!f.studentName.trim()) { $('studentName').classList.add('invalid'); setStatus('Please enter your full name.', 'error'); return null; }
+      if (!U.isValidEmail(f.studentEmail)) { $('studentEmail').classList.add('invalid'); setStatus('Please enter a valid email address.', 'error'); return null; }
+      if (f.pixKey.trim()) {
+        const v = U.validatePixKey(f.pixKey);
+        if (!v.valid) { $('pixKey').classList.add('invalid'); setStatus('PIX key problem: ' + v.reason, 'error'); return null; }
+      } else if (!f.noKeyChannel.trim()) {
+        setStatus('Enter a PIX key, or tell us how you can be paid instead.', 'error'); return null;
+      }
+      return f;
+    }
+
+    // Live PIX-key feedback (type + masked echo), no raw key shown.
+    $('pixKey').addEventListener('input', function () {
+      const val = $('pixKey').value.trim();
+      const fb = $('pixKeyType');
+      if (!val) { return; }
+      const v = U.validatePixKey(val);
+      if (v.valid) {
+        $('pixKey').classList.remove('invalid');
+        if (!fb.value) fb.value = v.type;
+      }
+    });
+
+    async function submit() {
+      const f = validate();
+      if (!f) return;
+      const btn = $('submitButton');
+      const redacted = U.buildRedactedSummary(f);
+
+      // Never echo the raw key back to the screen (§9b adapted for a secret field):
+      $('requestPre').textContent = redacted;
+      $('responsePre').textContent = '';
+      $('submissionResult').style.display = 'block';
+      btn.disabled = true;
+
+      if (!PAYOUT_SINK_URL) {
+        setStatus('Your PIX key was validated but NOT yet transmitted — the secure payout register is being provisioned. Please check back, or hand your key to a CRF coordinator in person.', 'error');
+        btn.disabled = false;
+        return;
+      }
+
+      try {
+        setStatus('Submitting…', 'loading');
+        const resp = await fetch(PAYOUT_SINK_URL, {
+          method: 'POST',
+          body: JSON.stringify(U.buildPayoutRegistrationPayload(f)),
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' } // avoids GAS CORS preflight
+        });
+        const text = await resp.text();
+        let pretty = text;
+        try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (_) {}
+        $('responsePre').textContent = pretty;
+        if (!resp.ok) throw new Error(text || ('HTTP ' + resp.status));
+        setStatus('Thank you — your PIX key was registered privately. You will not need to submit it again.', 'success');
+      } catch (err) {
+        setStatus('Could not reach the secure payout register: ' + err.message + '. Please try again, or hand your key to a CRF coordinator in person.', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    $('submitButton').addEventListener('click', submit);
+  </script>
+</body>
+</html>
