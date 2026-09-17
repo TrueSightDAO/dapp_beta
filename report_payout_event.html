@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Governor-only: record an outbound payout (compensation transfer) as a signed [PAYOUT EVENT].">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Payout &middot; TrueSight DAO</title>
+
+    <meta property="og:title" content="Report Payout &mdash; TrueSight DAO">
+    <meta property="og:description" content="Governor-only: record an outbound payout (compensation transfer) as a signed [PAYOUT EVENT].">
+    <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+    <meta property="og:type" content="website">
+
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260914a"></script>
+    <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/permissions.js"></script>
+    <script src="./scripts/edgar_payload_helper.js"></script>
+    <script src="./scripts/edgar_submission.js?v=20260913a"></script>
+    <script src="./payout-event-utils.js"></script>
+
+    <style>
+        /* TrueSight DApp — light "Saffron Monk" / earthen palette, matching link_tree_planting.html */
+        :root {
+            --bg: #f5f5f5;
+            --surface: #ffffff;
+            --surface-hover: #f7f7f7;
+            --border: #e2e2e2;
+            --text: #333333;
+            --text-muted: #777777;
+            --accent: #166534;
+            --accent-hover: #1f7a44;
+            --green: #166534;
+            --green-bg: #e8f5e9;
+            --red: #dc3545;
+            --red-bg: #fdecea;
+            --yellow: #92710a;
+            --yellow-bg: #fff8e1;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 1rem;
+            padding: 1rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+        .container {
+            max-width: 640px;
+            width: 100%;
+            background-color: var(--surface);
+            padding: 1.25rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 1.8rem; color: var(--text); margin: 0.5rem 0 1rem; text-align: center; }
+        #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; font-size: 1rem; text-align: center; }
+        #welcome { text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .status-badge {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+            font-size: 0.75rem; font-weight: bold; letter-spacing: 0.02em;
+        }
+        .status-badge.governor { background: var(--green-bg); color: var(--green); }
+        .status-badge.readonly { background: var(--yellow-bg); color: var(--yellow); }
+        #authRow { text-align: center; margin: 0.5rem 0 1rem; }
+        .privacy-note {
+            background: #eef5ec; border: 1px solid #cfe0c9; border-radius: 8px;
+            padding: 0.7rem 0.9rem; margin: 1rem 0; font-size: 0.85rem; color: #2e5a28; line-height: 1.5;
+        }
+        .privacy-note strong { color: #1b3d17; }
+        .input-group { margin: 1rem 0; text-align: left; }
+        label { display: block; margin: 0.5rem 0 0.2rem; font-size: 0.95rem; color: #333; }
+        input, select { margin-bottom: 0.8rem; width: 100%; padding: 0.5rem; border-radius: 5px; border: 1px solid #ddd; font-size: 0.95rem; box-sizing: border-box; }
+        input.invalid, select.invalid { border-color: var(--red); background-color: #fff0f0; }
+        .hint { font-size: 0.8rem; color: #777; margin: -0.5rem 0 0.8rem; }
+        .row2 { display: flex; gap: 0.75rem; }
+        .row2 > div { flex: 1; }
+        button {
+            padding: 0.8rem 1.5rem; cursor: pointer; font-size: 1.1rem; border: none; border-radius: 8px;
+            background-color: var(--accent); color: white; margin: 0.5rem 0; width: 100%; max-width: 320px;
+        }
+        button:hover { background-color: var(--accent-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .button-container { display: flex; flex-direction: column; align-items: center; }
+        #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+        #status.success, .status { color: var(--green); }
+        #status.error, .error { color: var(--red); }
+        .loading { color: #6c757d; font-style: italic; }
+        #submissionResult { margin-top: 1.5rem; display: none; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
+    <div id="gateContainer"></div>
+
+    <div id="content" class="container" style="display:none;">
+        <div style="text-align: center;">
+            <img id="logo" height="170px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
+        <h1>Report Payout</h1>
+        <div id="welcome"></div>
+        <div id="authRow"><span class="status-badge" id="authBadge">Checking authorization&hellip;</span></div>
+
+        <p id="description">
+            Governor-only. Record an <strong>outbound compensation transfer</strong> (e.g. a PIX payment
+            for tree planting) as a signed <code>[PAYOUT EVENT]</code>. One row per <em>transfer</em> —
+            a single payment may cover several trees.
+        </p>
+
+        <div class="privacy-note">
+            <strong>The raw recipient PIX key never travels here.</strong> This page submits to Edgar,
+            whose intake is republished as a <em>public</em> chatlog. Attach a recipient by name and,
+            if known, a non-reversible <code>recipient_pk_hash</code> &mdash; the private key stays in the
+            restricted payout register.
+        </div>
+
+        <div class="input-group">
+            <label for="programSlug">Program</label>
+            <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu" autocomplete="off" required>
+            <div class="hint">The program this payout belongs to (payouts are a Sunmint-tree-planting capability; CFR Anapu is the first executor).</div>
+
+            <div class="row2">
+                <div>
+                    <label for="amount">Amount</label>
+                    <input type="text" id="amount" placeholder="e.g. 50" autocomplete="off" required>
+                </div>
+                <div>
+                    <label for="currency">Currency</label>
+                    <select id="currency">
+                        <option value="BRL">BRL</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+            </div>
+
+            <label for="paidAt">Paid At</label>
+            <input type="text" id="paidAt" placeholder="2026-09-12T21:38:00Z" autocomplete="off" required>
+            <div class="hint">When the money actually left &mdash; ISO 8601. For a backfill this is the historical date, not today.</div>
+
+            <div class="row2">
+                <div>
+                    <label for="bankRefType">Bank Ref Type</label>
+                    <select id="bankRefType">
+                        <option value="PIX-E2E">PIX-E2E</option>
+                        <option value="PIX-TXID">PIX-TXID</option>
+                        <option value="WIRE-REF">WIRE-REF</option>
+                        <option value="OTHER">OTHER</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="bankRef">Bank Ref</label>
+                    <input type="text" id="bankRef" placeholder="E6890081…" autocomplete="off" required>
+                </div>
+            </div>
+            <div class="hint">The transfer's end-to-end id from the bank statement &mdash; the reconciliation anchor.</div>
+
+            <label for="recipientName">Recipient</label>
+            <input type="text" id="recipientName" placeholder="e.g. Paulo (La do S&iacute;tio)" autocomplete="off" required>
+
+            <label for="recipientPkHash">Recipient PK Hash</label>
+            <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
+            <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
+
+            <label for="treeIds">Tree Planting IDs</label>
+            <input type="text" id="treeIds" placeholder="e.g. 20260907_CEPO_1, 20260907_CEPO_2" autocomplete="off">
+            <div class="hint">Comma- or space-separated. Cover N trees in one row. Leave blank for a general disbursement.</div>
+
+            <label for="status">Status</label>
+            <select id="status">
+                <option value="live">live &mdash; captured as it happened</option>
+                <option value="backfill">backfill &mdash; reconstructed after the fact</option>
+            </select>
+
+            <label for="receiptUrl">Receipt URL</label>
+            <input type="text" id="receiptUrl" placeholder="Optional link to the transfer receipt" autocomplete="off">
+        </div>
+
+        <div class="button-container">
+            <button id="submitButton" type="button">Submit Payout</button>
+        </div>
+
+        <div id="status" aria-live="polite"></div>
+
+        <div id="submissionResult" aria-live="polite">
+            <h3>Signed payload sent to Edgar</h3>
+            <pre id="requestPre"></pre>
+            <h3>Edgar response</h3>
+            <pre id="responsePre"></pre>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            const PAGE_ACTION = 'governor_chat.access'; // payout emission is governor-gated
+            const EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+                || 'https://edgar.truesight.me/dao/submit_contribution';
+            const ASSET_VERIFY_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
+                || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+
+            const U = window.PayoutEventUtils;
+            const FIELDS = ['amount', 'paidAt', 'bankRef', 'recipientName', 'programSlug', 'treeIds', 'recipientPkHash', 'receiptUrl'];
+
+            function $(id) { return document.getElementById(id); }
+            function setStatus(msg, cls) {
+                const s = $('status');
+                s.textContent = msg;
+                s.className = cls || '';
+            }
+            function escapeHtml(v) {
+                return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            }
+
+            function publicKeyOrNull() {
+                try { return localStorage.getItem('publicKey'); } catch (_) { return null; }
+            }
+
+            // --- governor gate (per UX_CONVENTIONS.md: cache-first identity, GAS fallback) ---
+            function boot() {
+                const publicKey = publicKeyOrNull();
+                const gate = $('gateContainer');
+                if (!publicKey) {
+                    gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                        '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">No digital signature</h2>' +
+                        '<p style="margin:0;">You are not signed in. Use <a href="./create_signature.html">the Digital Signature Creator</a> first.</p></div>';
+                    return;
+                }
+
+                (async function () {
+                    let data = null;
+                    try {
+                        const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                        if (lookup && lookup.contributor) { data = { contributor_name: lookup.contributor.name }; }
+                    } catch (_) { /* fall through to GAS */ }
+
+                    if (!data) {
+                        try {
+                            const resp = await fetch(ASSET_VERIFY_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
+                            data = await resp.json();
+                        } catch (err) {
+                            gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                                '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature check failed</h2>' +
+                                '<p style="margin:0;">Could not verify your signature: ' + escapeHtml(err.message) + '</p></div>';
+                            return;
+                        }
+                    }
+
+                    if (!data || data.error) {
+                        gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                            '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature not registered</h2>' +
+                            '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger. Use <a href="./create_signature.html">the Digital Signature Creator</a> to register it first.</p></div>';
+                        return;
+                    }
+
+                    $('welcome').textContent = 'Signed in as ' + (data.contributor_name || '(contributor)');
+                    window.Permissions.requireRole({
+                        action: PAGE_ACTION,
+                        publicKey: publicKey,
+                        denyContainerId: 'gateContainer',
+                        onAllowed: function () {
+                            $('authBadge').textContent = 'Governor';
+                            $('authBadge').className = 'status-badge governor';
+                            $('content').style.display = 'block';
+                        },
+                        onDenied: function () {
+                            $('authBadge').textContent = 'Not a governor';
+                            $('authBadge').className = 'status-badge readonly';
+                        }
+                    });
+                })();
+            }
+
+            function readForm() {
+                return {
+                    programSlug: $('programSlug').value,
+                    amount: $('amount').value,
+                    currency: $('currency').value,
+                    paidAt: $('paidAt').value,
+                    bankRefType: $('bankRefType').value,
+                    bankRef: $('bankRef').value,
+                    recipientName: $('recipientName').value,
+                    recipientPkHash: $('recipientPkHash').value,
+                    treeIds: $('treeIds').value,
+                    status: $('status').value,
+                    receiptUrl: $('receiptUrl').value,
+                    submissionSource: window.location.href
+                };
+            }
+
+            function clearInvalid() {
+                FIELDS.forEach(function (id) { const el = $(id); if (el) el.classList.remove('invalid'); });
+            }
+
+            function submit() {
+                const btn = $('submitButton');
+                clearInvalid();
+                setStatus('');
+
+                const form = readForm();
+                const check = U.validate(form);
+                if (!check.valid) {
+                    // Mark the offending fields where we can map the message.
+                    if (!U.parseAmount(form.amount).valid) $('amount').classList.add('invalid');
+                    if (!U.isValidIso8601(form.paidAt)) $('paidAt').classList.add('invalid');
+                    if (!String(form.bankRef).trim()) $('bankRef').classList.add('invalid');
+                    if (!String(form.recipientName).trim()) $('recipientName').classList.add('invalid');
+                    if (!String(form.programSlug).trim()) $('programSlug').classList.add('invalid');
+                    setStatus(check.errors.join(' '), 'error');
+                    return;
+                }
+
+                const privateKey = (function () { try { return localStorage.getItem('privateKey'); } catch (_) { return null; } })();
+                if (!privateKey) {
+                    setStatus('Your private key is missing from this browser. Re-register via the Digital Signature Creator.', 'error');
+                    return;
+                }
+
+                btn.disabled = true;
+                setStatus('Signing and submitting…', 'loading');
+
+                (async function () {
+                    try {
+                        const helper = new EdgarPayloadHelper({
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const attributes = U.buildAttributes(form, { source: window.location.href });
+                        const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                            eventName: U.EVENT_NAME,
+                            attributes: attributes,
+                            privateKey: privateKey,
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+
+                        // Forensic §9b block: the verbatim signed payload.
+                        $('requestPre').textContent = shareText;
+                        $('responsePre').textContent = '';
+                        $('submissionResult').style.display = 'block';
+
+                        // Reliable multipart submit (XHR + verified-delivery retry).
+                        const submission = await EdgarSubmission.submitWithRetry({
+                            url: EDGAR_SUBMIT,
+                            text: shareText,
+                            attempts: 3
+                        });
+                        const result = submission.result || {};
+                        $('responsePre').textContent = JSON.stringify(result, null, 2);
+
+                        if (result.signature_verification === 'success') {
+                            setStatus('Payout recorded. View: https://truesight.me/submissions/raw-telegram-chatlogs', 'success');
+                        } else {
+                            setStatus('Submitted, but Edgar did not confirm verified delivery — please review the response below.', 'error');
+                        }
+                    } catch (err) {
+                        setStatus('Submission failed: ' + err.message, 'error');
+                    } finally {
+                        btn.disabled = false;
+                    }
+                })();
+            }
+
+            window.addEventListener('DOMContentLoaded', function () {
+                boot();
+                $('submitButton').addEventListener('click', submit);
+            });
+        })();
+    </script>
+    <script src="./js/dapp_footer_links.js?v=1"></script>
+</body>
+</html>

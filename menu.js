@@ -39,6 +39,7 @@
     { title: 'Register Payout (PIX)', url: './payout_registration.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Report Tree Planting', url: './report_tree_planting.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Link Tree to QR', url: './link_tree_planting.html', section: 'Sunmint Tree Planting Program' },
+    { title: 'Report Payout', url: './report_payout_event.html', section: 'Sunmint Tree Planting Program' },
     { title: 'Digital Signature Creator', url: './create_signature.html', section: 'Identity & Governance' },
     { title: 'Voting Rights Cash Out', url: './withdraw_voting_rights.html', section: 'Identity & Governance' },
     { title: 'Voting Rights Settlement', url: './withdraw_voting_rights_settlement.html', section: 'Governor only' },
