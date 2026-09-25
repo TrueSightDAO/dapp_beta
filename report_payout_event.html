@@ -96,6 +96,14 @@
         .opt-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
             background: #e9e9e9; color: #666; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
         .sub-label { font-size: 0.85rem; color: #666; margin-top: 0.2rem; }
+        .paste-area {
+            border: 2px dashed #ccc; padding: 0.9rem; text-align: center; margin: 0.4rem 0 0.6rem;
+            border-radius: 6px; cursor: pointer; background: #f8f9fa; font-size: 0.95rem; color: #333;
+        }
+        .paste-area:hover { background: #e9ecef; }
+        .paste-area.has-file { border-style: solid; border-color: #2e7d32; background: #f1f8f2; }
+        .info-location { font-size: 0.82rem; color: #666; word-break: break-all; margin-bottom: 0.6rem; }
+        #receipt-file-preview { max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 0.6rem; }
         #treePicker { margin-bottom: 0.4rem; }
         .row2 { display: flex; gap: 0.75rem; }
         .row2 > div { flex: 1; }
@@ -210,8 +218,14 @@
                 <option value="backfill">backfill &mdash; reconstructed after the fact</option>
             </select>
 
-            <label for="receiptUrl">Receipt URL</label>
-            <input type="text" id="receiptUrl" placeholder="Optional link to the transfer receipt" autocomplete="off">
+            <label for="receiptPasteArea">Receipt (attachment)</label>
+            <div class="hint">Optional. Attach the bank-transfer receipt (image or PDF). It is uploaded to the <strong>private</strong> <code>TrueSightDAO/payout-receipts-raw</code> repo &mdash; never a public one.</div>
+            <div id="receiptPasteArea" class="paste-area" tabindex="0">Click to select or paste (Ctrl+V) the receipt</div>
+            <input type="file" id="receiptFileInput" accept="image/*,application/pdf" style="display:none">
+            <img id="receipt-file-preview" alt="Receipt preview" style="display:none">
+            <div class="info-location" id="receiptFileName">Waiting for file selection (optional)&hellip;</div>
+            <label for="receiptUrl">Receipt URL <span class="opt-tag">fallback</span></label>
+            <input type="text" id="receiptUrl" placeholder="Or paste a receipt link instead of attaching" autocomplete="off">
         </div>
 
         <div class="button-container">
@@ -247,6 +261,9 @@
             const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
             let _overpayFlags = null;
             let _pendingTrees = [];
+            const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
+            let uploadedReceiptFile = null;
+            let cachedReceiptFileName = null;
             let _submittedTreeIds = {};      // ids already paid in THIS session -> hidden from the picker
             let _awaitingAnotherPayout = false;
 
@@ -341,6 +358,9 @@
             function resetForm() {
                 ['amount', 'paidAt', 'bankRef', 'recipientName', 'recipientPkHash', 'treeIds', 'receiptUrl']
                     .forEach(function (id) { const el = $(id); if (el) el.value = ''; });
+                uploadedReceiptFile = null;
+                updateReceiptInfo('');
+                const rp = $('receipt-file-preview'); if (rp) { rp.style.display = 'none'; rp.src = ''; }
                 const ps = $('programSlug'); if (ps) ps.value = 'crf-anapu';
                 const pay = $('payoutStatus'); if (pay) pay.value = 'live';
                 const cur = $('currency'); if (cur) cur.value = 'BRL';
@@ -463,6 +483,69 @@
                 })();
             }
 
+            function generateReceiptFileName(file) {
+                // Opaque name: the original filename may carry PII (name/CPF) and the
+                // signed payload is republished publicly, so it is discarded entirely.
+                const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                const rand = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+                    .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                const ext = (file && file.type === 'application/pdf') ? '.pdf'
+                    : (file && file.type === 'image/png') ? '.png'
+                    : (file && file.type === 'image/jpeg') ? '.jpg'
+                    : (file && file.type === 'image/gif') ? '.gif' : '.bin';
+                return 'payout_' + ts + '_' + rand + ext;
+            }
+
+            function updateReceiptInfo(file) {
+                const el = $('receiptFileName');
+                const area = $('receiptPasteArea');
+                if (file) {
+                    cachedReceiptFileName = generateReceiptFileName(file);
+                    if (el) el.innerHTML = 'Attached: <code>' + cachedReceiptFileName + '</code>';
+                    if (area) { area.classList.add('has-file'); area.textContent = 'Receipt attached \u2014 click to replace'; }
+                } else {
+                    cachedReceiptFileName = null;
+                    if (el) el.textContent = 'Waiting for file selection (optional)\u2026';
+                    if (area) { area.classList.remove('has-file'); area.textContent = 'Click to select or paste (Ctrl+V) the receipt'; }
+                }
+            }
+
+            function handleReceiptFile(file) {
+                if (!file) return;
+                if (['image/png', 'image/jpeg', 'image/gif', 'application/pdf'].indexOf(file.type) === -1) {
+                    setStatus('Unsupported receipt type \u2014 attach an image or PDF.', 'error');
+                    return;
+                }
+                uploadedReceiptFile = file;
+                updateReceiptInfo(file);
+                const preview = $('receipt-file-preview');
+                if (preview) {
+                    if (file.type.indexOf('image/') === 0) {
+                        const r = new FileReader();
+                        r.onload = function (e) { preview.src = e.target.result; preview.style.display = 'block'; };
+                        r.readAsDataURL(file);
+                    } else { preview.style.display = 'none'; preview.src = ''; }
+                }
+                setStatus('');
+            }
+
+            function wireReceiptAttachment() {
+                const area = $('receiptPasteArea');
+                const input = $('receiptFileInput');
+                if (area && input) {
+                    area.addEventListener('click', function () { input.click(); });
+                    input.addEventListener('change', function (e) {
+                        if (e.target.files && e.target.files.length) handleReceiptFile(e.target.files[0]);
+                    });
+                }
+                document.addEventListener('paste', function (e) {
+                    const items = (e.clipboardData || {}).items || [];
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file') { const f = items[i].getAsFile(); if (f) { handleReceiptFile(f); e.preventDefault(); return; } }
+                    }
+                });
+            }
+
             function readForm() {
                 return {
                     programSlug: $('programSlug').value,
@@ -476,6 +559,8 @@
                     treeIds: $('treeIds').value,
                     status: $('payoutStatus').value,
                     receiptUrl: $('receiptUrl').value,
+                    receiptFileName: cachedReceiptFileName || '',
+                    receiptLocation: cachedReceiptFileName ? RECEIPT_REPO_BASE_URL + cachedReceiptFileName : '',
                     submissionSource: window.location.href
                 };
             }
@@ -536,6 +621,8 @@
                         const submission = await EdgarSubmission.submitWithRetry({
                             url: EDGAR_SUBMIT,
                             text: shareText,
+                            file: uploadedReceiptFile ? await EdgarSubmission.toSendableBlob(uploadedReceiptFile) : undefined,
+                            fileName: cachedReceiptFileName || undefined,
                             attempts: 3
                         });
                         const result = submission.result || {};
@@ -563,6 +650,7 @@
                 if (programSel) programSel.addEventListener('input', renderTreeOptions);
                 const picker = $('treePicker');
                 if (picker) picker.addEventListener('change', addPickedTree);
+                wireReceiptAttachment();
             });
         })();
     </script>

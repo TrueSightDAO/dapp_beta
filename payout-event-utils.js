@@ -143,7 +143,9 @@
             ['Recipient PK Hash', trim(f.recipientPkHash) || UNLINKED_RECIPIENT],
             ['Tree Planting IDs', treeIds.length ? treeIds.join(', ') : UNLINKED_TREES],
             ['Status', trim(f.status) || 'live'],
-            ['Receipt URL', trim(f.receiptUrl) || '(none)'],
+            ['Attached Filename', trim(f.receiptFileName) || '(none)'],
+            ['Destination Payout Receipt File Location', trim(f.receiptLocation) || '(none)'],
+            ['Receipt URL', trim(f.receiptLocation) || trim(f.receiptUrl) || '(none)'],
             ['Submission Source', trim(opts.source) || trim(f.submissionSource) || '(unknown)']
         ];
     }
