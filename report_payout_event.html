@@ -91,6 +91,12 @@
         .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
         .overpay-all-list { margin-top: 0.3rem; line-height: 1.8; }
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
+        .primary-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+            background: var(--accent); color: #fff; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+        .opt-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+            background: #e9e9e9; color: #666; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+        .sub-label { font-size: 0.85rem; color: #666; margin-top: 0.2rem; }
+        #treePicker { margin-bottom: 0.4rem; }
         .row2 { display: flex; gap: 0.75rem; }
         .row2 > div { flex: 1; }
         button {
@@ -135,12 +141,23 @@
 
         <div class="privacy-note">
             <strong>The raw recipient PIX key never travels here.</strong> This page submits to Edgar,
-            whose intake is republished as a <em>public</em> chatlog. Attach a recipient by name and,
-            if known, a non-reversible <code>recipient_pk_hash</code> &mdash; the private key stays in the
-            restricted payout register.
+            whose intake is republished as a <em>public</em> chatlog. The <strong>tree id is the primary
+            field</strong> &mdash; the recipient is often unknown, so it is optional. If a recipient is known,
+            attach them by name and, if known, a non-reversible <code>recipient_pk_hash</code> &mdash; the
+            private key stays in the restricted payout register.
         </div>
 
         <div class="input-group">
+            <label for="treePicker">Tree Planting IDs <span class="primary-tag">primary</span></label>
+            <select id="treePicker">
+                <option value="">Loading unpaid trees&hellip;</option>
+            </select>
+            <div class="hint">Pick from the <strong>unpaid</strong> tree list (canonical <code>Edgar_&hellip;</code> ids); each pick is added to the field below. A single payment may cover several trees &mdash; leave blank for a general disbursement.</div>
+            <label for="treeIds" class="sub-label">Selected tree IDs</label>
+            <input type="text" id="treeIds" placeholder="Edgar_20260908010248_071 (comma/space separated)" autocomplete="off">
+            <div class="hint">Auto-filled by the picker above; you can also type ids directly.</div>
+            <div id="overpayGuard" class="overpay-guard"></div>
+
             <label for="programSlug">Program</label>
             <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu (blank = all programs)" autocomplete="off">
             <div class="hint">Optional &mdash; the program this payout belongs to. Leave it <strong>blank</strong> for a general disbursement; the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write simply does not fire.</div>
@@ -180,18 +197,12 @@
             </div>
             <div class="hint">The transfer's end-to-end id from the bank statement &mdash; the reconciliation anchor.</div>
 
-            <label for="recipientName">Recipient</label>
-            <input type="text" id="recipientName" placeholder="e.g. Paulo (La do S&iacute;tio)" autocomplete="off" required>
+            <label for="recipientName">Recipient <span class="opt-tag">optional</span></label>
+            <input type="text" id="recipientName" placeholder="e.g. Paulo (La do Sitio) &mdash; leave blank if unknown" autocomplete="off">
 
             <label for="recipientPkHash">Recipient PK Hash</label>
             <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
             <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
-
-            <label for="treeIds">Tree Planting IDs</label>
-            <input type="text" id="treeIds" list="treeIdList" placeholder="Pick unpaid trees, or type ids (e.g. Edgar_20260908010248_071)" autocomplete="off">
-            <datalist id="treeIdList"></datalist>
-            <div class="hint">Pick from the pending-tree list (canonical <code>Edgar_&hellip;</code> ids) or type free text. Comma- or space-separated; cover N trees in one row. Leave blank for a general disbursement.</div>
-            <div id="overpayGuard" class="overpay-guard"></div>
 
             <label for="payoutStatus">Status</label>
             <select id="payoutStatus">
@@ -236,6 +247,8 @@
             const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
             let _overpayFlags = null;
             let _pendingTrees = [];
+            let _submittedTreeIds = {};      // ids already paid in THIS session -> hidden from the picker
+            let _awaitingAnotherPayout = false;
 
             function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
@@ -270,15 +283,75 @@
                 });
             }
 
+            // The PICKER lists only UNPAID trees (the public pending cache is already
+            // Status==NEW, i.e. not-yet-paid). Trees paid in THIS session are dropped
+            // via _submittedTreeIds so a just-paid tree cannot be picked twice.
             function renderTreeOptions() {
-                const dl = $('treeIdList');
-                if (!dl) return;
-                dl.innerHTML = treesForProgram(currentProgram()).map(function (t) {
+                const sel = $('treePicker');
+                if (!sel) return;
+                const chosen = {};
+                U.parseTreeIds($('treeIds').value).forEach(function (id) { chosen[id] = 1; });
+                const rows = treesForProgram(currentProgram()).filter(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
-                    if (!id) return '';
-                    var label = [t.species, t.planting_date].filter(Boolean).join(', ');
-                    return '<option value="' + escapeHtml(id) + '">' + escapeHtml(label) + '</option>';
-                }).join('');
+                    return id && !_submittedTreeIds[id];
+                });
+                const opts = ['<option value="">\u2014 pick an unpaid tree \u2014</option>'];
+                rows.forEach(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    var parts = [t.species, t.planting_date].filter(Boolean).join(', ');
+                    var f = _overpayFlags && _overpayFlags[id];
+                    var warn = '';
+                    if (f) {
+                        var why = [];
+                        if (f.duplicate) why.push('duplicate');
+                        if (f.colocated) why.push('co-located');
+                        warn = ' \u26a0 ' + why.join('/');
+                    }
+                    var tail = chosen[id] ? ' \u2713' : '';
+                    opts.push('<option value="' + escapeHtml(id) + '">' +
+                        escapeHtml(id + (parts ? ' \u2014 ' + parts : '') + warn + tail) + '</option>');
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = '';
+            }
+
+            function addPickedTree() {
+                const sel = $('treePicker');
+                if (!sel || !sel.value) return;
+                const id = String(sel.value).trim();
+                if (!id) return;
+                const ids = U.parseTreeIds($('treeIds').value);
+                if (ids.indexOf(id) === -1) ids.push(id);
+                $('treeIds').value = ids.join(', ');
+                sel.value = '';
+                renderTreeOptions();
+                renderOverpayGuard();
+            }
+
+            // After a payout lands, hide the paid trees + offer a fresh form.
+            function markPaidAndArmReset(form) {
+                U.parseTreeIds(form && form.treeIds).forEach(function (id) { _submittedTreeIds[id] = 1; });
+                renderTreeOptions();
+                const btn = $('submitButton');
+                if (btn) btn.textContent = 'Submit another payout';
+                _awaitingAnotherPayout = true;
+                setStatus('Payout recorded. The paid tree(s) are no longer selectable \u2014 click \u201cSubmit another payout\u201d for a new one.', 'success');
+            }
+
+            function resetForm() {
+                ['amount', 'paidAt', 'bankRef', 'recipientName', 'recipientPkHash', 'treeIds', 'receiptUrl']
+                    .forEach(function (id) { const el = $(id); if (el) el.value = ''; });
+                const ps = $('programSlug'); if (ps) ps.value = 'crf-anapu';
+                const pay = $('payoutStatus'); if (pay) pay.value = 'live';
+                const cur = $('currency'); if (cur) cur.value = 'BRL';
+                const brt = $('bankRefType'); if (brt) brt.value = 'PIX-E2E';
+                const sr = $('submissionResult'); if (sr) sr.style.display = 'none';
+                clearInvalid();
+                _awaitingAnotherPayout = false;
+                const btn = $('submitButton'); if (btn) btn.textContent = 'Submit Payout';
+                setStatus('');
+                renderTreeOptions();
+                renderOverpayGuard();
             }
 
             function renderOverpayGuard() {
@@ -412,6 +485,9 @@
             }
 
             function submit() {
+                // In the post-submit state the button RESETS the form instead of
+                // submitting a second time.
+                if (_awaitingAnotherPayout) { resetForm(); return; }
                 const btn = $('submitButton');
                 clearInvalid();
                 setStatus('');
@@ -423,7 +499,6 @@
                     if (!U.parseAmount(form.amount).valid) $('amount').classList.add('invalid');
                     if (!U.isValidIso8601(form.paidAt)) $('paidAt').classList.add('invalid');
                     if (!String(form.bankRef).trim()) $('bankRef').classList.add('invalid');
-                    if (!String(form.recipientName).trim()) $('recipientName').classList.add('invalid');
                     setStatus(check.errors.join(' '), 'error');
                     return;
                 }
@@ -467,7 +542,7 @@
                         $('responsePre').textContent = JSON.stringify(result, null, 2);
 
                         if (result.signature_verification === 'success') {
-                            setStatus('Payout recorded. View: https://truesight.me/submissions/raw-telegram-chatlogs', 'success');
+                            markPaidAndArmReset(form);
                         } else {
                             setStatus('Submitted, but Edgar did not confirm verified delivery — please review the response below.', 'error');
                         }
@@ -486,6 +561,8 @@
                 if (treeInput) treeInput.addEventListener('input', renderOverpayGuard);
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('input', renderTreeOptions);
+                const picker = $('treePicker');
+                if (picker) picker.addEventListener('change', addPickedTree);
             });
         })();
     </script>

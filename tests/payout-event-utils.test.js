@@ -67,6 +67,14 @@ const GOOD = {
 test('validate: a well-formed backfill passes', () => {
     assert.strictEqual(u.validate(GOOD).valid, true);
 });
+test('validate: recipient is OPTIONAL (often unknown; tree id is the anchor)', () => {
+    const r = u.validate(Object.assign({}, GOOD, { recipientName: '' }));
+    assert.strictEqual(r.valid, true, JSON.stringify(r.errors));
+});
+test('buildAttributes: a blank recipient is emitted as an empty value (never fails)', () => {
+    const map = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, { recipientName: '' }), {}));
+    assert.strictEqual(map['Recipient'], '');
+});
 test('validate: bankRef is required (reconciliation anchor)', () => {
     const r = u.validate(Object.assign({}, GOOD, { bankRef: '' }));
     assert.strictEqual(r.valid, false);
@@ -142,7 +150,10 @@ test('computeOverpayFlags: a repeated tree_id alone is flagged as duplicate', ()
     ]);
     assert.strictEqual(f.T1.duplicate, true);
 });
-test('computeOverpayFlags: two DIFFERENT trees <1 m apart are co-located', () => {
+test('computeOverpayFlags: the default co-located threshold is 3 m', () => {
+    assert.strictEqual(u.OVERPAY_COLOCATED_METERS, 3.0);
+});
+test('computeOverpayFlags: two DIFFERENT trees <3 m apart are co-located (Gary 2026-09-25)', () => {
     const f = u.computeOverpayFlags([
         { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
         { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094582', longitude: '-52.094964' }
@@ -150,10 +161,20 @@ test('computeOverpayFlags: two DIFFERENT trees <1 m apart are co-located', () =>
     assert.strictEqual(f.T1.colocated, true);
     assert.strictEqual(f.T1.colocated_with[0].tree_id, 'T2');
 });
-test('computeOverpayFlags: trees ~3 m apart (normal plantation spacing) are NOT flagged', () => {
+test('computeOverpayFlags: two DIFFERENT trees ~2 m apart ARE flagged at the 3 m default', () => {
+    // 0.00002 deg latitude ~= 2.2 m -> inside the 3 m window.
     const f = u.computeOverpayFlags([
         { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
-        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094608', longitude: '-52.094964' }
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094601', longitude: '-52.094964' }
+    ]);
+    assert.strictEqual(f.T1.colocated, true);
+    assert.strictEqual(f.T2.colocated, true);
+});
+test('computeOverpayFlags: trees ~9 m apart are NOT flagged (outside the 3 m window)', () => {
+    // 0.00008 deg latitude ~= 8.9 m -> beyond 3 m.
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094661', longitude: '-52.094964' }
     ]);
     assert.deepStrictEqual(f, {});
 });

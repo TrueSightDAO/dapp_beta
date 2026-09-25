@@ -97,6 +97,8 @@
      * Validate a payout-entry form. Returns { valid, errors[], amount }.
      * `bankRef` (the transfer E2E id) is required: it is the reconciliation
      * anchor that lets the sink match this row to the bank statement.
+     * `recipientName` is OPTIONAL: the recipient is frequently unknown, in which
+     * case the tree id(s) are the sole linkage (Gary, 2026-09-25).
      */
     function validate(f) {
         f = f || {};
@@ -115,7 +117,6 @@
         if (BANK_REF_TYPES.indexOf(trim(f.bankRefType)) === -1) {
             errors.push('Bank Ref Type must be one of: ' + BANK_REF_TYPES.join(', ') + '.');
         }
-        if (!trim(f.recipientName)) { errors.push('Recipient name is required.'); }
         if (STATUSES.indexOf(trim(f.status)) === -1) {
             errors.push('Status must be one of: ' + STATUSES.join(', ') + '.');
         }
@@ -147,7 +148,8 @@
         ];
     }
 
-    var OVERPAY_COLOCATED_METERS = 1.0;
+    // Gary (2026-09-25): flag a DIFFERENT tree within 3 m. (Was 1 m.)
+    var OVERPAY_COLOCATED_METERS = 3.0;
 
     /** Coerce a possibly-stringy coordinate to a finite number, else null. */
     function _num(v) {
