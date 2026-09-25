@@ -257,6 +257,28 @@
         return out;
     }
 
+    // --- payout-registration review (P2.3 / governor page) --------------------
+    // Collapse the raw `payout registrations` rows to ONE per pk_hash so a
+    // governor sees a single unambiguous recipient instead of a pile of
+    // RECORDED/UPDATED rows. Precedence: an ACTIVE row wins; otherwise the most
+    // recent submitted_date. PURE + privacy-safe: it only reads fields the read
+    // endpoint already returns (never a raw pix_key), and it never invents one.
+    function dedupeActiveRegistrations(rows) {
+        var byPk = {};
+        var order = [];
+        (rows || []).forEach(function (r) {
+            var pk = trim(r && r.pk_hash);
+            if (!pk) return;
+            var cur = byPk[pk];
+            if (!cur) { byPk[pk] = r; order.push(pk); return; }
+            var curActive = trim(cur.status).toUpperCase() === 'ACTIVE';
+            var newActive = trim(r.status).toUpperCase() === 'ACTIVE';
+            if (newActive && !curActive) { byPk[pk] = r; return; }
+            if (newActive === curActive && _s(r.submitted_date) > _s(cur.submitted_date)) { byPk[pk] = r; }
+        });
+        return order.map(function (pk) { return byPk[pk]; });
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -270,6 +292,7 @@
         isValidIso8601: isValidIso8601,
         validate: validate,
         buildAttributes: buildAttributes,
+        dedupeActiveRegistrations: dedupeActiveRegistrations,
         OVERPAY_COLOCATED_METERS: OVERPAY_COLOCATED_METERS,
         haversineMeters: haversineMeters,
         computeOverpayFlags: computeOverpayFlags,

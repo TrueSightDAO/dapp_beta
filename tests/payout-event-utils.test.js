@@ -249,5 +249,51 @@ test('buildAttributes: a chosen program is emitted verbatim', () => {
     assert.strictEqual(map['Program'], 'crf-anapu');
 });
 
+// --- P2.3: registered-recipient review (dedupe to one row per pk_hash) -------
+test('dedupeActiveRegistrations: collapses many rows for one pk_hash to ONE', () => {
+    // The shape Gary actually sees on the live sheet: 1 RECORDED + 3 UPDATED.
+    const rows = [
+        { row: 2, status: 'RECORDED', submitted_date: '2026-09-24T16:07:18.237Z', pk_hash: 'pk-A', pix_key_masked: '***.***.***-19' },
+        { row: 3, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:18.725Z', pk_hash: 'pk-A', pix_key_masked: '***.***.***-19' },
+        { row: 4, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:19.461Z', pk_hash: 'pk-A', pix_key_masked: '***.***.***-19' },
+        { row: 5, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:21.290Z', pk_hash: 'pk-A', pix_key_masked: '***.***.***-19' },
+    ];
+    const out = u.dedupeActiveRegistrations(rows);
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(out[0].pk_hash, 'pk-A');
+    assert.strictEqual(out[0].submitted_date, '2026-09-24T16:07:21.290Z'); // most recent wins
+});
+test('dedupeActiveRegistrations: an ACTIVE row beats a newer non-ACTIVE row', () => {
+    const rows = [
+        { status: 'UPDATED', submitted_date: '2026-09-25T00:00:00Z', pk_hash: 'pk-B' },
+        { status: 'ACTIVE',  submitted_date: '2026-09-20T00:00:00Z', pk_hash: 'pk-B' },
+    ];
+    const out = u.dedupeActiveRegistrations(rows);
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(out[0].status, 'ACTIVE');
+});
+test('dedupeActiveRegistrations: distinct pk_hashes each survive (stable first-seen order)', () => {
+    const rows = [
+        { status: 'RECORDED', submitted_date: '2026-09-24T16:07:18Z', pk_hash: 'pk-A' },
+        { status: 'RECORDED', submitted_date: '2026-09-24T16:07:19Z', pk_hash: 'pk-C' },
+        { status: 'RECORDED', submitted_date: '2026-09-24T16:07:20Z', pk_hash: 'pk-A' },
+    ];
+    const out = u.dedupeActiveRegistrations(rows);
+    assert.deepStrictEqual(out.map(r => r.pk_hash), ['pk-A', 'pk-C']);
+});
+test('dedupeActiveRegistrations: blank/missing pk_hash rows are dropped (nothing to pay)', () => {
+    const rows = [{ status: 'RECORDED', pk_hash: '' }, { status: 'error' }, { status: 'RECORDED', pk_hash: 'pk-Z' }];
+    assert.deepStrictEqual(u.dedupeActiveRegistrations(rows).map(r => r.pk_hash), ['pk-Z']);
+});
+test('dedupeActiveRegistrations: undefined/empty input -> [] (never throws)', () => {
+    assert.deepStrictEqual(u.dedupeActiveRegistrations(undefined), []);
+    assert.deepStrictEqual(u.dedupeActiveRegistrations([]), []);
+});
+test('PRIVACY: dedupe parser has no pix_key (raw) accessor -- masked only', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'payout-event-utils.js'), 'utf8');
+    const fn = src.slice(src.indexOf('function dedupeActiveRegistrations'), src.indexOf('var utils = {'));
+    assert.ok(!/(^|[^_])\bpix_key\b(?!_)/.test(fn), 'dedupe parser must not read the raw pix_key field');
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

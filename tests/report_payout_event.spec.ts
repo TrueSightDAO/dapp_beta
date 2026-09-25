@@ -77,9 +77,30 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
   });
 
   // Governor identity resolution (cache-first) then GAS fallback — both mocked.
-  await page.route('**/macros/**/exec*', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contributor_name: 'Gary Teh' }) })
-  );
+  // The payout-register read (a governor-only GET) returns a realistic payload:
+  // FOUR rows for the SAME pk_hash (1 RECORDED + 3 UPDATED) — the mess Gary sees.
+  await page.route('**/macros/**/exec*', (route) => {
+    const url = route.request().url();
+    if (url.includes('getPendingPayoutRegistrations')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          data: {
+            count: 4,
+            items: [
+              { row: 2, status: 'RECORDED', submitted_date: '2026-09-24T16:07:18.237Z', program_slug: 'crf-anapu', pk_hash: 'pk-qkejKJJW3IAD', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+              { row: 3, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:18.725Z', program_slug: 'crf-anapu', pk_hash: 'pk-qkejKJJW3IAD', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+              { row: 4, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:19.461Z', program_slug: 'crf-anapu', pk_hash: 'pk-qkejKJJW3IAD', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+              { row: 5, status: 'UPDATED',  submitted_date: '2026-09-24T16:07:21.290Z', program_slug: 'crf-anapu', pk_hash: 'pk-qkejKJJW3IAD', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+            ],
+          },
+        }),
+      });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contributor_name: 'Gary Teh' }) });
+  });
 
   await page.route('**/edgar.truesight.me/**', (route) => {
     if (route.request().url().includes('ping')) return route.fulfill({ status: 200 });
@@ -358,5 +379,33 @@ test.describe('report_payout_event.html', () => {
     await page.goto('/report_payout_event.html');
     await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
     expect(errors, `page errors: ${errors.join('; ')}`).toHaveLength(0);
+  });
+  test('registered recipients: ONE row per pk_hash, full pk_hash visible, no raw PIX, Use fills the field', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    const panel = page.locator('#recipientsPanel');
+    await expect(panel).toBeVisible({ timeout: 15000 });
+
+    // The whole point: FOUR sheet rows collapse to ONE rendered recipient.
+    await expect(page.locator('#recipientsList .recipient-row')).toHaveCount(1);
+    const row = page.locator('#recipientsList .recipient-row').first();
+    // The full, un-truncated pk_hash must be plainly visible so the operator
+    // cannot mis-send to the wrong account.
+    await expect(row.locator('.rp-pk')).toHaveText('pk-qkejKJJW3IAD');
+    await expect(row.locator('.rp-status')).toHaveText('UPDATED');
+
+    // PRIVACY: only the masked key may appear anywhere in the DOM.
+    const html = await page.locator('#recipientsList').innerHTML();
+    expect(html).toContain('***.***.***-19');
+    expect(html).not.toMatch(/\bpix_key\b/);
+    const rawCpf = html.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
+    expect(rawCpf).toBeNull();
+
+    // Clicking Use fills the recipient field (no hand-typing a hash).
+    await row.locator('button.rp-use').click();
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
   });
 });
