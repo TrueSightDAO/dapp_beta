@@ -126,6 +126,17 @@
             font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
             word-break: break-word; max-height: 360px; overflow: auto;
         }
+        .recipients-panel { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.8rem 0.9rem; margin: 0.6rem 0 1rem; }
+        .recipients-panel h3 { margin: 0 0 0.3rem; font-size: 0.95rem; color: #333; }
+        .recipients-panel .rp-sub { font-size: 0.78rem; color: #777; margin-bottom: 0.5rem; line-height: 1.4; }
+        .recipient-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid #e4e4e4; background: #fff; margin: 0.25rem 0; }
+        .recipient-row .rp-main { flex: 1; min-width: 0; }
+        .recipient-row .rp-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #111; word-break: break-all; }
+        .recipient-row .rp-meta { font-size: 0.75rem; color: #666; margin-top: 0.1rem; }
+        .recipient-row .rp-status { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 10px; padding: 0.1rem 0.45rem; background: #eee; color: #555; white-space: nowrap; }
+        .recipient-row .rp-status.active { background: var(--green-bg); color: var(--green); }
+        .recipient-row button.rp-use { width: auto; max-width: none; margin: 0; padding: 0.35rem 0.7rem; font-size: 0.8rem; border-radius: 6px; background: var(--accent); }
+        .recipient-row button.rp-use:hover { background: var(--accent-hover); }
     </style>
 </head>
 <body>
@@ -212,6 +223,13 @@
             <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
             <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
 
+            <div id="recipientsPanel" class="recipients-panel" style="display:none;">
+                <h3>Registered recipients <span class="opt-tag">from the private register</span></h3>
+                <div class="rp-sub">One row per <code>pk_hash</code> (an ACTIVE row wins, else the most recent). Click <strong>Use</strong> to fill the recipient field &mdash; the raw PIX key is never shown here.</div>
+                <div id="recipientsList"></div>
+                <div id="recipientsStatus" class="hint"></div>
+            </div>
+
             <label for="payoutStatus">Status</label>
             <select id="payoutStatus">
                 <option value="live">live &mdash; captured as it happened</option>
@@ -251,6 +269,13 @@
                 || 'https://edgar.truesight.me/dao/submit_contribution';
             const ASSET_VERIFY_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
                 || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+
+            // Governor-only read of the recorded payout registrations. The endpoint
+            // returns MASKED fields only (never the raw PIX) -- we render the full
+            // pk_hash + masked key so the operator picks the correct account instead
+            // of transcribing a hash by hand and mis-sending.
+            const PAYOUT_REG_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.payoutRegistrations)
+                || 'https://script.google.com/macros/s/AKfycbxQDdGnwS7G6iJhNj9japW-9sFA7EUvrnznmJCu44S5ZHqOoIks2be4FXbIVpuaOHVW/exec';
 
             const U = window.PayoutEventUtils;
             const FIELDS = ['amount', 'paidAt', 'bankRef', 'recipientName', 'programSlug', 'treeIds', 'recipientPkHash', 'receiptUrl'];
@@ -417,6 +442,68 @@
                 s.textContent = msg;
                 s.className = cls || '';
             }
+            function loadRegistrations() {
+                if (typeof fetch !== 'function') return;
+                const panel = $('recipientsPanel');
+                const list = $('recipientsList');
+                const st = $('recipientsStatus');
+                if (!panel || !list) return;
+                if (st) { st.textContent = 'Loading registered recipients\u2026'; st.className = 'hint loading'; }
+                fetch(PAYOUT_REG_ENDPOINT + '?action=getPendingPayoutRegistrations&status=ALL', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        const items = (data && data.data && data.data.items) || [];
+                        renderRegistrations(U.dedupeActiveRegistrations(items));
+                    })
+                    .catch(function () {
+                        panel.style.display = 'block';
+                        if (st) { st.textContent = 'Could not load the payout register (the form still works \u2014 type the pk_hash manually).'; st.className = 'hint'; }
+                    });
+            }
+
+            // Renders ONE row per pk_hash. `rows` comes from the privacy-safe dedupe
+            // (masked fields only) -- a raw pix_key can never reach this function.
+            function renderRegistrations(rows) {
+                const panel = $('recipientsPanel');
+                const list = $('recipientsList');
+                const st = $('recipientsStatus');
+                if (!panel || !list) return;
+                list.innerHTML = '';
+                panel.style.display = 'block';
+                if (!rows || !rows.length) {
+                    if (st) { st.textContent = 'No payout registrations recorded yet.'; st.className = 'hint'; }
+                    return;
+                }
+                rows.forEach(function (it) {
+                    const row = document.createElement('div');
+                    row.className = 'recipient-row';
+                    const active = it.status === 'ACTIVE';
+                    const meta = [it.pix_key_type, it.pix_key_masked, it.program_slug, it.submitted_date]
+                        .filter(function (x) { return x; }).join(' \u00b7 ');
+                    row.innerHTML =
+                        '<div class="rp-main">' +
+                            '<div class="rp-pk">' + escapeHtml(it.pk_hash) + '</div>' +
+                            '<div class="rp-meta">' + escapeHtml(meta) + '</div>' +
+                        '</div>' +
+                        '<span class="rp-status' + (active ? ' active' : '') + '">' + escapeHtml(it.status) + '</span>' +
+                        '<button type="button" class="rp-use">Use</button>';
+                    const btn = row.querySelector('button.rp-use');
+                    if (btn) {
+                        btn.addEventListener('click', function () {
+                            const pk = $('recipientPkHash');
+                            if (pk) { pk.value = it.pk_hash; pk.classList.remove('invalid'); }
+                            if (st) {
+                                st.textContent = 'Filled recipient pk_hash ' + it.pk_hash +
+                                    (it.pix_key_masked ? ' (' + it.pix_key_masked + ')' : '') + '.';
+                                st.className = 'hint';
+                            }
+                        });
+                    }
+                    list.appendChild(row);
+                });
+                if (st) { st.textContent = rows.length + ' recipient(s) \u2014 one per pk_hash.'; st.className = 'hint'; }
+            }
+
             function escapeHtml(v) {
                 return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
                     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -474,6 +561,7 @@
                             $('authBadge').className = 'status-badge governor';
                             $('content').style.display = 'block';
                             loadPendingTrees();
+                            loadRegistrations();
                         },
                         onDenied: function () {
                             $('authBadge').textContent = 'Not a governor';
