@@ -198,6 +198,25 @@
             white-space: pre-wrap;
         }
         #status { margin: 0.5rem 0; font-weight: bold; text-align: center; }
+        .qr-product-card {
+            margin: 1rem 0; padding: 0.9rem; background: var(--surface);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            display: flex; gap: 1rem; align-items: flex-start;
+        }
+        .qr-product-card img {
+            width: 96px; height: 96px; object-fit: cover; border-radius: 6px;
+            border: 1px solid var(--border); flex: 0 0 auto; background: #fafafa;
+        }
+        .qr-product-card .meta { flex: 1 1 auto; min-width: 0; font-size: 0.9rem; }
+        .qr-product-card .name { font-weight: bold; color: var(--text); margin-bottom: 0.25rem; }
+        .qr-product-card .row { color: var(--text-muted); margin: 0.15rem 0; }
+        .qr-product-card .price { color: var(--accent); font-weight: bold; }
+        .pill { display: inline-block; font-size: 0.75rem; padding: 2px 8px;
+                border-radius: 10px; margin-left: 0.35rem; vertical-align: middle; }
+        .pill.linked { background: var(--green-bg); color: var(--green); border: 1px solid #cfe6d2; }
+        .pill.unlinked { background: var(--yellow-bg); color: var(--yellow); border: 1px solid #f0e0a8; }
+        .qr-product-card a.ledger-link { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+        .qr-product-card a.ledger-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -251,6 +270,8 @@
         <div class="selection-summary" id="selection_summary">
             <span class="empty">Select one QR code and one submission to continue.</span>
         </div>
+
+        <div id="qr_product_card" style="display:none;"></div>
 
         <div id="photo_preview" style="display:none;margin-top:1rem;text-align:center;">
             <img id="tree_photo" alt="Tree photo" style="max-width:100%;max-height:340px;border-radius:8px;border:1px solid var(--border,#e2e2e2);"/>
@@ -411,8 +432,52 @@
             if (rejectBtn) rejectBtn.disabled = false;
         }
 
+        function renderQrProductCard() {
+            // Product context for the selected QR (public cache fields: product,
+            // product_image, price) + a NON-PII owner-link indicator (boolean
+            // only - the owner email is never published) + a deep link back to
+            // the ledger row (Google-auth-gated, so it leaks no PII).
+            // Degrades to hidden when the cache predates these fields.
+            const card = document.getElementById('qr_product_card');
+            if (!card) return;
+            const item = qrItems.find(function (q) { return q.qr_code === selectedQrCode; });
+            if (!item) { card.style.display = 'none'; card.innerHTML = ''; return; }
+            const hasProduct = !!(item.product || item.product_image || item.price || item.sheet_url);
+            if (!hasProduct) { card.style.display = 'none'; card.innerHTML = ''; return; }
+
+            const parts = [];
+            if (item.product_image) {
+                parts.push('<img src="' + escapeHtml(item.product_image) + '" alt="Product image"/>');
+            }
+            const meta = [];
+            if (item.product) meta.push('<div class="name">' + escapeHtml(item.product) + '</div>');
+            const rowBits = [];
+            if (item.farm) rowBits.push(escapeHtml(item.farm));
+            if (item.country) rowBits.push(escapeHtml(item.country));
+            if (item.harvest_year) rowBits.push(escapeHtml(item.harvest_year));
+            if (rowBits.length) meta.push('<div class="row">' + rowBits.join(' \u00b7 ') + '</div>');
+            if (item.price) {
+                meta.push('<div class="row">Price: <span class="price">' + escapeHtml(String(item.price)) + '</span></div>');
+            }
+            const linked = item.owner_email_present === true;
+            meta.push('<div class="row">Owner: ' + (linked
+                ? '<span class="pill linked">\ud83d\udd17 linked</span>'
+                : '<span class="pill unlinked">not linked</span>') + '</div>');
+            if (item.sheet_url) {
+                meta.push('<div class="row"><a class="ledger-link" target="_blank" rel="noopener noreferrer" href="' +
+                    escapeHtml(item.sheet_url) + '">\u2197 view in ledger</a></div>');
+            }
+            parts.push('<div class="meta">' + meta.join('') + '</div>');
+            card.className = 'qr-product-card';
+            card.innerHTML = parts.join('');
+            card.style.display = 'flex';
+            const img = card.querySelector('img');
+            if (img) img.onerror = function () { this.style.visibility = 'hidden'; };
+        }
+
         function selectQr(qrCode) {
             selectedQrCode = qrCode || null;
+            renderQrProductCard();
             updateSelectionSummary();
         }
 
