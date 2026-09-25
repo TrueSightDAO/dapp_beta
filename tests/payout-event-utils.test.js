@@ -118,5 +118,69 @@ test('PRIVACY: a CPF-like string passed as recipient name is not silently kept a
     assert.strictEqual(map['Recipient PK Hash'], u.UNLINKED_RECIPIENT);
 });
 
+// --- overpay guards --------------------------------------------------------
+test('haversineMeters: identical points are 0 m', () => {
+    assert.strictEqual(u.haversineMeters(-3.1, -52.1, -3.1, -52.1), 0);
+});
+test('haversineMeters: ~111 m for 0.001 deg of latitude', () => {
+    const m = u.haversineMeters(0, 0, 0.001, 0);
+    assert.ok(m > 100 && m < 120, 'got ' + m);
+});
+test('computeOverpayFlags: same photo_url on two rows flags BOTH as duplicate', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '0', longitude: '0' },
+        { tree_id: 'T2', photo_url: 'http://x/a.jpg', latitude: '0', longitude: '0' }
+    ]);
+    assert.strictEqual(f.T1.duplicate, true);
+    assert.strictEqual(f.T2.duplicate, true);
+    assert.deepStrictEqual(f.T1.duplicate_with, ['T2']);
+});
+test('computeOverpayFlags: a repeated tree_id alone is flagged as duplicate', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '0', longitude: '0' },
+        { tree_id: 'T1', photo_url: 'http://x/b.jpg', latitude: '0', longitude: '0' }
+    ]);
+    assert.strictEqual(f.T1.duplicate, true);
+});
+test('computeOverpayFlags: two DIFFERENT trees <1 m apart are co-located', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094582', longitude: '-52.094964' }
+    ]);
+    assert.strictEqual(f.T1.colocated, true);
+    assert.strictEqual(f.T1.colocated_with[0].tree_id, 'T2');
+});
+test('computeOverpayFlags: trees ~3 m apart (normal plantation spacing) are NOT flagged', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094608', longitude: '-52.094964' }
+    ]);
+    assert.deepStrictEqual(f, {});
+});
+test('computeOverpayFlags: a clean list yields NO flags (empty object)', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '1', longitude: '1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '2', longitude: '2' }
+    ]);
+    assert.deepStrictEqual(f, {});
+});
+test('computeOverpayFlags: rows without coordinates cannot be co-located', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '', longitude: '' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '', longitude: '' }
+    ]);
+    assert.deepStrictEqual(f, {});
+});
+test('overpayWarningsFor: filters to entered ids, input order preserved', () => {
+    const flags = { T2: { tree_id: 'T2', duplicate: true, duplicate_with: ['T1'] } };
+    const out = u.overpayWarningsFor(flags, ['T9', 'T2']);
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(out[0].tree_id, 'T2');
+});
+test('PRIVACY: overpay guard helpers never emit a PIX/CPF-bearing field name', () => {
+    const f = u.computeOverpayFlags([{ tree_id: 'T1', photo_url: 'a', latitude: 0, longitude: 0 }]);
+    assert.deepStrictEqual(Object.keys(f), []);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

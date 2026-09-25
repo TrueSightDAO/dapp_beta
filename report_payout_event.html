@@ -81,6 +81,16 @@
         input, select { margin-bottom: 0.8rem; width: 100%; padding: 0.5rem; border-radius: 5px; border: 1px solid #ddd; font-size: 0.95rem; box-sizing: border-box; }
         input.invalid, select.invalid { border-color: var(--red); background-color: #fff0f0; }
         .hint { font-size: 0.8rem; color: #777; margin: -0.5rem 0 0.8rem; }
+        .overpay-guard { margin: 0.2rem 0 0.8rem; }
+        .overpay-summary { font-size: 0.8rem; color: #555; margin-bottom: 0.3rem; }
+        .overpay-row {
+            font-size: 0.82rem; background: var(--yellow-bg); border: 1px solid #e6d79a;
+            border-radius: 6px; padding: 0.4rem 0.6rem; margin: 0.25rem 0; color: #6b5408; line-height: 1.45;
+        }
+        .overpay-row code { background: #fff; padding: 0 0.2rem; border-radius: 3px; }
+        .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
+        .overpay-all-list { margin-top: 0.3rem; line-height: 1.8; }
+        .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
         .row2 { display: flex; gap: 0.75rem; }
         .row2 > div { flex: 1; }
         button {
@@ -180,6 +190,7 @@
             <label for="treeIds">Tree Planting IDs</label>
             <input type="text" id="treeIds" placeholder="e.g. 20260907_CEPO_1, 20260907_CEPO_2" autocomplete="off">
             <div class="hint">Comma- or space-separated. Cover N trees in one row. Leave blank for a general disbursement.</div>
+            <div id="overpayGuard" class="overpay-guard"></div>
 
             <label for="payoutStatus">Status</label>
             <select id="payoutStatus">
@@ -217,6 +228,60 @@
 
             const U = window.PayoutEventUtils;
             const FIELDS = ['amount', 'paidAt', 'bankRef', 'recipientName', 'programSlug', 'treeIds', 'recipientPkHash', 'receiptUrl'];
+
+            // ---- Overpay guards (possible-duplicate + co-located) -----------
+            // Advisory surface ONLY: computed client-side from the public pending
+            // tree list. Never enters the signed payload; never touches PIX.
+            const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
+            let _overpayFlags = null;
+
+            function loadOverpayFlags() {
+                if (typeof fetch !== 'function') return;
+                return fetch(SUNMINT_PENDING_URL, { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        _overpayFlags = U.computeOverpayFlags((data && data.items) || []);
+                        renderOverpayGuard();
+                    })
+                    .catch(function () { _overpayFlags = null; renderOverpayGuard(); });
+            }
+
+            function renderOverpayGuard() {
+                const host = $('overpayGuard');
+                if (!host) return;
+                if (!_overpayFlags) { host.innerHTML = ''; return; }
+                const ids = U.parseTreeIds($('treeIds').value);
+                const flagged = Object.keys(_overpayFlags).sort();
+                let html = '<div class="overpay-summary">Overpay guard: <strong>' + flagged.length +
+                    '</strong> pending tree(s) carry a risk flag. ' +
+                    (ids.length ? 'Checking your ' + ids.length + ' entered id(s).'
+                                : 'Enter tree ids above to check them.') + '</div>';
+
+                const seen = {};
+                ids.forEach(function (id) {
+                    if (seen[id]) return; seen[id] = 1;
+                    const f = _overpayFlags[id];
+                    if (!f) return;
+                    const bits = [];
+                    if (f.duplicate) {
+                        bits.push('possible <strong>duplicate</strong>' +
+                            (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.join(', ')) : ''));
+                    }
+                    if (f.colocated) {
+                        bits.push('<strong>co-located</strong> with ' + escapeHtml(
+                            f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
+                    }
+                    html += '<div class="overpay-row">\u26a0 <code>' + escapeHtml(id) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
+                });
+
+                if (flagged.length) {
+                    html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
+                        ' flagged tree(s)</summary><div class="overpay-all-list">' +
+                        flagged.map(function (id) { return '<code>' + escapeHtml(id) + '</code>'; }).join(' ') +
+                        '</div></details>';
+                }
+                host.innerHTML = html;
+            }
 
             function $(id) { return document.getElementById(id); }
             function setStatus(msg, cls) {
@@ -280,6 +345,7 @@
                             $('authBadge').textContent = 'Governor';
                             $('authBadge').className = 'status-badge governor';
                             $('content').style.display = 'block';
+                            loadOverpayFlags();
                         },
                         onDenied: function () {
                             $('authBadge').textContent = 'Not a governor';
@@ -382,6 +448,8 @@
             window.addEventListener('DOMContentLoaded', function () {
                 boot();
                 $('submitButton').addEventListener('click', submit);
+                const treeInput = $('treeIds');
+                if (treeInput) treeInput.addEventListener('input', renderOverpayGuard);
             });
         })();
     </script>
