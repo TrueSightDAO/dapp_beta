@@ -142,11 +142,8 @@
 
         <div class="input-group">
             <label for="programSlug">Program</label>
-            <select id="programSlug">
-                <option value="crf-anapu" selected>crf-anapu</option>
-                <option value="">All programs (leave unselected)</option>
-            </select>
-            <div class="hint">The program this payout belongs to. Optional &mdash; leave it as <em>All programs</em> for a general disbursement; the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write simply does not fire.</div>
+            <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu (blank = all programs)" autocomplete="off">
+            <div class="hint">Optional &mdash; the program this payout belongs to. Leave it <strong>blank</strong> for a general disbursement; the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write simply does not fire.</div>
 
             <div class="row2">
                 <div>
@@ -488,7 +485,7 @@
                 const treeInput = $('treeIds');
                 if (treeInput) treeInput.addEventListener('input', renderOverpayGuard);
                 const programSel = $('programSlug');
-                if (programSel) programSel.addEventListener('change', renderTreeOptions);
+                if (programSel) programSel.addEventListener('input', renderTreeOptions);
             });
         })();
     </script>
