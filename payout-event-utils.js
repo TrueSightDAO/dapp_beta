@@ -28,6 +28,7 @@
     var STATUSES = ['live', 'backfill'];
     var UNLINKED_RECIPIENT = 'unlinked_recipient';
     var UNLINKED_TREES = 'unlinked';
+    var UNLINKED_PROGRAM = 'unlinked_program';
 
     function _s(v) { return v == null ? '' : String(v); }
     function trim(v) { return _s(v).trim(); }
@@ -115,7 +116,6 @@
             errors.push('Bank Ref Type must be one of: ' + BANK_REF_TYPES.join(', ') + '.');
         }
         if (!trim(f.recipientName)) { errors.push('Recipient name is required.'); }
-        if (!trim(f.programSlug)) { errors.push('Program is required.'); }
         if (STATUSES.indexOf(trim(f.status)) === -1) {
             errors.push('Status must be one of: ' + STATUSES.join(', ') + '.');
         }
@@ -132,7 +132,7 @@
         var amount = parseAmount(f.amount);
         var treeIds = parseTreeIds(f.treeIds);
         return [
-            ['Program', trim(f.programSlug)],
+            ['Program', trim(f.programSlug) || UNLINKED_PROGRAM],
             ['Amount', amount.valid ? amount.value : trim(f.amount)],
             ['Currency', trim(f.currency) || 'BRL'],
             ['Paid At', trim(f.paidAt)],
@@ -260,6 +260,7 @@
         STATUSES: STATUSES,
         UNLINKED_RECIPIENT: UNLINKED_RECIPIENT,
         UNLINKED_TREES: UNLINKED_TREES,
+        UNLINKED_PROGRAM: UNLINKED_PROGRAM,
         parseTreeIds: parseTreeIds,
         parseAmount: parseAmount,
         isValidIso8601: isValidIso8601,

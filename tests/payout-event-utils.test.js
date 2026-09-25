@@ -182,5 +182,19 @@ test('PRIVACY: overpay guard helpers never emit a PIX/CPF-bearing field name', (
     assert.deepStrictEqual(Object.keys(f), []);
 });
 
+// --- optional program (P1b) -------------------------------------------------
+test('validate: a payout with NO program is valid (program is optional)', () => {
+    const check = u.validate(Object.assign({}, GOOD, { programSlug: '' }));
+    assert.strictEqual(check.valid, true, JSON.stringify(check.errors));
+});
+test('buildAttributes: a blank program emits the explicit unlinked_program marker', () => {
+    const map = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, { programSlug: '' }), {}));
+    assert.strictEqual(map['Program'], 'unlinked_program');
+});
+test('buildAttributes: a chosen program is emitted verbatim', () => {
+    const map = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, { programSlug: 'crf-anapu' }), {}));
+    assert.strictEqual(map['Program'], 'crf-anapu');
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

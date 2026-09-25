@@ -142,8 +142,11 @@
 
         <div class="input-group">
             <label for="programSlug">Program</label>
-            <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu" autocomplete="off" required>
-            <div class="hint">The program this payout belongs to (payouts are a Sunmint-tree-planting capability; CFR Anapu is the first executor).</div>
+            <select id="programSlug">
+                <option value="crf-anapu" selected>crf-anapu</option>
+                <option value="">All programs (leave unselected)</option>
+            </select>
+            <div class="hint">The program this payout belongs to. Optional &mdash; leave it as <em>All programs</em> for a general disbursement; the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write simply does not fire.</div>
 
             <div class="row2">
                 <div>
@@ -188,8 +191,9 @@
             <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
 
             <label for="treeIds">Tree Planting IDs</label>
-            <input type="text" id="treeIds" placeholder="e.g. 20260907_CEPO_1, 20260907_CEPO_2" autocomplete="off">
-            <div class="hint">Comma- or space-separated. Cover N trees in one row. Leave blank for a general disbursement.</div>
+            <input type="text" id="treeIds" list="treeIdList" placeholder="Pick unpaid trees, or type ids (e.g. Edgar_20260908010248_071)" autocomplete="off">
+            <datalist id="treeIdList"></datalist>
+            <div class="hint">Pick from the pending-tree list (canonical <code>Edgar_&hellip;</code> ids) or type free text. Comma- or space-separated; cover N trees in one row. Leave blank for a general disbursement.</div>
             <div id="overpayGuard" class="overpay-guard"></div>
 
             <label for="payoutStatus">Status</label>
@@ -234,16 +238,50 @@
             // tree list. Never enters the signed payload; never touches PIX.
             const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
             let _overpayFlags = null;
+            let _pendingTrees = [];
 
-            function loadOverpayFlags() {
+            function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
                 return fetch(SUNMINT_PENDING_URL, { cache: 'no-cache' })
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
-                        _overpayFlags = U.computeOverpayFlags((data && data.items) || []);
+                        _pendingTrees = (data && data.items) || [];
+                        _overpayFlags = U.computeOverpayFlags(_pendingTrees);
+                        renderTreeOptions();
                         renderOverpayGuard();
                     })
-                    .catch(function () { _overpayFlags = null; renderOverpayGuard(); });
+                    .catch(function () { _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); });
+            }
+
+            function currentProgram() {
+                const el = $('programSlug');
+                return el ? String(el.value || '').trim() : '';
+            }
+
+            // Blank program => ALL trees. A chosen program narrows to that program's
+            // trees, matched by origin (Submission Source host), mirroring the plan's
+            // "program mapping is by origin". Rows that carry no origin yet are kept
+            // visible rather than silently hidden.
+            function treesForProgram(program) {
+                if (!program) return _pendingTrees;
+                return _pendingTrees.filter(function (t) {
+                    var p = String(t.program_slug || t.program || '').trim();
+                    if (p) return p === program;
+                    var src = String(t.submission_source || '').trim();
+                    if (src) return src.indexOf('//' + program + '.') !== -1;
+                    return true;
+                });
+            }
+
+            function renderTreeOptions() {
+                const dl = $('treeIdList');
+                if (!dl) return;
+                dl.innerHTML = treesForProgram(currentProgram()).map(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    if (!id) return '';
+                    var label = [t.species, t.planting_date].filter(Boolean).join(', ');
+                    return '<option value="' + escapeHtml(id) + '">' + escapeHtml(label) + '</option>';
+                }).join('');
             }
 
             function renderOverpayGuard() {
@@ -345,7 +383,7 @@
                             $('authBadge').textContent = 'Governor';
                             $('authBadge').className = 'status-badge governor';
                             $('content').style.display = 'block';
-                            loadOverpayFlags();
+                            loadPendingTrees();
                         },
                         onDenied: function () {
                             $('authBadge').textContent = 'Not a governor';
@@ -389,7 +427,6 @@
                     if (!U.isValidIso8601(form.paidAt)) $('paidAt').classList.add('invalid');
                     if (!String(form.bankRef).trim()) $('bankRef').classList.add('invalid');
                     if (!String(form.recipientName).trim()) $('recipientName').classList.add('invalid');
-                    if (!String(form.programSlug).trim()) $('programSlug').classList.add('invalid');
                     setStatus(check.errors.join(' '), 'error');
                     return;
                 }
@@ -450,6 +487,8 @@
                 $('submitButton').addEventListener('click', submit);
                 const treeInput = $('treeIds');
                 if (treeInput) treeInput.addEventListener('input', renderOverpayGuard);
+                const programSel = $('programSlug');
+                if (programSel) programSel.addEventListener('change', renderTreeOptions);
             });
         })();
     </script>
