@@ -147,6 +147,112 @@
         ];
     }
 
+    var OVERPAY_COLOCATED_METERS = 1.0;
+
+    /** Coerce a possibly-stringy coordinate to a finite number, else null. */
+    function _num(v) {
+        if (v === null || v === undefined || v === '') return null;
+        var n = Number(v);
+        return isFinite(n) ? n : null;
+    }
+
+    /** Great-circle distance in metres between two lat/lng pairs (haversine). */
+    function haversineMeters(lat1, lng1, lat2, lng2) {
+        var R = 6371000.0, toRad = Math.PI / 180;
+        var dLat = (lat2 - lat1) * toRad;
+        var dLng = (lng2 - lng1) * toRad;
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+    }
+
+    /**
+     * Overpay guards over a set of pending tree rows. Returns ONLY the flagged
+     * ids: { tree_id: { duplicate, duplicate_with[], colocated, colocated_with[] } }.
+     *   - duplicate  : shares a photo_url with another row, or the tree_id repeats.
+     *   - colocated  : a DIFFERENT tree_id sits within `colocatedMeters` (default 1 m).
+     * A 200 m threshold is deliberately NOT the default: on a real plantation trees
+     * sit ~3 m apart, so 200 m would flag ~98% of the list and be ignored. This is
+     * purely advisory UI and never part of the signed payload.
+     */
+    function computeOverpayFlags(rows, opts) {
+        opts = opts || {};
+        var within = (typeof opts.colocatedMeters === 'number') ? opts.colocatedMeters : OVERPAY_COLOCATED_METERS;
+        var norm = (rows || []).map(function (r) {
+            return {
+                tree_id: trim(r.tree_id || r.telegram_message_id || ''),
+                photo_url: trim(r.photo_url || ''),
+                latitude: _num(r.latitude),
+                longitude: _num(r.longitude)
+            };
+        });
+        var byId = {};
+        function bucket(id) {
+            if (!byId[id]) {
+                byId[id] = { tree_id: id, duplicate: false, duplicate_with: [], colocated: false, colocated_with: [] };
+            }
+            return byId[id];
+        }
+        norm.forEach(function (r) { if (r.tree_id) bucket(r.tree_id); });
+
+        // duplicate: same photo_url (byte-identical = same physical tree re-ingested)
+        var byPhoto = {};
+        norm.forEach(function (r) {
+            if (!r.tree_id || !r.photo_url) return;
+            (byPhoto[r.photo_url] = byPhoto[r.photo_url] || []).push(r.tree_id);
+        });
+        Object.keys(byPhoto).forEach(function (p) {
+            var ids = byPhoto[p];
+            if (ids.length < 2) return;
+            ids.forEach(function (id) {
+                var b = bucket(id);
+                b.duplicate = true;
+                ids.forEach(function (o) {
+                    if (o !== id && b.duplicate_with.indexOf(o) === -1) b.duplicate_with.push(o);
+                });
+            });
+        });
+
+        // duplicate: the same tree_id appears more than once in the feed
+        var counts = {};
+        norm.forEach(function (r) { if (r.tree_id) counts[r.tree_id] = (counts[r.tree_id] || 0) + 1; });
+        Object.keys(counts).forEach(function (id) { if (counts[id] > 1) bucket(id).duplicate = true; });
+
+        // colocated: a DIFFERENT tree_id within `within` metres
+        for (var i = 0; i < norm.length; i++) {
+            for (var j = i + 1; j < norm.length; j++) {
+                var a = norm[i], b = norm[j];
+                if (!a.tree_id || !b.tree_id || a.tree_id === b.tree_id) continue;
+                if (a.latitude === null || a.longitude === null || b.latitude === null || b.longitude === null) continue;
+                var m = haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
+                if (m > within) continue;
+                var rounded = Math.round(m * 10) / 10;
+                bucket(a.tree_id).colocated = true;
+                bucket(b.tree_id).colocated = true;
+                bucket(a.tree_id).colocated_with.push({ tree_id: b.tree_id, meters: rounded });
+                bucket(b.tree_id).colocated_with.push({ tree_id: a.tree_id, meters: rounded });
+            }
+        }
+
+        var out = {};
+        Object.keys(byId).forEach(function (id) {
+            var b = byId[id];
+            if (b.duplicate || b.colocated) out[id] = b;
+        });
+        return out;
+    }
+
+    /** Flags for the ids the operator actually entered (input order preserved). */
+    function overpayWarningsFor(flags, treeIds) {
+        var out = [];
+        (treeIds || []).forEach(function (id) {
+            var f = (flags || {})[id];
+            if (f) out.push(f);
+        });
+        return out;
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -158,7 +264,11 @@
         parseAmount: parseAmount,
         isValidIso8601: isValidIso8601,
         validate: validate,
-        buildAttributes: buildAttributes
+        buildAttributes: buildAttributes,
+        OVERPAY_COLOCATED_METERS: OVERPAY_COLOCATED_METERS,
+        haversineMeters: haversineMeters,
+        computeOverpayFlags: computeOverpayFlags,
+        overpayWarningsFor: overpayWarningsFor
     };
 
     global.PayoutEventUtils = utils;
