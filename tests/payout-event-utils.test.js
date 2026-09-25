@@ -126,6 +126,38 @@ test('PRIVACY: a CPF-like string passed as recipient name is not silently kept a
     assert.strictEqual(map['Recipient PK Hash'], u.UNLINKED_RECIPIENT);
 });
 
+test('buildAttributes emits Attached Filename + private Destination when a receipt is attached', () => {
+    const attrs = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, {
+        receiptFileName: 'payout_20260925_abc123.pdf',
+        receiptLocation: 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/payout_20260925_abc123.pdf'
+    }), {}));
+    assert.strictEqual(attrs['Attached Filename'], 'payout_20260925_abc123.pdf');
+    assert.ok(/payout-receipts-raw/.test(attrs['Destination Payout Receipt File Location']));
+});
+
+test('buildAttributes degrades to (none) when no receipt is attached', () => {
+    const attrs = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, { receiptFileName: '', receiptLocation: '' }), {}));
+    assert.strictEqual(attrs['Attached Filename'], '(none)');
+    assert.strictEqual(attrs['Receipt URL'], '(none)');
+});
+
+test('buildAttributes keeps a pasted Receipt URL as the fallback (no attachment)', () => {
+    const attrs = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, {
+        receiptFileName: '', receiptLocation: '', receiptUrl: 'https://drive.example.com/r/1'
+    }), {}));
+    assert.strictEqual(attrs['Receipt URL'], 'https://drive.example.com/r/1');
+});
+
+test('PRIVACY: a receipt destination must never point at a PUBLIC repo', () => {
+    // The receipt carries PII (name/CPF/PIX). Only the private receipts store is legal.
+    const dest = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, {
+        receiptFileName: 'x.pdf',
+        receiptLocation: 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/x.pdf'
+    }), {}))['Destination Payout Receipt File Location'];
+    assert.ok(/payout-receipts-raw/.test(dest), 'must target the private receipts repo');
+    assert.ok(!/\/\.github\//.test(dest) && !/store_interaction_attachments/.test(dest), 'never the public .github store');
+});
+
 // --- overpay guards --------------------------------------------------------
 test('haversineMeters: identical points are 0 m', () => {
     assert.strictEqual(u.haversineMeters(-3.1, -52.1, -3.1, -52.1), 0);

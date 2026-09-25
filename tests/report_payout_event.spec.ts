@@ -301,6 +301,55 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#submitButton')).toHaveText(/Submit Payout/i);
   });
 
+  test('attaching a receipt emits a PRIVATE destination and never the public store', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Real ephemeral keypair + Edgar route override (mirrors the happy-path test).
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: 'success' }) });
+      }
+      return route.continue();
+    });
+
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await page.fill('#amount', 'R$ 50,00');
+    await page.selectOption('#currency', 'BRL');
+    await page.fill('#paidAt', '2026-09-12T21:38:00Z');
+    await page.fill('#bankRef', 'E6890081000000000000000000000');
+
+    // Attach a receipt (an in-memory PNG). The page must NOT echo the original
+    // filename — it is replaced with an opaque payout_<stamp>_<rand>.<ext>.
+    await page.setInputFiles('#receiptFileInput', {
+      name: 'Maria_Silva_CPF_111.444.777-35.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 fake receipt'),
+    });
+
+    await page.click('#submitButton');
+    await expect(page.locator('#status')).toContainText(/Payout recorded/i, { timeout: 20000 });
+
+    const requestPre = await page.locator('#requestPre').textContent();
+    // Destination must be the PRIVATE receipts repo...
+    expect(requestPre).toContain('Destination Payout Receipt File Location: https://github.com/TrueSightDAO/payout-receipts-raw/');
+    // ...and NEVER the public .github attachment store.
+    expect(requestPre).not.toContain('github.com/TrueSightDAO/.github/');
+    // The original (PII-bearing) filename must never appear in the public payload.
+    expect(requestPre).not.toContain('Maria_Silva');
+    expect(requestPre).not.toContain('111.444.777-35');
+    // The Attached Filename is the opaque generated name.
+    expect(requestPre).toMatch(/Attached Filename: payout_\d{14}_[0-9a-f]{6}\.pdf/);
+  });
+
   test('scripts load with no console errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
