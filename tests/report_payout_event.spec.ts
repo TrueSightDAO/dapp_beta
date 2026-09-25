@@ -55,6 +55,20 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
     if (url.includes('dao_members.json')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_MEMBERS) });
     }
+    if (url.includes('sunmint_pending.json')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          count: 2,
+          items: [
+            { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW' },
+            { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW' },
+          ],
+        }),
+      });
+    }
     if (url.includes('/public_keys/')) {
       // Per-key path is tried first; 404 makes permissions.js fall back to the monolith.
       return route.fulfill({ status: 404, body: 'mocked 404' });
@@ -232,6 +246,59 @@ test.describe('report_payout_event.html', () => {
     const requestPre = await page.locator('#requestPre').textContent();
     expect(requestPre).toContain('Program: unlinked_program');
     expect(submittedBody).toContain('unlinked_program');
+  });
+
+  test('governor: tree picker lists unpaid trees; post-submit they leave the list and the button resets', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: 'success' }) });
+      }
+      return route.continue();
+    });
+
+    // The picker exposes the unpaid trees.
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    // Picking one appends it to #treeIds.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1');
+    await page.selectOption('#treePicker', 'Edgar_TEST_T2');
+    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1, Edgar_TEST_T2');
+
+    // Recipient is OPTIONAL - leave it blank.
+    await page.fill('#amount', 'R$ 50,00');
+    await page.selectOption('#currency', 'BRL');
+    await page.fill('#paidAt', '2026-09-12T21:38:00Z');
+    await page.fill('#bankRef', 'E6890081000000000000000000000');
+    await page.click('#submitButton');
+
+    await expect(page.locator('#status')).toContainText(/Payout recorded/i, { timeout: 20000 });
+    const requestPre = await page.locator('#requestPre').textContent();
+    expect(requestPre).toContain('Tree Planting IDs: Edgar_TEST_T1, Edgar_TEST_T2');
+    expect(requestPre).toContain('Recipient: \n'); // blank recipient -> empty value
+
+    // The just-paid trees are NO LONGER selectable...
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(0);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(0);
+    // ...and the button now offers a fresh form.
+    await expect(page.locator('#submitButton')).toHaveText(/Submit another payout/i);
+
+    // Clicking it RESETS the form.
+    await page.click('#submitButton');
+    await expect(page.locator('#treeIds')).toHaveValue('');
+    await expect(page.locator('#amount')).toHaveValue('');
+    await expect(page.locator('#submitButton')).toHaveText(/Submit Payout/i);
   });
 
   test('scripts load with no console errors', async ({ page }) => {
