@@ -194,6 +194,46 @@ test.describe('report_payout_event.html', () => {
     expect(submittedBody).toContain('PAYOUT EVENT');
   });
 
+  test('governor: a BLANK program is optional and emits unlinked_program', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+
+    let submittedBody = '';
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        submittedBody = route.request().postData() || '';
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: 'success' }),
+        });
+      }
+      return route.continue();
+    });
+
+    // Program deliberately left blank -> a general disbursement is still valid.
+    await page.fill('#programSlug', '');
+    await page.fill('#amount', 'R$ 50,00');
+    await page.selectOption('#currency', 'BRL');
+    await page.fill('#paidAt', '2026-09-12T21:38:00Z');
+    await page.fill('#bankRef', 'E6890081000000000000000000000');
+    await page.fill('#recipientName', 'Paulo');
+    await page.click('#submitButton');
+
+    await expect(page.locator('#status')).toContainText(/Payout recorded/i, { timeout: 20000 });
+    const requestPre = await page.locator('#requestPre').textContent();
+    expect(requestPre).toContain('Program: unlinked_program');
+    expect(submittedBody).toContain('unlinked_program');
+  });
+
   test('scripts load with no console errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
