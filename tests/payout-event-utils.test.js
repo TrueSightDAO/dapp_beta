@@ -389,6 +389,33 @@ test('treeDetailFields: ordered, blank-stripped, no photo_url / no PII fields', 
     assert.deepStrictEqual(u.treeDetailFields(null), []);
 });
 
+// --- display identity: txid-first, transport-id fallback ---------------------
+test('shortTxid: first 8 chars of the Request Transaction ID, else ""', () => {
+    assert.strictEqual(u.shortTxid({ request_txid: 'ABCDEFGH1234567' }), 'ABCDEFGH');
+    assert.strictEqual(u.shortTxid({ request_txid: '' }), '');
+    assert.strictEqual(u.shortTxid({}), '');
+    assert.strictEqual(u.shortTxid(null), '');
+});
+test('treeDisplayId: prefers tx:<8>; falls back to telegram_message_id / tree_id', () => {
+    assert.strictEqual(u.treeDisplayId({ request_txid: 'ABCDEFGH1234567', telegram_message_id: 'Edgar_1_2' }), 'tx:ABCDEFGH');
+    assert.strictEqual(u.treeDisplayId({ telegram_message_id: 'Edgar_1_2' }), 'Edgar_1_2');
+    assert.strictEqual(u.treeDisplayId({ tree_id: 'Edgar_9_9' }), 'Edgar_9_9');
+    assert.strictEqual(u.treeDisplayId({}), '');
+    assert.strictEqual(u.treeDisplayId(null), '');
+});
+test('treeDisplayId: two rows sharing one txid render the SAME label (they are the dup pair)', () => {
+    const a = u.treeDisplayId({ request_txid: 'SAMETXID999', telegram_message_id: 'Edgar_1' });
+    const b = u.treeDisplayId({ request_txid: 'SAMETXID999', telegram_message_id: 'Edgar_2' });
+    assert.strictEqual(a, b);
+    assert.strictEqual(a, 'tx:SAMETXID');
+});
+test('overpayReasonBits: labelFor renders partner ids in display form, keys unchanged', () => {
+    const f = { duplicate: false, colocated: true, colocated_with: [{ tree_id: 'P1', meters: 0.4 }] };
+    const bits = u.overpayReasonBits(f, { labelFor: (x) => 'tx:' + x });
+    assert.deepStrictEqual(bits, ['co-located with tx:P1 (0.4 m)']);
+    assert.deepStrictEqual(u.overpayReasonBits(f), ['co-located with P1 (0.4 m)']);
+});
+
 test('maskedKeyByPkHash: maps pk_hash -> masked type+key, first wins', () => {
   const m = u.maskedKeyByPkHash([
     { pk_hash: 'pk-A', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },

@@ -322,15 +322,19 @@
      *   ['duplicate (same record as Edgar_.._013)']
      *   ['co-located with Edgar_.._015 (0.0 m)']
      */
-    function overpayReasonBits(f) {
+    function overpayReasonBits(f, opts) {
         var bits = [];
         if (!f) return bits;
+        // `opts.labelFor` lets a caller render partner ids in their DISPLAY form
+        // (e.g. `tx:<8>`) without changing the stored (canonical) keys. Defaults
+        // to identity so the pure-util contract is unchanged.
+        var L = (opts && typeof opts.labelFor === 'function') ? opts.labelFor : function (x) { return x; };
         if (f.duplicate) {
             var dw = (f.duplicate_with || []);
             if (f.duplicate_txid) {
-                bits.push('duplicate (same Request Transaction ID as ' + (dw.length ? dw.join(', ') : 'another row') + ')');
+                bits.push('duplicate (same Request Transaction ID as ' + (dw.length ? dw.map(L).join(', ') : 'another row') + ')');
             } else {
-                bits.push('duplicate' + (dw.length ? ' (same record as ' + dw.join(', ') + ')' : ''));
+                bits.push('duplicate' + (dw.length ? ' (same record as ' + dw.map(L).join(', ') + ')' : ''));
             }
         }
         if (f.colocated) {
@@ -342,7 +346,7 @@
                 return (a.meters || 0) - (b.meters || 0);
             });
             var shown = cwAll.slice(0, OVERPAY_REASON_PARTNER_LIMIT).map(function (c) {
-                return c.tree_id + ' (' + c.meters + ' m)';
+                return L(c.tree_id) + ' (' + c.meters + ' m)';
             });
             var extra = cwAll.length - OVERPAY_REASON_PARTNER_LIMIT;
             bits.push('co-located with ' + shown.join(', ') + (extra > 0 ? ' and ' + extra + ' more' : ''));
@@ -457,6 +461,33 @@
             ['Submitted by', trim(tree.submitted_name)]
         ];
         return fields.filter(function (f) { return f[1] !== ''; });
+    }
+
+    /**
+     * First 8 chars of a tree's signed `Request Transaction ID` (the DAO's
+     * canonical, re-post-stable identity), or '' when the row predates the txid
+     * column. A raw txid is ~344 chars -- far too long to display -- so the short
+     * form is the human handle. It is a LABEL only, never a payload key
+     * (conventions/DEDUP_KEY_CONVENTION.md).
+     */
+    function shortTxid(tree) {
+        var t = trim((tree && tree.request_txid) || '');
+        return t ? t.slice(0, 8) : '';
+    }
+
+    /**
+     * Display identity for a pending tree: the signed `Request Transaction ID`
+     * rendered as `tx:<8 chars>` (the DAO's canonical key), falling back to the
+     * transport id (`telegram_message_id` / `tree_id`) only when the row has no
+     * txid. DISPLAY ONLY -- the picker value and the signed payload keep the
+     * canonical id, so nothing downstream (autofill map, reject join, consumer)
+     * changes.
+     */
+    function treeDisplayId(tree) {
+        if (!tree) return '';
+        var tx = shortTxid(tree);
+        if (tx) return 'tx:' + tx;
+        return trim(tree.telegram_message_id || tree.tree_id || '');
     }
 
     /**
@@ -619,6 +650,8 @@
         buildTreeRecipientMap: buildTreeRecipientMap,
         findPendingTree: findPendingTree,
         treeDetailFields: treeDetailFields,
+        shortTxid: shortTxid,
+        treeDisplayId: treeDisplayId,
         maskedKeyByPkHash: maskedKeyByPkHash,
         deriveStatus: deriveStatus,
         programsFromRegistry: programsFromRegistry,
