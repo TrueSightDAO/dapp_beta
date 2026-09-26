@@ -442,9 +442,11 @@ test.describe('report_payout_event.html', () => {
     await expect(card.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/a.jpg');
     // The clicked row is highlighted as the current selection.
     await expect(page.locator('#overpayGuard .overpay-all-row.is-selected')).toContainText('Edgar_FLAG_A');
-    // ...and the tree's OWN card renders inside the guard (overpay-tree-card), one per pick.
-    await expect(page.locator('#overpayGuard .overpay-tree-card .tree-card')).toHaveCount(1);
-    await expect(page.locator('#overpayGuard .overpay-tree-card .tc-id')).toHaveText('Edgar_FLAG_A');
+    // The card renders EXACTLY ONCE -- in #treeDetails, which sits ABOVE the guard.
+    // The guard must NOT also render it (Gary bug 2026-09-26: clicking a flagged
+    // row updated BOTH #treeDetails and #overpay-tree-card with the same details).
+    await expect(page.locator('#overpayGuard .overpay-tree-card')).toHaveCount(0);
+    await expect(page.locator('.tree-card')).toHaveCount(1);
     // Rows are one-per-line (block flow, not inline).
     const block = await page.locator('#overpayGuard .overpay-all-row').first().evaluate((el) => getComputedStyle(el).display);
     expect(block).toBe('block');

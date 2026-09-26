@@ -93,7 +93,6 @@
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
         .overpay-legend { font-size: 0.75rem; color: #777; margin-top: 0.25rem; line-height: 1.45; }
         .overpay-all-row { display: block; width: 100%; font-size: 0.8rem; color: #555; line-height: 1.7; }
-        .overpay-tree-card { margin-top: 0.4rem; }
         .overpay-all-row.is-selected { background: var(--yellow-bg); border-radius: 4px; padding: 0 0.3rem; }
         .flagged-pick { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: #1a4d8f; }
         .flagged-pick:hover code, .flagged-pick:focus code { background: #e8f0fb; text-decoration: underline; }
@@ -567,8 +566,6 @@
                                 f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
                         }
                         html += '<div class="overpay-row">\u26a0 <code>' + escapeHtml(selected) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
-                        // Its own detail card appears right here (Gary item 3).
-                        html += '<div class="overpay-tree-card">' + treeCardHtml(selected) + '</div>';
                     }
                 }
 
