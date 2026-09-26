@@ -339,6 +339,33 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#submitButton')).toHaveText(/Submit Payout/i);
   });
 
+  test('overpay guard: the flagged list shows a REASON per tree and documents the filter', async ({ page }) => {
+    await mockBackend(page);
+    // Two DIFFERENT trees on the SAME fix (0 m apart) -> both flagged co-located.
+    await page.route('**/sunmint_pending.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', count: 2, items: [
+        { telegram_message_id: 'Edgar_FLAG_A', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/a.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+        { telegram_message_id: 'Edgar_FLAG_B', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/b.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    const guard = page.locator('#overpayGuard');
+    await expect(guard).toContainText('2', { timeout: 15000 });
+    // The filter is documented, not a mystery.
+    await expect(guard).toContainText(/shares a photo/i);
+    await expect(guard).toContainText(/within 3 m/i);
+    // Expanding the list shows WHY each tree is flagged (not a bare id dump).
+    await page.click('#overpayGuard details.overpay-all summary');
+    const list = page.locator('#overpayGuard .overpay-all-list');
+    await expect(list).toContainText('Edgar_FLAG_A');
+    await expect(list).toContainText('co-located with');
+    await expect(list).toContainText('(0 m)');
+  });
+
   test('attaching a receipt emits a PRIVATE destination and never the public store', async ({ page }) => {
     await mockBackend(page);
     await signIn(page, GOV_PUBLIC_KEY);
