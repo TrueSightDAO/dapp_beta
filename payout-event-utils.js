@@ -485,8 +485,33 @@
         return !hasData;
     }
 
+    // --- [TREE PLANTING REJECT EVENT] payload -------------------------------
+    // The governor action "mark tree as invalid": the SAME event the
+    // monitor-tree-growth page emits, so the governor/sentinel-only GAS consumer
+    // (process_tree_planting_link.js) treats both identically. The feed tree id
+    // IS the `SunMint Submission Message ID` (the QR line is parsed but unused by
+    // the reject path, hence the `(unlinked)` sentinel for a not-yet-linked tree).
+    // The payload NEVER carries a raw PIX key or any recipient material.
+    var TREE_REJECT_EVENT_NAME = 'TREE PLANTING REJECT EVENT';
+    var TREE_REJECT_UNLINKED_QR = '(unlinked)';
+    var TREE_REJECT_DEFAULT_REASON = 'Not a valid tree';
+
+    function buildTreeRejectAttributes(treeId, qrCode, contributorName, reason) {
+        var id = String(treeId == null ? '' : treeId).trim();
+        return {
+            'QR Code': String(qrCode == null ? '' : qrCode).trim() || TREE_REJECT_UNLINKED_QR,
+            'SunMint Submission Message ID': id,
+            'Updated by': String(contributorName == null ? '' : contributorName).trim(),
+            'Reason': String(reason == null ? '' : reason).trim() || TREE_REJECT_DEFAULT_REASON
+        };
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
+        TREE_REJECT_EVENT_NAME: TREE_REJECT_EVENT_NAME,
+        TREE_REJECT_UNLINKED_QR: TREE_REJECT_UNLINKED_QR,
+        TREE_REJECT_DEFAULT_REASON: TREE_REJECT_DEFAULT_REASON,
+        buildTreeRejectAttributes: buildTreeRejectAttributes,
         CURRENCIES: CURRENCIES,
         BANK_REF_TYPES: BANK_REF_TYPES,
         STATUSES: STATUSES,

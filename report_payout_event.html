@@ -128,6 +128,10 @@
         button:hover { background-color: var(--accent-hover); }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
         .button-container { display: flex; flex-direction: column; align-items: center; }
+        .invalid-zone { align-items: center; gap: 0.6rem; margin: 0.5rem 0 0.25rem; flex-wrap: wrap; }
+        button.danger { background: #b02a37; }
+        button.danger:hover { background: #8f2029; }
+        .invalid-zone .hint { margin: 0; }
         #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
         #status.success, .status { color: var(--green); }
         #status.error, .error { color: var(--red); }
@@ -195,6 +199,10 @@
             </select>
             <div class="hint">Pick one <strong>unpaid</strong> tree (canonical <code>Edgar_&hellip;</code> id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
             <div id="treeDetails" class="tree-details"></div>
+            <div id="invalidZone" class="invalid-zone" style="display:none;">
+                <button id="markInvalidButton" type="button" class="danger">Mark tree as invalid</button>
+                <span class="hint">Marks this SunMint submission INVALID (governor/sentinel only).</span>
+            </div>
             <div id="overpayGuard" class="overpay-guard"></div>
 
             <div class="row2">
@@ -311,6 +319,7 @@
             let _awaitingAnotherPayout = false;
             let _selectedTreeId = '';        // the ONE tree currently selected (single-select picker)
             let _programHosts = {};          // host -> program slug (from the registry, SSOT)
+            let _signedInName = '';          // resolved contributor name (for the reject payload)
 
             function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
@@ -510,6 +519,9 @@
                 if (!host) return;
                 const id = String(_selectedTreeId || '').trim();
                 host.innerHTML = id ? treeCardHtml(id) : '';
+                // The reject action is meaningful only with a tree selected.
+                const zone = $('invalidZone');
+                if (zone) zone.style.display = id ? 'flex' : 'none';
             }
 
             function loadTreeRecipientMap() {
@@ -703,6 +715,7 @@
                         return;
                     }
 
+                    _signedInName = data.contributor_name || '';
                     $('welcome').textContent = 'Signed in as ' + (data.contributor_name || '(contributor)');
                     window.Permissions.requireRole({
                         action: PAGE_ACTION,
@@ -881,6 +894,67 @@
                 })();
             }
 
+            // "Mark tree as invalid": emit the SAME [TREE PLANTING REJECT EVENT] the
+            // monitor-tree-growth page emits, so the governor/sentinel-only GAS
+            // consumer (process_tree_planting_link.js) handles both identically. The
+            // page is governor-gated and the server RE-CHECKS the role, so a stray
+            // click cannot invalidate anything. The payload carries NO recipient
+            // material -- it is republished as a PUBLIC raw chatlog.
+            function rejectTree() {
+                const id = String(_selectedTreeId || '').trim();
+                if (!id) { setStatus('Select a tree first.', 'error'); return; }
+                if (!window.confirm('Mark ' + id + ' as INVALID?\n\nThis removes the tree from the index (it must not touch the sold QR).')) return;
+                const reason = (window.prompt('Reason (optional):', U.TREE_REJECT_DEFAULT_REASON) || '').trim();
+
+                const privateKey = (function () { try { return localStorage.getItem('privateKey'); } catch (_) { return null; } })();
+                if (!privateKey) {
+                    setStatus('Your private key is missing from this browser. Re-register via the Digital Signature Creator.', 'error');
+                    return;
+                }
+
+                const btn = $('markInvalidButton');
+                if (btn) btn.disabled = true;
+                setStatus('Signing and submitting the invalid-marking\u2026', 'loading');
+
+                (async function () {
+                    try {
+                        const helper = new EdgarPayloadHelper({
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const attributes = U.buildTreeRejectAttributes(id, '', _signedInName, reason);
+                        const gen = await helper.generatePayload({
+                            eventName: U.TREE_REJECT_EVENT_NAME,
+                            attributes: attributes,
+                            privateKey: privateKey,
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+
+                        // Forensic panel: the verbatim signed payload.
+                        $('requestPre').textContent = gen.shareText;
+                        $('responsePre').textContent = '';
+                        $('submissionResult').style.display = 'block';
+
+                        const submission = await EdgarSubmission.submitWithRetry({
+                            url: EDGAR_SUBMIT, text: gen.shareText, attempts: 3
+                        });
+                        const result = submission.result || {};
+                        $('responsePre').textContent = JSON.stringify(result, null, 2);
+
+                        if (result.signature_verification === 'success') {
+                            setStatus('Marked ' + id + ' as INVALID. It will drop from the tree index shortly.', 'success');
+                        } else {
+                            setStatus('Submitted, but Edgar did not confirm verified delivery \u2014 review the response below.', 'error');
+                        }
+                    } catch (err) {
+                        setStatus('Invalid-marking failed: ' + err.message, 'error');
+                    } finally {
+                        if (btn) btn.disabled = false;
+                    }
+                })();
+            }
+
             window.addEventListener('DOMContentLoaded', function () {
                 boot();
                 loadTreeRecipientMap();
@@ -896,6 +970,8 @@
                     if (!btn) return;
                     selectTreeById(btn.getAttribute('data-tree-id'));
                 });
+                const markBtn = $('markInvalidButton');
+                if (markBtn) markBtn.addEventListener('click', rejectTree);
                 wireReceiptAttachment();
             });
         })();
