@@ -1,8 +1,981 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<META_PLACEHOLDER>
+    <meta charset="UTF-8">
+    <meta name="description" content="Governor-only: record an outbound payout (compensation transfer) as a signed [PAYOUT EVENT].">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Payout &middot; TrueSight DAO</title>
+
+    <meta property="og:title" content="Report Payout &mdash; TrueSight DAO">
+    <meta property="og:description" content="Governor-only: record an outbound payout (compensation transfer) as a signed [PAYOUT EVENT].">
+    <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+    <meta property="og:url" content="https://truesightdao.github.io/dapp/">
+    <meta property="og:type" content="website">
+
+    <link rel="icon" type="image/png" href="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
+
+    <script src="./routes.js"></script>
+    <script src="./menu.js?v=20260914a"></script>
+    <script src="./tdg_balance.js"></script>
+    <script src="./scripts/dao_members_cache.js"></script>
+    <script src="./scripts/permissions.js"></script>
+    <script src="./scripts/edgar_payload_helper.js"></script>
+    <script src="./scripts/edgar_submission.js?v=20260913a"></script>
+    <script src="./payout-event-utils.js?v=20260926b"></script>
+
+    <style>
+        /* TrueSight DApp — light "Saffron Monk" / earthen palette, matching link_tree_planting.html */
+        :root {
+            --bg: #f5f5f5;
+            --surface: #ffffff;
+            --surface-hover: #f7f7f7;
+            --border: #e2e2e2;
+            --text: #333333;
+            --text-muted: #777777;
+            --accent: #166534;
+            --accent-hover: #1f7a44;
+            --green: #166534;
+            --green-bg: #e8f5e9;
+            --red: #dc3545;
+            --red-bg: #fdecea;
+            --yellow: #92710a;
+            --yellow-bg: #fff8e1;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 1rem;
+            padding: 1rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+        .container {
+            max-width: 640px;
+            width: 100%;
+            background-color: var(--surface);
+            padding: 1.25rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 1.8rem; color: var(--text); margin: 0.5rem 0 1rem; text-align: center; }
+        #description { font-style: italic; color: #555; line-height: 1.5; margin: 0.8rem 0; font-size: 1rem; text-align: center; }
+        #welcome { text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .status-badge {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+            font-size: 0.75rem; font-weight: bold; letter-spacing: 0.02em;
+        }
+        .status-badge.governor { background: var(--green-bg); color: var(--green); }
+        .status-badge.readonly { background: var(--yellow-bg); color: var(--yellow); }
+        #authRow { text-align: center; margin: 0.5rem 0 1rem; }
+        .privacy-note {
+            background: #eef5ec; border: 1px solid #cfe0c9; border-radius: 8px;
+            padding: 0.7rem 0.9rem; margin: 1rem 0; font-size: 0.85rem; color: #2e5a28; line-height: 1.5;
+        }
+        .privacy-note strong { color: #1b3d17; }
+        .input-group { margin: 1rem 0; text-align: left; }
+        label { display: block; margin: 0.5rem 0 0.2rem; font-size: 0.95rem; color: #333; }
+        input, select { margin-bottom: 0.8rem; width: 100%; padding: 0.5rem; border-radius: 5px; border: 1px solid #ddd; font-size: 0.95rem; box-sizing: border-box; }
+        input.invalid, select.invalid { border-color: var(--red); background-color: #fff0f0; }
+        .hint { font-size: 0.8rem; color: #777; margin: -0.5rem 0 0.8rem; }
+        .overpay-guard { margin: 0.2rem 0 0.8rem; }
+        .overpay-summary { font-size: 0.8rem; color: #555; margin-bottom: 0.3rem; }
+        .overpay-row {
+            font-size: 0.82rem; background: var(--yellow-bg); border: 1px solid #e6d79a;
+            border-radius: 6px; padding: 0.4rem 0.6rem; margin: 0.25rem 0; color: #6b5408; line-height: 1.45;
+        }
+        .overpay-row code { background: #fff; padding: 0 0.2rem; border-radius: 3px; }
+        .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
+        .overpay-all-list { margin-top: 0.3rem; display: flex; flex-direction: column; gap: 0.15rem; }
+        .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
+        .overpay-legend { font-size: 0.75rem; color: #777; margin-top: 0.25rem; line-height: 1.45; }
+        .overpay-all-row { display: block; width: 100%; font-size: 0.8rem; color: #555; line-height: 1.7; }
+        .overpay-all-row.is-selected { background: var(--yellow-bg); border-radius: 4px; padding: 0 0.3rem; }
+        .flagged-pick { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: #1a4d8f; }
+        .flagged-pick:hover code, .flagged-pick:focus code { background: #e8f0fb; text-decoration: underline; }
+        .tree-details { margin: 0.2rem 0 0.9rem; }
+        .tree-card { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.6rem 0.7rem; margin: 0.35rem 0; display: flex; gap: 0.7rem; }
+        .tree-card img.tc-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; flex: 0 0 auto; background: #eee; }
+        .tree-card .tc-main { flex: 1; min-width: 0; }
+        .tree-card .tc-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #111; word-break: break-all; }
+        .tree-card .tc-meta { font-size: 0.78rem; color: #666; margin-top: 0.15rem; line-height: 1.5; }
+        .tree-card .tc-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; margin-top: 0.2rem; }
+        .tree-card .tc-masked { display: block; margin-top: 0.15rem; font-size: 0.76rem; color: #7a5c00; font-weight: 600; }
+        .tree-card .tc-none { font-size: 0.78rem; color: #8a6d3b; margin-top: 0.2rem; }
+        .primary-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+            background: var(--accent); color: #fff; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+        .opt-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+            background: #e9e9e9; color: #666; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+        .sub-label { font-size: 0.85rem; color: #666; margin-top: 0.2rem; }
+        .paste-area {
+            border: 2px dashed #ccc; padding: 0.9rem; text-align: center; margin: 0.4rem 0 0.6rem;
+            border-radius: 6px; cursor: pointer; background: #f8f9fa; font-size: 0.95rem; color: #333;
+        }
+        .paste-area:hover { background: #e9ecef; }
+        .paste-area.has-file { border-style: solid; border-color: #2e7d32; background: #f1f8f2; }
+        .info-location { font-size: 0.82rem; color: #666; word-break: break-all; margin-bottom: 0.6rem; }
+        #receipt-file-preview { max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 0.6rem; }
+        #treePicker { margin-bottom: 0.4rem; }
+        .row2 { display: flex; gap: 0.75rem; }
+        .row2 > div { flex: 1; }
+        button {
+            padding: 0.8rem 1.5rem; cursor: pointer; font-size: 1.1rem; border: none; border-radius: 8px;
+            background-color: var(--accent); color: white; margin: 0.5rem 0; width: 100%; max-width: 320px;
+        }
+        button:hover { background-color: var(--accent-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .button-container { display: flex; flex-direction: column; align-items: center; }
+        .invalid-zone { align-items: center; gap: 0.6rem; margin: 0.5rem 0 0.25rem; flex-wrap: wrap; }
+        button.danger { background: #b02a37; }
+        button.danger:hover { background: #8f2029; }
+        .invalid-zone .hint { margin: 0; }
+        #status { margin: 1rem 0; font-weight: bold; min-height: 24px; font-size: 1rem; text-align: center; }
+        #status.success, .status { color: var(--green); }
+        #status.error, .error { color: var(--red); }
+        .loading { color: #6c757d; font-style: italic; }
+        #submissionResult { margin-top: 1.5rem; display: none; }
+        #submissionResult h3 { font-size: 0.95rem; margin: 1.2rem 0 0.4rem; color: #333; }
+        #submissionResult pre {
+            background: #f7f7f7; border: 1px solid #ddd; border-radius: 4px;
+            padding: 0.8rem 1rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;
+            word-break: break-word; max-height: 360px; overflow: auto;
+        }
+        .recipients-panel { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.8rem 0.9rem; margin: 0.6rem 0 1rem; }
+        .recipients-panel h3 { margin: 0 0 0.3rem; font-size: 0.95rem; color: #333; }
+        .recipients-panel .rp-sub { font-size: 0.78rem; color: #777; margin-bottom: 0.5rem; line-height: 1.4; }
+        .recipient-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid #e4e4e4; background: #fff; margin: 0.25rem 0; }
+        .recipient-row .rp-main { flex: 1; min-width: 0; }
+        .recipient-row .rp-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #111; word-break: break-all; }
+        .recipient-row .rp-meta { font-size: 0.75rem; color: #666; margin-top: 0.1rem; }
+        .recipient-row .rp-status { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 10px; padding: 0.1rem 0.45rem; background: #eee; color: #555; white-space: nowrap; }
+        .recipient-row .rp-status.active { background: var(--green-bg); color: var(--green); }
+        .recipient-row button.rp-use { width: auto; max-width: none; margin: 0; padding: 0.35rem 0.7rem; font-size: 0.8rem; border-radius: 6px; background: var(--accent); }
+        .recipient-row button.rp-use:hover { background: var(--accent-hover); }
+    </style>
 </head>
 <body>
+    <div id="navDropdown" style="margin:1rem 0; text-align:center;"></div>
+    <div id="tdgBalanceBadge"></div>
+    <div id="gateContainer"></div>
+
+    <div id="content" class="container" style="display:none;">
+        <div style="text-align: center;">
+            <img id="logo" height="170px" src="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true" alt="TrueSight DAO Logo"/>
+        </div>
+        <h1>Report Payout</h1>
+        <div id="welcome"></div>
+        <div id="authRow"><span class="status-badge" id="authBadge">Checking authorization&hellip;</span></div>
+
+        <p id="description">
+            Governor-only. Record an <strong>outbound compensation transfer</strong> (e.g. a PIX payment
+            for tree planting) as a signed <code>[PAYOUT EVENT]</code>. One row per <em>transfer</em> —
+            pick the tree the transfer covers.
+        </p>
+
+        <div class="privacy-note">
+            <strong>The raw recipient PIX key never travels here.</strong> This page submits to Edgar,
+            whose intake is republished as a <em>public</em> chatlog. The <strong>tree id is the primary
+            field</strong> &mdash; picking a tree attaches its recipient automatically. If a recipient is known,
+            a non-reversible <code>recipient_pk_hash</code> links the payout &mdash; the
+            private key stays in the restricted payout register.
+        </div>
+
+        <div class="input-group">
+            <label for="programSlug">Program</label>
+            <select id="programSlug">
+                <option value="">(no program &mdash; general disbursement)</option>
+                <option value="crf-anapu" selected>crf-anapu</option>
+            </select>
+            <div class="hint">The program this payout belongs to. Pick one to narrow the unpaid-tree list below to that program&rsquo;s trees; leave it as <em>no program</em> for a general disbursement (the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write does not fire).</div>
+            <div id="programFilterNote" class="hint" style="display:none;"></div>
+
+            <label for="treePicker">Tree Planting ID <span class="primary-tag">primary</span></label>
+            <select id="treePicker">
+                <option value="">Loading unpaid trees&hellip;</option>
+            </select>
+            <div class="hint">Pick one <strong>unpaid</strong> tree (canonical <code>Edgar_&hellip;</code> id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
+            <div id="treeDetails" class="tree-details"></div>
+            <div id="invalidZone" class="invalid-zone" style="display:none;">
+                <button id="markInvalidButton" type="button" class="danger">Mark tree as invalid</button>
+                <span class="hint">Marks this SunMint submission INVALID (governor/sentinel only).</span>
+            </div>
+            <div id="overpayGuard" class="overpay-guard"></div>
+
+            <div class="row2">
+                <div>
+                    <label for="amount">Amount</label>
+                    <input type="text" id="amount" placeholder="e.g. 50" autocomplete="off" required>
+                </div>
+                <div>
+                    <label for="currency">Currency</label>
+                    <select id="currency">
+                        <option value="BRL">BRL</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+            </div>
+
+            <label for="paidAt">Paid At</label>
+            <input type="text" id="paidAt" placeholder="2026-09-12T21:38:00Z" autocomplete="off" required>
+            <div class="hint">When the money actually left &mdash; ISO 8601. For a backfill this is the historical date, not today.</div>
+
+            <div class="row2">
+                <div>
+                    <label for="bankRefType">Bank Ref Type</label>
+                    <select id="bankRefType">
+                        <option value="PIX-E2E">PIX-E2E</option>
+                        <option value="PIX-TXID">PIX-TXID</option>
+                        <option value="WIRE-REF">WIRE-REF</option>
+                        <option value="OTHER">OTHER</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="bankRef">Bank Ref</label>
+                    <input type="text" id="bankRef" placeholder="E6890081…" autocomplete="off" required>
+                </div>
+            </div>
+            <div class="hint">The transfer's end-to-end id from the bank statement &mdash; the reconciliation anchor.</div>
+
+            <label for="recipientPkHash">Recipient PK Hash</label>
+            <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
+            <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
+
+            <div id="recipientsPanel" class="recipients-panel" style="display:none;">
+                <h3>Registered recipients <span class="opt-tag">from the private register</span></h3>
+                <div class="rp-sub">One row per <code>pk_hash</code> (an ACTIVE row wins, else the most recent). Click <strong>Use</strong> to fill the recipient field &mdash; the raw PIX key is never shown here.</div>
+                <div id="recipientsList"></div>
+                <div id="recipientsStatus" class="hint"></div>
+            </div>
+
+            <div class="hint">Status is set automatically from <strong>Paid At</strong>: <code>backfill</code> when it is before today, otherwise <code>live</code> &mdash; no need to pick it.</div>
+
+            <label for="receiptPasteArea">Receipt (attachment)</label>
+            <div class="hint">Optional. Attach the bank-transfer receipt (image or PDF). It is uploaded to the <strong>private</strong> <code>TrueSightDAO/payout-receipts-raw</code> repo &mdash; never a public one.</div>
+            <div id="receiptPasteArea" class="paste-area" tabindex="0">Click to select or paste (Ctrl+V) the receipt</div>
+            <input type="file" id="receiptFileInput" accept="image/*,application/pdf" style="display:none">
+            <img id="receipt-file-preview" alt="Receipt preview" style="display:none">
+            <div class="info-location" id="receiptFileName">Waiting for file selection (optional)&hellip;</div>
+            <label for="receiptUrl">Receipt URL <span class="opt-tag">fallback</span></label>
+            <input type="text" id="receiptUrl" placeholder="Or paste a receipt link instead of attaching" autocomplete="off">
+        </div>
+
+        <div class="button-container">
+            <button id="submitButton" type="button">Submit Payout</button>
+        </div>
+
+        <div id="status" aria-live="polite"></div>
+
+        <div id="submissionResult" aria-live="polite">
+            <h3>Signed payload sent to Edgar</h3>
+            <pre id="requestPre"></pre>
+            <h3>Edgar response</h3>
+            <pre id="responsePre"></pre>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            const PAGE_ACTION = 'governor_chat.access'; // payout emission is governor-gated
+            const EDGAR_SUBMIT = (window.Routes && window.Routes.edgar && window.Routes.edgar.submit)
+                || 'https://edgar.truesight.me/dao/submit_contribution';
+            const ASSET_VERIFY_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.assetVerify)
+                || 'https://script.google.com/macros/s/AKfycbygmwRbyqse-dpCYMco0rb93NSgg-Jc1QIw7kUiBM7CZK6jnWnMB5DEjdoX_eCsvVs7/exec';
+
+            // Governor-only read of the recorded payout registrations. The endpoint
+            // returns MASKED fields only (never the raw PIX) -- we render the full
+            // pk_hash + masked key so the operator picks the correct account instead
+            // of transcribing a hash by hand and mis-sending.
+            const PAYOUT_REG_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.payoutRegistrations)
+                || 'https://script.google.com/macros/s/AKfycbxQDdGnwS7G6iJhNj9japW-9sFA7EUvrnznmJCu44S5ZHqOoIks2be4FXbIVpuaOHVW/exec';
+
+            // Governor-only read of the CFR program `tree planting` tab: `tree_id -> pk_hash`.
+            // Lets a picked tree auto-fill the recipient and show its details. Hash-only,
+            // no raw PII. Same Apps Script project (and therefore URL) as the register read.
+            const TREE_RECIPIENT_ENDPOINT = PAYOUT_REG_ENDPOINT;
+
+            const U = window.PayoutEventUtils;
+            const FIELDS = ['amount', 'paidAt', 'bankRef', 'programSlug', 'recipientPkHash', 'receiptUrl'];
+
+            // ---- Overpay guards (possible-duplicate + co-located) -----------
+            // Advisory surface ONLY: computed client-side from the public pending
+            // tree list. Never enters the signed payload; never touches PIX.
+            const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
+            let _overpayFlags = null;
+            let _pendingTrees = [];
+            let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
+            let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
+            let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
+            let _pendingHasProgramData = false;  // does the pending feed carry program attribution?
+            const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
+            let uploadedReceiptFile = null;
+            let cachedReceiptFileName = null;
+            let _submittedTreeIds = {};      // ids already paid in THIS session -> hidden from the picker
+            let _awaitingAnotherPayout = false;
+            let _selectedTreeId = '';        // the ONE tree currently selected (single-select picker)
+            let _programHosts = {};          // host -> program slug (from the registry, SSOT)
+            let _signedInName = '';          // resolved contributor name (for the reject payload)
+
+            function loadPendingTrees() {
+                if (typeof fetch !== 'function') return;
+                return fetch(SUNMINT_PENDING_URL, { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        _pendingTrees = (data && data.items) || [];
+                        _overpayFlags = U.computeOverpayFlags(_pendingTrees);
+                        _pendingHasProgramData = U.feedHasProgramData(_pendingTrees);  // matches treesForProgram()'s join keys
+                        renderTreeOptions();
+                        renderOverpayGuard();
+                        renderTreeDetails();
+                    })
+                    .catch(function () { _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); });
+            }
+
+            function currentProgram() {
+                const el = $('programSlug');
+                return el ? String(el.value || '').trim() : '';
+            }
+
+            // Populate the Program dropdown from the live registry (SSOT) so a new
+            // program appears without a code change. Keeps the current selection.
+            function loadProgramOptions() {
+                const sel = $('programSlug');
+                if (!sel) return;
+                const keep = sel.value || 'crf-anapu';
+                fetch('https://raw.githubusercontent.com/TrueSightDAO/lineage-engine/main/scripts/sunmint_program_registry.json', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (reg) { _programHosts = U.programSlugsByHost(reg); applyProgramOptions(sel, U.programsFromRegistry(reg), keep); })
+                    .catch(function () { /* keep the static options */ });
+            }
+
+            function applyProgramOptions(sel, slugs, keep) {
+                var opts = ['<option value="">(no program \u2014 general disbursement)</option>'];
+                var seen = {};
+                (slugs || []).forEach(function (s) {
+                    if (s && !seen[s]) { seen[s] = 1; opts.push('<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>'); }
+                });
+                if (keep && !seen[keep]) opts.splice(1, 0, '<option value="' + escapeHtml(keep) + '">' + escapeHtml(keep) + '</option>');
+                sel.innerHTML = opts.join('');
+                sel.value = keep || '';
+                renderProgramFilterNote();
+            }
+
+            // Loud-failure affordance: when a program is chosen but the feed carries
+            // NO program attribution at all, the filter cannot narrow -- say so
+            // instead of silently listing every unpaid tree as if it had applied.
+            function renderProgramFilterNote() {
+                const el = $('programFilterNote');
+                if (!el) return;
+                if (U.programFilterNotApplied(currentProgram(), _pendingTrees, _pendingHasProgramData)) {
+                    el.style.display = 'block';
+                    el.style.color = '#8a6d3b';
+                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution yet, so all unpaid trees are still listed. Once the feed records each tree\u2019s program, choosing a program narrows this list.';
+                } else {
+                    el.style.display = 'none';
+                    el.innerHTML = '';
+                }
+            }
+
+            // STRICT program filter: a chosen program narrows to trees whose
+            // attribution EQUALS it (unattributed rows are hidden, never shown as if
+            // they matched). A blank program = general disbursement = every tree.
+            // While the feed carries no attribution at all the filter cannot narrow,
+            // so the list stays complete and renderProgramFilterNote() says so.
+            function treesForProgram(program) {
+                return U.treesForProgram(_pendingTrees, program, _programHosts, _pendingHasProgramData);
+            }
+
+            // The PICKER lists only UNPAID trees (the public pending cache is already
+            // Status==NEW, i.e. not-yet-paid). Trees paid in THIS session are dropped
+            // via _submittedTreeIds so a just-paid tree cannot be picked twice.
+            function renderTreeOptions() {
+                const sel = $('treePicker');
+                if (!sel) return;
+                const chosen = {};
+                if (_selectedTreeId) chosen[_selectedTreeId] = 1;
+                const rows = treesForProgram(currentProgram()).filter(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    return id && !_submittedTreeIds[id];
+                });
+                const opts = ['<option value="">\u2014 pick an unpaid tree \u2014</option>'];
+                rows.forEach(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    var parts = [t.species, t.planting_date].filter(Boolean).join(', ');
+                    var f = _overpayFlags && _overpayFlags[id];
+                    var warn = '';
+                    if (f) {
+                        var why = [];
+                        if (f.duplicate) why.push('duplicate');
+                        if (f.colocated) why.push('co-located');
+                        warn = ' \u26a0 ' + why.join('/');
+                    }
+                    var tail = chosen[id] ? ' \u2713' : '';
+                    opts.push('<option value="' + escapeHtml(id) + '">' +
+                        escapeHtml(id + (parts ? ' \u2014 ' + parts : '') + warn + tail) + '</option>');
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = chosen[_selectedTreeId] ? _selectedTreeId : '';
+                renderProgramFilterNote();
+            }
+
+            // Single-select: picking a tree REPLACES the current selection.
+            function addPickedTree() {
+                const sel = $('treePicker');
+                if (!sel) return;
+                if (!sel.value) { selectTreeById(''); return; }  // placeholder re-picked -> clear
+                selectTreeById(sel.value);
+            }
+
+            // Set the ONE selected tree and refresh card + guard. Used by the picker
+            // AND by clicking a row in the flagged list (which always shows that
+            // tree's detail card, even if it is no longer selectable).
+            function selectTreeById(id) {
+                id = String(id || '').trim();
+                _selectedTreeId = id;
+                const sel = $('treePicker');
+                if (sel) {
+                    const isOption = !!id && Array.prototype.some.call(sel.options, function (o) { return o.value === id; });
+                    sel.value = isOption ? id : '';
+                }
+                maybeAutoFillRecipient(id ? [id] : []);
+                renderTreeDetails();
+                renderOverpayGuard();
+            }
+
+            // After a payout lands, hide the paid trees + offer a fresh form.
+            function markPaidAndArmReset(form) {
+                const paidId = String(_selectedTreeId || (form && form.treeIds) || '').trim();
+                if (paidId) _submittedTreeIds[paidId] = 1;
+                _selectedTreeId = '';
+                const tp = $('treePicker'); if (tp) tp.value = '';
+                renderTreeOptions();
+                renderTreeDetails();
+                renderOverpayGuard();
+                const btn = $('submitButton');
+                if (btn) btn.textContent = 'Submit another payout';
+                _awaitingAnotherPayout = true;
+                setStatus('Payout recorded. The paid tree is no longer selectable \u2014 click \u201cSubmit another payout\u201d for a new one.', 'success');
+            }
+
+            function resetForm() {
+                ['amount', 'paidAt', 'bankRef', 'recipientPkHash', 'receiptUrl']
+                    .forEach(function (id) { const el = $(id); if (el) el.value = ''; });
+                _selectedTreeId = '';
+                const tp = $('treePicker'); if (tp) tp.value = '';
+                uploadedReceiptFile = null;
+                updateReceiptInfo('');
+                const rp = $('receipt-file-preview'); if (rp) { rp.style.display = 'none'; rp.src = ''; }
+                const ps = $('programSlug'); if (ps) ps.value = 'crf-anapu';
+                const cur = $('currency'); if (cur) cur.value = 'BRL';
+                const brt = $('bankRefType'); if (brt) brt.value = 'PIX-E2E';
+                const sr = $('submissionResult'); if (sr) sr.style.display = 'none';
+                clearInvalid();
+                _awaitingAnotherPayout = false;
+                const btn = $('submitButton'); if (btn) btn.textContent = 'Submit Payout';
+                setStatus('');
+                _autoFilledPk = '';
+                renderTreeOptions();
+                renderOverpayGuard();
+                renderTreeDetails();
+            }
+
+            // One card per id currently in the tree field: species, planting date,
+            // coordinates, photo, and -- when the governor-only map resolves it -- the
+            // recipient pk_hash the payout would link to.
+            // The detail card for the ONE currently-selected tree: species, planting
+            // date, coordinates, photo, and -- when the governor-only map resolves it
+            // -- the recipient pk_hash the payout would link to.
+            function treeCardHtml(id) {
+                const t = U.findPendingTree(_pendingTrees, id);
+                const pk = _treeRecipientMap[id] || '';
+                const fields = U.treeDetailFields(t);
+                const meta = fields.filter(function (f) { return f[0] !== 'Tree ID'; })
+                    .map(function (f) { return escapeHtml(f[0]) + ': ' + escapeHtml(f[1]); })
+                    .join(' &middot; ');
+                const photo = (t && t.photo_url)
+                    ? '<img class="tc-photo" src="' + escapeHtml(t.photo_url) + '" alt="Tree photo" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+                    : '';
+                const mk = (pk && _maskedKeyByPk[pk]) ? _maskedKeyByPk[pk] : null;
+                const mkText = mk ? [mk.pix_key_type, mk.pix_key_masked].filter(Boolean).join(' ') : '';
+                const pkLine = pk
+                    ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong>' +
+                      (mkText ? '<span class="tc-masked">\uD83D\uDD12 partial key: ' + escapeHtml(mkText) + '</span>' : '') +
+                      '</div>'
+                    : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
+                return '<div class="tree-card">' + photo +
+                    '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
+                    (meta ? '<div class="tc-meta">' + meta + '</div>'
+                          : '<div class="tc-meta">Not in the public pending list (already paid, or not currently selectable).</div>') +
+                    pkLine + '</div></div>';
+            }
+
+            function renderTreeDetails() {
+                const host = $('treeDetails');
+                if (!host) return;
+                const id = String(_selectedTreeId || '').trim();
+                host.innerHTML = id ? treeCardHtml(id) : '';
+                // The reject action is meaningful only with a tree selected.
+                const zone = $('invalidZone');
+                if (zone) zone.style.display = id ? 'flex' : 'none';
+            }
+
+            function loadTreeRecipientMap() {
+                if (typeof fetch !== 'function') return;
+                return fetch(TREE_RECIPIENT_ENDPOINT + '?action=getTreeRecipientMap', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) { _treeRecipientMap = U.buildTreeRecipientMap(data); renderTreeDetails(); })
+                    .catch(function () { _treeRecipientMap = {}; });
+            }
+
+            // Auto-fill the recipient pk_hash when the selection resolves to exactly ONE
+            // tree. Never clobbers an operator-entered hash: we only overwrite an empty
+            // field, or a value we ourselves filled.
+            function maybeAutoFillRecipient(ids) {
+                const pkEl = $('recipientPkHash');
+                if (!pkEl) return;
+                const resolved = ids.map(function (id) { return _treeRecipientMap[id] || ''; })
+                    .filter(Boolean)
+                    .filter(function (v, i, a) { return a.indexOf(v) === i; });
+                if (ids.length === 1 && resolved.length === 1) {
+                    const cur = String(pkEl.value || '').trim();
+                    if (cur === '' || cur === _autoFilledPk) {
+                        pkEl.value = resolved[0];
+                        pkEl.classList.remove('invalid');
+                        _autoFilledPk = resolved[0];
+                    }
+                }
+            }
+
+            function renderOverpayGuard() {
+                const host = $('overpayGuard');
+                if (!host) return;
+                if (!_overpayFlags) { host.innerHTML = ''; return; }
+                const selected = String(_selectedTreeId || '').trim();
+                const flagged = Object.keys(_overpayFlags).sort();
+                let html = '<div class="overpay-summary">Overpay guard: <strong>' + flagged.length +
+                    '</strong> pending tree(s) carry a risk flag. ' +
+                    (selected ? 'Checking <code>' + escapeHtml(selected) + '</code>.'
+                              : 'Pick a tree above to check it.') +
+                    '<div class="overpay-legend">A tree is flagged when it <strong>shares a photo</strong> with another row, ' +
+                    '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
+                    ' m of a <em>different</em> tree (GPS staleness can put several picks on one fix).</div></div>';
+
+                if (selected) {
+                    const f = _overpayFlags[selected];
+                    if (f) {
+                        const bits = [];
+                        if (f.duplicate) {
+                            bits.push('possible <strong>duplicate</strong>' +
+                                (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.join(', ')) : ''));
+                        }
+                        if (f.colocated) {
+                            bits.push('<strong>co-located</strong> with ' + escapeHtml(
+                                f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
+                        }
+                        html += '<div class="overpay-row">\u26a0 <code>' + escapeHtml(selected) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
+                    }
+                }
+
+                if (flagged.length) {
+                    html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
+                        ' flagged tree(s) \u2014 with reasons</summary><div class="overpay-all-list">' +
+                        flagged.map(function (id) {
+                            var why = U.overpayReasonBits(_overpayFlags[id]).join(' \u00b7 ');
+                            var isSel = (id === selected) ? ' is-selected' : '';
+                            return '<div class="overpay-all-row' + isSel + '">' +
+                                '<button type="button" class="flagged-pick" data-tree-id="' + escapeHtml(id) + '">' +
+                                '<code>' + escapeHtml(id) + '</code></button> \u2014 ' +
+                                escapeHtml(why) + '</div>';
+                        }).join('') +
+                        '</div></details>';
+                }
+                host.innerHTML = html;
+            }
+
+            function $(id) { return document.getElementById(id); }
+            function setStatus(msg, cls) {
+                const s = $('status');
+                s.textContent = msg;
+                s.className = cls || '';
+            }
+            function loadRegistrations() {
+                if (typeof fetch !== 'function') return;
+                const panel = $('recipientsPanel');
+                const list = $('recipientsList');
+                const st = $('recipientsStatus');
+                if (!panel || !list) return;
+                if (st) { st.textContent = 'Loading registered recipients\u2026'; st.className = 'hint loading'; }
+                fetch(PAYOUT_REG_ENDPOINT + '?action=getPendingPayoutRegistrations&status=ALL', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        const items = (data && data.data && data.data.items) || [];
+                        const deduped = U.dedupeActiveRegistrations(items);
+                        _maskedKeyByPk = U.maskedKeyByPkHash(deduped);
+                        renderTreeDetails();
+                        renderRegistrations(deduped);
+                    })
+                    .catch(function () {
+                        panel.style.display = 'block';
+                        if (st) { st.textContent = 'Could not load the payout register (the form still works \u2014 type the pk_hash manually).'; st.className = 'hint'; }
+                    });
+            }
+
+            // Renders ONE row per pk_hash. `rows` comes from the privacy-safe dedupe
+            // (masked fields only) -- a raw pix_key can never reach this function.
+            function renderRegistrations(rows) {
+                const panel = $('recipientsPanel');
+                const list = $('recipientsList');
+                const st = $('recipientsStatus');
+                if (!panel || !list) return;
+                list.innerHTML = '';
+                panel.style.display = 'block';
+                if (!rows || !rows.length) {
+                    if (st) { st.textContent = 'No payout registrations recorded yet.'; st.className = 'hint'; }
+                    return;
+                }
+                rows.forEach(function (it) {
+                    const row = document.createElement('div');
+                    row.className = 'recipient-row';
+                    const active = it.status === 'ACTIVE';
+                    const meta = [it.pix_key_type, it.pix_key_masked, it.program_slug, it.submitted_date]
+                        .filter(function (x) { return x; }).join(' \u00b7 ');
+                    row.innerHTML =
+                        '<div class="rp-main">' +
+                            '<div class="rp-pk">' + escapeHtml(it.pk_hash) + '</div>' +
+                            '<div class="rp-meta">' + escapeHtml(meta) + '</div>' +
+                        '</div>' +
+                        '<span class="rp-status' + (active ? ' active' : '') + '">' + escapeHtml(it.status) + '</span>' +
+                        '<button type="button" class="rp-use">Use</button>';
+                    const btn = row.querySelector('button.rp-use');
+                    if (btn) {
+                        btn.addEventListener('click', function () {
+                            const pk = $('recipientPkHash');
+                            if (pk) { pk.value = it.pk_hash; pk.classList.remove('invalid'); }
+                            if (st) {
+                                st.textContent = 'Filled recipient pk_hash ' + it.pk_hash +
+                                    (it.pix_key_masked ? ' (' + it.pix_key_masked + ')' : '') + '.';
+                                st.className = 'hint';
+                            }
+                        });
+                    }
+                    list.appendChild(row);
+                });
+                if (st) { st.textContent = rows.length + ' recipient(s) \u2014 one per pk_hash.'; st.className = 'hint'; }
+            }
+
+            function escapeHtml(v) {
+                return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            }
+
+            function publicKeyOrNull() {
+                try { return localStorage.getItem('publicKey'); } catch (_) { return null; }
+            }
+
+            // --- governor gate (per UX_CONVENTIONS.md: cache-first identity, GAS fallback) ---
+            function boot() {
+                const publicKey = publicKeyOrNull();
+                const gate = $('gateContainer');
+                if (!publicKey) {
+                    gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                        '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">No digital signature</h2>' +
+                        '<p style="margin:0;">You are not signed in. Use <a href="./create_signature.html">the Digital Signature Creator</a> first.</p></div>';
+                    return;
+                }
+
+                (async function () {
+                    let data = null;
+                    try {
+                        const lookup = await window.DaoMembersCache.findByPublicKey(publicKey);
+                        if (lookup && lookup.contributor) { data = { contributor_name: lookup.contributor.name }; }
+                    } catch (_) { /* fall through to GAS */ }
+
+                    if (!data) {
+                        try {
+                            const resp = await fetch(ASSET_VERIFY_ENDPOINT + '?signature=' + encodeURIComponent(publicKey));
+                            data = await resp.json();
+                        } catch (err) {
+                            gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                                '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature check failed</h2>' +
+                                '<p style="margin:0;">Could not verify your signature: ' + escapeHtml(err.message) + '</p></div>';
+                            return;
+                        }
+                    }
+
+                    if (!data || data.error) {
+                        gate.innerHTML = '<div style="max-width:600px;margin:1.5rem auto;padding:1.25rem;background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;color:#842029;">' +
+                            '<h2 style="margin:0 0 0.5rem;font-size:1.2rem;">Signature not registered</h2>' +
+                            '<p style="margin:0;">Your digital signature is not yet registered on the DAO ledger. Use <a href="./create_signature.html">the Digital Signature Creator</a> to register it first.</p></div>';
+                        return;
+                    }
+
+                    _signedInName = data.contributor_name || '';
+                    $('welcome').textContent = 'Signed in as ' + (data.contributor_name || '(contributor)');
+                    window.Permissions.requireRole({
+                        action: PAGE_ACTION,
+                        publicKey: publicKey,
+                        denyContainerId: 'gateContainer',
+                        onAllowed: function () {
+                            $('authBadge').textContent = 'Governor';
+                            $('authBadge').className = 'status-badge governor';
+                            $('content').style.display = 'block';
+                            loadProgramOptions();
+                            loadPendingTrees();
+                            loadRegistrations();
+                        },
+                        onDenied: function () {
+                            $('authBadge').textContent = 'Not a governor';
+                            $('authBadge').className = 'status-badge readonly';
+                        }
+                    });
+                })();
+            }
+
+            function generateReceiptFileName(file) {
+                // Opaque name: the original filename may carry PII (name/CPF) and the
+                // signed payload is republished publicly, so it is discarded entirely.
+                const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                const rand = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+                    .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                const ext = (file && file.type === 'application/pdf') ? '.pdf'
+                    : (file && file.type === 'image/png') ? '.png'
+                    : (file && file.type === 'image/jpeg') ? '.jpg'
+                    : (file && file.type === 'image/gif') ? '.gif' : '.bin';
+                return 'payout_' + ts + '_' + rand + ext;
+            }
+
+            function updateReceiptInfo(file) {
+                const el = $('receiptFileName');
+                const area = $('receiptPasteArea');
+                if (file) {
+                    cachedReceiptFileName = generateReceiptFileName(file);
+                    if (el) el.innerHTML = 'Attached: <code>' + cachedReceiptFileName + '</code>';
+                    if (area) { area.classList.add('has-file'); area.textContent = 'Receipt attached \u2014 click to replace'; }
+                } else {
+                    cachedReceiptFileName = null;
+                    if (el) el.textContent = 'Waiting for file selection (optional)\u2026';
+                    if (area) { area.classList.remove('has-file'); area.textContent = 'Click to select or paste (Ctrl+V) the receipt'; }
+                }
+            }
+
+            function handleReceiptFile(file) {
+                if (!file) return;
+                if (['image/png', 'image/jpeg', 'image/gif', 'application/pdf'].indexOf(file.type) === -1) {
+                    setStatus('Unsupported receipt type \u2014 attach an image or PDF.', 'error');
+                    return;
+                }
+                uploadedReceiptFile = file;
+                updateReceiptInfo(file);
+                const preview = $('receipt-file-preview');
+                if (preview) {
+                    if (file.type.indexOf('image/') === 0) {
+                        const r = new FileReader();
+                        r.onload = function (e) { preview.src = e.target.result; preview.style.display = 'block'; };
+                        r.readAsDataURL(file);
+                    } else { preview.style.display = 'none'; preview.src = ''; }
+                }
+                setStatus('');
+            }
+
+            function wireReceiptAttachment() {
+                const area = $('receiptPasteArea');
+                const input = $('receiptFileInput');
+                if (area && input) {
+                    area.addEventListener('click', function () { input.click(); });
+                    input.addEventListener('change', function (e) {
+                        if (e.target.files && e.target.files.length) handleReceiptFile(e.target.files[0]);
+                    });
+                }
+                document.addEventListener('paste', function (e) {
+                    const items = (e.clipboardData || {}).items || [];
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file') { const f = items[i].getAsFile(); if (f) { handleReceiptFile(f); e.preventDefault(); return; } }
+                    }
+                });
+            }
+
+            function readForm() {
+                return {
+                    programSlug: $('programSlug').value,
+                    amount: $('amount').value,
+                    currency: $('currency').value,
+                    paidAt: $('paidAt').value,
+                    bankRefType: $('bankRefType').value,
+                    bankRef: $('bankRef').value,
+                    recipientPkHash: $('recipientPkHash').value,
+                    treeIds: _selectedTreeId,
+                    status: U.deriveStatus($('paidAt').value),
+                    receiptUrl: $('receiptUrl').value,
+                    receiptFileName: cachedReceiptFileName || '',
+                    receiptLocation: cachedReceiptFileName ? RECEIPT_REPO_BASE_URL + cachedReceiptFileName : '',
+                    submissionSource: window.location.href
+                };
+            }
+
+            function clearInvalid() {
+                FIELDS.forEach(function (id) { const el = $(id); if (el) el.classList.remove('invalid'); });
+            }
+
+            function submit() {
+                // In the post-submit state the button RESETS the form instead of
+                // submitting a second time.
+                if (_awaitingAnotherPayout) { resetForm(); return; }
+                const btn = $('submitButton');
+                clearInvalid();
+                setStatus('');
+
+                const form = readForm();
+                const check = U.validate(form);
+                if (!check.valid) {
+                    // Mark the offending fields where we can map the message.
+                    if (!U.parseAmount(form.amount).valid) $('amount').classList.add('invalid');
+                    if (!U.isValidIso8601(form.paidAt)) $('paidAt').classList.add('invalid');
+                    if (!String(form.bankRef).trim()) $('bankRef').classList.add('invalid');
+                    setStatus(check.errors.join(' '), 'error');
+                    return;
+                }
+
+                const privateKey = (function () { try { return localStorage.getItem('privateKey'); } catch (_) { return null; } })();
+                if (!privateKey) {
+                    setStatus('Your private key is missing from this browser. Re-register via the Digital Signature Creator.', 'error');
+                    return;
+                }
+
+                btn.disabled = true;
+                setStatus('Signing and submitting…', 'loading');
+
+                (async function () {
+                    try {
+                        const helper = new EdgarPayloadHelper({
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const attributes = U.buildAttributes(form, { source: window.location.href });
+                        const { payload, requestTransactionId, shareText } = await helper.generatePayload({
+                            eventName: U.EVENT_NAME,
+                            attributes: attributes,
+                            privateKey: privateKey,
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+
+                        // Forensic §9b block: the verbatim signed payload.
+                        $('requestPre').textContent = shareText;
+                        $('responsePre').textContent = '';
+                        $('submissionResult').style.display = 'block';
+
+                        // Reliable multipart submit (XHR + verified-delivery retry).
+                        const submission = await EdgarSubmission.submitWithRetry({
+                            url: EDGAR_SUBMIT,
+                            text: shareText,
+                            file: uploadedReceiptFile ? await EdgarSubmission.toSendableBlob(uploadedReceiptFile) : undefined,
+                            fileName: cachedReceiptFileName || undefined,
+                            attempts: 3
+                        });
+                        const result = submission.result || {};
+                        $('responsePre').textContent = JSON.stringify(result, null, 2);
+
+                        if (result.signature_verification === 'success') {
+                            markPaidAndArmReset(form);
+                        } else {
+                            setStatus('Submitted, but Edgar did not confirm verified delivery — please review the response below.', 'error');
+                        }
+                    } catch (err) {
+                        setStatus('Submission failed: ' + err.message, 'error');
+                    } finally {
+                        btn.disabled = false;
+                    }
+                })();
+            }
+
+            // "Mark tree as invalid": emit the SAME [TREE PLANTING REJECT EVENT] the
+            // monitor-tree-growth page emits, so the governor/sentinel-only GAS
+            // consumer (process_tree_planting_link.js) handles both identically. The
+            // page is governor-gated and the server RE-CHECKS the role, so a stray
+            // click cannot invalidate anything. The payload carries NO recipient
+            // material -- it is republished as a PUBLIC raw chatlog.
+            function rejectTree() {
+                const id = String(_selectedTreeId || '').trim();
+                if (!id) { setStatus('Select a tree first.', 'error'); return; }
+                if (!window.confirm('Mark ' + id + ' as INVALID?\n\nThis removes the tree from the index (it must not touch the sold QR).')) return;
+                const reason = (window.prompt('Reason (optional):', U.TREE_REJECT_DEFAULT_REASON) || '').trim();
+
+                const privateKey = (function () { try { return localStorage.getItem('privateKey'); } catch (_) { return null; } })();
+                if (!privateKey) {
+                    setStatus('Your private key is missing from this browser. Re-register via the Digital Signature Creator.', 'error');
+                    return;
+                }
+
+                const btn = $('markInvalidButton');
+                if (btn) btn.disabled = true;
+                setStatus('Signing and submitting the invalid-marking\u2026', 'loading');
+
+                (async function () {
+                    try {
+                        const helper = new EdgarPayloadHelper({
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const attributes = U.buildTreeRejectAttributes(id, '', _signedInName, reason);
+                        const gen = await helper.generatePayload({
+                            eventName: U.TREE_REJECT_EVENT_NAME,
+                            attributes: attributes,
+                            privateKey: privateKey,
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+
+                        // Forensic panel: the verbatim signed payload.
+                        $('requestPre').textContent = gen.shareText;
+                        $('responsePre').textContent = '';
+                        $('submissionResult').style.display = 'block';
+
+                        const submission = await EdgarSubmission.submitWithRetry({
+                            url: EDGAR_SUBMIT, text: gen.shareText, attempts: 3
+                        });
+                        const result = submission.result || {};
+                        $('responsePre').textContent = JSON.stringify(result, null, 2);
+
+                        if (result.signature_verification === 'success') {
+                            setStatus('Marked ' + id + ' as INVALID. It will drop from the tree index shortly.', 'success');
+                        } else {
+                            setStatus('Submitted, but Edgar did not confirm verified delivery \u2014 review the response below.', 'error');
+                        }
+                    } catch (err) {
+                        setStatus('Invalid-marking failed: ' + err.message, 'error');
+                    } finally {
+                        if (btn) btn.disabled = false;
+                    }
+                })();
+            }
+
+            window.addEventListener('DOMContentLoaded', function () {
+                boot();
+                loadTreeRecipientMap();
+                $('submitButton').addEventListener('click', submit);
+                const programSel = $('programSlug');
+                if (programSel) programSel.addEventListener('change', renderTreeOptions);
+                const picker = $('treePicker');
+                if (picker) picker.addEventListener('change', addPickedTree);
+                const guardHost = $('overpayGuard');
+                if (guardHost) guardHost.addEventListener('click', function (e) {
+                    const t = e.target;
+                    const btn = t && t.closest ? t.closest('.flagged-pick') : null;
+                    if (!btn) return;
+                    selectTreeById(btn.getAttribute('data-tree-id'));
+                });
+                const markBtn = $('markInvalidButton');
+                if (markBtn) markBtn.addEventListener('click', rejectTree);
+                wireReceiptAttachment();
+            });
+        })();
+    </script>
+    <script src="./js/dapp_footer_links.js?v=1"></script>
 </body>
 </html>
