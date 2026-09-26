@@ -91,6 +91,8 @@
         .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
         .overpay-all-list { margin-top: 0.3rem; line-height: 1.8; }
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
+        .overpay-legend { font-size: 0.75rem; color: #777; margin-top: 0.25rem; line-height: 1.45; }
+        .overpay-all-row { font-size: 0.8rem; color: #555; line-height: 1.7; }
         .tree-details { margin: 0.2rem 0 0.9rem; }
         .tree-card { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.6rem 0.7rem; margin: 0.35rem 0; display: flex; gap: 0.7rem; }
         .tree-card img.tc-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; flex: 0 0 auto; background: #eee; }
@@ -487,7 +489,10 @@
                 let html = '<div class="overpay-summary">Overpay guard: <strong>' + flagged.length +
                     '</strong> pending tree(s) carry a risk flag. ' +
                     (ids.length ? 'Checking your ' + ids.length + ' entered id(s).'
-                                : 'Enter tree ids above to check them.') + '</div>';
+                                : 'Enter tree ids above to check them.') +
+                    '<div class="overpay-legend">A tree is flagged when it <strong>shares a photo</strong> with another row, ' +
+                    '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
+                    ' m of a <em>different</em> tree (GPS staleness can put several picks on one fix).</div></div>';
 
                 const seen = {};
                 ids.forEach(function (id) {
@@ -508,8 +513,12 @@
 
                 if (flagged.length) {
                     html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
-                        ' flagged tree(s)</summary><div class="overpay-all-list">' +
-                        flagged.map(function (id) { return '<code>' + escapeHtml(id) + '</code>'; }).join(' ') +
+                        ' flagged tree(s) \u2014 with reasons</summary><div class="overpay-all-list">' +
+                        flagged.map(function (id) {
+                            var why = U.overpayReasonBits(_overpayFlags[id]).join(' \u00b7 ');
+                            return '<div class="overpay-all-row"><code>' + escapeHtml(id) + '</code> \u2014 ' +
+                                escapeHtml(why) + '</div>';
+                        }).join('') +
                         '</div></details>';
                 }
                 host.innerHTML = html;

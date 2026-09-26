@@ -267,6 +267,27 @@
         return out;
     }
 
+    /**
+     * Human reason(s) for ONE overpay flag, as plain strings (no HTML) so both
+     * the entered-id rows and the "show all" list can label a flagged tree
+     * instead of just printing a bare id. e.g.
+     *   ['duplicate (same record as Edgar_.._013)']
+     *   ['co-located with Edgar_.._015 (0.0 m)']
+     */
+    function overpayReasonBits(f) {
+        var bits = [];
+        if (!f) return bits;
+        if (f.duplicate) {
+            var dw = (f.duplicate_with || []);
+            bits.push('duplicate' + (dw.length ? ' (same record as ' + dw.join(', ') + ')' : ''));
+        }
+        if (f.colocated) {
+            var cw = (f.colocated_with || []).map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; });
+            bits.push('co-located with ' + cw.join(', '));
+        }
+        return bits;
+    }
+
     /** Flags for the ids the operator actually entered (input order preserved). */
     function overpayWarningsFor(flags, treeIds) {
         var out = [];
@@ -388,6 +409,7 @@
         haversineMeters: haversineMeters,
         computeOverpayFlags: computeOverpayFlags,
         overpayWarningsFor: overpayWarningsFor,
+        overpayReasonBits: overpayReasonBits,
         buildTreeRecipientMap: buildTreeRecipientMap,
         findPendingTree: findPendingTree,
         treeDetailFields: treeDetailFields,

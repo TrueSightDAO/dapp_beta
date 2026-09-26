@@ -366,5 +366,18 @@ test('deriveStatus: blank/garbage -> live (validation rejects it upstream)', () 
   assert.strictEqual(u.deriveStatus('not-a-date', '2026-09-26T08:00:00Z'), 'live');
 });
 
+test('overpayReasonBits: names the duplicate counterpart and the co-located distance', () => {
+  assert.deepStrictEqual(
+    u.overpayReasonBits({ duplicate: true, duplicate_with: ['X'], colocated: false, colocated_with: [] }),
+    ['duplicate (same record as X)']);
+  assert.deepStrictEqual(
+    u.overpayReasonBits({ duplicate: false, colocated: true, colocated_with: [{ tree_id: 'Y', meters: 0.4 }] }),
+    ['co-located with Y (0.4 m)']);
+  assert.deepStrictEqual(
+    u.overpayReasonBits({ duplicate: true, duplicate_with: [], colocated: true, colocated_with: [{ tree_id: 'Z', meters: 0 }] }),
+    ['duplicate', 'co-located with Z (0 m)']);
+  assert.deepStrictEqual(u.overpayReasonBits(null), []);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
