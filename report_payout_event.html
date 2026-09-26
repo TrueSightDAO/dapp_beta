@@ -89,10 +89,14 @@
         }
         .overpay-row code { background: #fff; padding: 0 0.2rem; border-radius: 3px; }
         .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
-        .overpay-all-list { margin-top: 0.3rem; line-height: 1.8; }
+        .overpay-all-list { margin-top: 0.3rem; display: flex; flex-direction: column; gap: 0.15rem; }
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
         .overpay-legend { font-size: 0.75rem; color: #777; margin-top: 0.25rem; line-height: 1.45; }
-        .overpay-all-row { font-size: 0.8rem; color: #555; line-height: 1.7; }
+        .overpay-all-row { display: block; width: 100%; font-size: 0.8rem; color: #555; line-height: 1.7; }
+        .overpay-tree-card { margin-top: 0.4rem; }
+        .overpay-all-row.is-selected { background: var(--yellow-bg); border-radius: 4px; padding: 0 0.3rem; }
+        .flagged-pick { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: #1a4d8f; }
+        .flagged-pick:hover code, .flagged-pick:focus code { background: #e8f0fb; text-decoration: underline; }
         .tree-details { margin: 0.2rem 0 0.9rem; }
         .tree-card { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.6rem 0.7rem; margin: 0.35rem 0; display: flex; gap: 0.7rem; }
         .tree-card img.tc-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; flex: 0 0 auto; background: #eee; }
@@ -166,14 +170,14 @@
         <p id="description">
             Governor-only. Record an <strong>outbound compensation transfer</strong> (e.g. a PIX payment
             for tree planting) as a signed <code>[PAYOUT EVENT]</code>. One row per <em>transfer</em> —
-            a single payment may cover several trees.
+            pick the tree the transfer covers.
         </p>
 
         <div class="privacy-note">
             <strong>The raw recipient PIX key never travels here.</strong> This page submits to Edgar,
             whose intake is republished as a <em>public</em> chatlog. The <strong>tree id is the primary
-            field</strong> &mdash; the recipient is often unknown, so it is optional. If a recipient is known,
-            attach them by name and, if known, a non-reversible <code>recipient_pk_hash</code> &mdash; the
+            field</strong> &mdash; picking a tree attaches its recipient automatically. If a recipient is known,
+            a non-reversible <code>recipient_pk_hash</code> links the payout &mdash; the
             private key stays in the restricted payout register.
         </div>
 
@@ -186,16 +190,13 @@
             <div class="hint">The program this payout belongs to. Pick one to narrow the unpaid-tree list below to that program&rsquo;s trees; leave it as <em>no program</em> for a general disbursement (the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write does not fire).</div>
             <div id="programFilterNote" class="hint" style="display:none;"></div>
 
-            <label for="treePicker">Tree Planting IDs <span class="primary-tag">primary</span></label>
+            <label for="treePicker">Tree Planting ID <span class="primary-tag">primary</span></label>
             <select id="treePicker">
                 <option value="">Loading unpaid trees&hellip;</option>
             </select>
-            <div class="hint">Pick from the <strong>unpaid</strong> tree list (canonical <code>Edgar_&hellip;</code> ids); each pick is added to the field below. A single payment may cover several trees &mdash; leave blank for a general disbursement.</div>
-            <label for="treeIds" class="sub-label">Selected tree IDs</label>
-            <input type="text" id="treeIds" placeholder="Edgar_20260908010248_071 (comma/space separated)" autocomplete="off">
-            <div class="hint">Auto-filled by the picker above; you can also type ids directly.</div>
-            <div id="overpayGuard" class="overpay-guard"></div>
+            <div class="hint">Pick one <strong>unpaid</strong> tree (canonical <code>Edgar_&hellip;</code> id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
             <div id="treeDetails" class="tree-details"></div>
+            <div id="overpayGuard" class="overpay-guard"></div>
 
             <div class="row2">
                 <div>
@@ -231,9 +232,6 @@
                 </div>
             </div>
             <div class="hint">The transfer's end-to-end id from the bank statement &mdash; the reconciliation anchor.</div>
-
-            <label for="recipientName">Recipient <span class="opt-tag">optional</span></label>
-            <input type="text" id="recipientName" placeholder="e.g. Paulo (La do Sitio) &mdash; leave blank if unknown" autocomplete="off">
 
             <label for="recipientPkHash">Recipient PK Hash</label>
             <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
@@ -295,7 +293,7 @@
             const TREE_RECIPIENT_ENDPOINT = PAYOUT_REG_ENDPOINT;
 
             const U = window.PayoutEventUtils;
-            const FIELDS = ['amount', 'paidAt', 'bankRef', 'recipientName', 'programSlug', 'treeIds', 'recipientPkHash', 'receiptUrl'];
+            const FIELDS = ['amount', 'paidAt', 'bankRef', 'programSlug', 'recipientPkHash', 'receiptUrl'];
 
             // ---- Overpay guards (possible-duplicate + co-located) -----------
             // Advisory surface ONLY: computed client-side from the public pending
@@ -312,6 +310,8 @@
             let cachedReceiptFileName = null;
             let _submittedTreeIds = {};      // ids already paid in THIS session -> hidden from the picker
             let _awaitingAnotherPayout = false;
+            let _selectedTreeId = '';        // the ONE tree currently selected (single-select picker)
+            let _programHosts = {};          // host -> program slug (from the registry, SSOT)
 
             function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
@@ -341,7 +341,7 @@
                 const keep = sel.value || 'crf-anapu';
                 fetch('https://raw.githubusercontent.com/TrueSightDAO/lineage-engine/main/scripts/sunmint_program_registry.json', { cache: 'no-cache' })
                     .then(function (r) { return r.json(); })
-                    .then(function (reg) { applyProgramOptions(sel, U.programsFromRegistry(reg), keep); })
+                    .then(function (reg) { _programHosts = U.programSlugsByHost(reg); applyProgramOptions(sel, U.programsFromRegistry(reg), keep); })
                     .catch(function () { /* keep the static options */ });
             }
 
@@ -367,7 +367,7 @@
                 if (p && _pendingTrees.length && !_pendingHasProgramData) {
                     el.style.display = 'block';
                     el.style.color = '#8a6d3b';
-                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution yet, so all unpaid trees are still listed.';
+                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution (no <code>submission_source</code>) yet, so all unpaid trees are still listed. Once the feed records the origin host, choosing a program narrows this list.';
                 } else {
                     el.style.display = 'none';
                     el.innerHTML = '';
@@ -381,11 +381,9 @@
             function treesForProgram(program) {
                 if (!program) return _pendingTrees;
                 return _pendingTrees.filter(function (t) {
-                    var p = String(t.program_slug || t.program || '').trim();
+                    var p = U.programForTree(t, _programHosts);
                     if (p) return p === program;
-                    var src = String(t.submission_source || '').trim();
-                    if (src) return src.indexOf('//' + program + '.') !== -1;
-                    return true;
+                    return true;   // unattributed rows stay visible (never silently hidden)
                 });
             }
 
@@ -396,7 +394,7 @@
                 const sel = $('treePicker');
                 if (!sel) return;
                 const chosen = {};
-                U.parseTreeIds($('treeIds').value).forEach(function (id) { chosen[id] = 1; });
+                if (_selectedTreeId) chosen[_selectedTreeId] = 1;
                 const rows = treesForProgram(currentProgram()).filter(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
                     return id && !_submittedTreeIds[id];
@@ -418,38 +416,54 @@
                         escapeHtml(id + (parts ? ' \u2014 ' + parts : '') + warn + tail) + '</option>');
                 });
                 sel.innerHTML = opts.join('');
-                sel.value = '';
+                sel.value = chosen[_selectedTreeId] ? _selectedTreeId : '';
                 renderProgramFilterNote();
             }
 
+            // Single-select: picking a tree REPLACES the current selection.
             function addPickedTree() {
                 const sel = $('treePicker');
-                if (!sel || !sel.value) return;
-                const id = String(sel.value).trim();
-                if (!id) return;
-                const ids = U.parseTreeIds($('treeIds').value);
-                if (ids.indexOf(id) === -1) ids.push(id);
-                $('treeIds').value = ids.join(', ');
-                sel.value = '';
-                maybeAutoFillRecipient(ids);
-                renderTreeOptions();
-                renderOverpayGuard();
+                if (!sel) return;
+                if (!sel.value) { selectTreeById(''); return; }  // placeholder re-picked -> clear
+                selectTreeById(sel.value);
+            }
+
+            // Set the ONE selected tree and refresh card + guard. Used by the picker
+            // AND by clicking a row in the flagged list (which always shows that
+            // tree's detail card, even if it is no longer selectable).
+            function selectTreeById(id) {
+                id = String(id || '').trim();
+                _selectedTreeId = id;
+                const sel = $('treePicker');
+                if (sel) {
+                    const isOption = !!id && Array.prototype.some.call(sel.options, function (o) { return o.value === id; });
+                    sel.value = isOption ? id : '';
+                }
+                maybeAutoFillRecipient(id ? [id] : []);
                 renderTreeDetails();
+                renderOverpayGuard();
             }
 
             // After a payout lands, hide the paid trees + offer a fresh form.
             function markPaidAndArmReset(form) {
-                U.parseTreeIds(form && form.treeIds).forEach(function (id) { _submittedTreeIds[id] = 1; });
+                const paidId = String(_selectedTreeId || (form && form.treeIds) || '').trim();
+                if (paidId) _submittedTreeIds[paidId] = 1;
+                _selectedTreeId = '';
+                const tp = $('treePicker'); if (tp) tp.value = '';
                 renderTreeOptions();
+                renderTreeDetails();
+                renderOverpayGuard();
                 const btn = $('submitButton');
                 if (btn) btn.textContent = 'Submit another payout';
                 _awaitingAnotherPayout = true;
-                setStatus('Payout recorded. The paid tree(s) are no longer selectable \u2014 click \u201cSubmit another payout\u201d for a new one.', 'success');
+                setStatus('Payout recorded. The paid tree is no longer selectable \u2014 click \u201cSubmit another payout\u201d for a new one.', 'success');
             }
 
             function resetForm() {
-                ['amount', 'paidAt', 'bankRef', 'recipientName', 'recipientPkHash', 'treeIds', 'receiptUrl']
+                ['amount', 'paidAt', 'bankRef', 'recipientPkHash', 'receiptUrl']
                     .forEach(function (id) { const el = $(id); if (el) el.value = ''; });
+                _selectedTreeId = '';
+                const tp = $('treePicker'); if (tp) tp.value = '';
                 uploadedReceiptFile = null;
                 updateReceiptInfo('');
                 const rp = $('receipt-file-preview'); if (rp) { rp.style.display = 'none'; rp.src = ''; }
@@ -470,35 +484,38 @@
             // One card per id currently in the tree field: species, planting date,
             // coordinates, photo, and -- when the governor-only map resolves it -- the
             // recipient pk_hash the payout would link to.
+            // The detail card for the ONE currently-selected tree: species, planting
+            // date, coordinates, photo, and -- when the governor-only map resolves it
+            // -- the recipient pk_hash the payout would link to.
+            function treeCardHtml(id) {
+                const t = U.findPendingTree(_pendingTrees, id);
+                const pk = _treeRecipientMap[id] || '';
+                const fields = U.treeDetailFields(t);
+                const meta = fields.filter(function (f) { return f[0] !== 'Tree ID'; })
+                    .map(function (f) { return escapeHtml(f[0]) + ': ' + escapeHtml(f[1]); })
+                    .join(' &middot; ');
+                const photo = (t && t.photo_url)
+                    ? '<img class="tc-photo" src="' + escapeHtml(t.photo_url) + '" alt="Tree photo" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+                    : '';
+                const mk = (pk && _maskedKeyByPk[pk]) ? _maskedKeyByPk[pk] : null;
+                const mkText = mk ? [mk.pix_key_type, mk.pix_key_masked].filter(Boolean).join(' ') : '';
+                const pkLine = pk
+                    ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong>' +
+                      (mkText ? '<span class="tc-masked">\uD83D\uDD12 partial key: ' + escapeHtml(mkText) + '</span>' : '') +
+                      '</div>'
+                    : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
+                return '<div class="tree-card">' + photo +
+                    '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
+                    (meta ? '<div class="tc-meta">' + meta + '</div>'
+                          : '<div class="tc-meta">Not in the public pending list (already paid, or not currently selectable).</div>') +
+                    pkLine + '</div></div>';
+            }
+
             function renderTreeDetails() {
                 const host = $('treeDetails');
                 if (!host) return;
-                const input = $('treeIds');
-                const ids = U.parseTreeIds(input ? input.value : '');
-                if (!ids.length) { host.innerHTML = ''; return; }
-                host.innerHTML = ids.map(function (id) {
-                    const t = U.findPendingTree(_pendingTrees, id);
-                    const pk = _treeRecipientMap[id] || '';
-                    const fields = U.treeDetailFields(t);
-                    const meta = fields.filter(function (f) { return f[0] !== 'Tree ID'; })
-                        .map(function (f) { return escapeHtml(f[0]) + ': ' + escapeHtml(f[1]); })
-                        .join(' &middot; ');
-                    const photo = (t && t.photo_url)
-                        ? '<img class="tc-photo" src="' + escapeHtml(t.photo_url) + '" alt="Tree photo" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
-                        : '';
-                    const mk = (pk && _maskedKeyByPk[pk]) ? _maskedKeyByPk[pk] : null;
-                    const mkText = mk ? [mk.pix_key_type, mk.pix_key_masked].filter(Boolean).join(' ') : '';
-                    const pkLine = pk
-                        ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong>' +
-                          (mkText ? '<span class="tc-masked">\uD83D\uDD12 partial key: ' + escapeHtml(mkText) + '</span>' : '') +
-                          '</div>'
-                        : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
-                    return '<div class="tree-card">' + photo +
-                        '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
-                        (meta ? '<div class="tc-meta">' + meta + '</div>'
-                              : '<div class="tc-meta">Not in the public pending list (already paid, or typed in).</div>') +
-                        pkLine + '</div></div>';
-                }).join('');
+                const id = String(_selectedTreeId || '').trim();
+                host.innerHTML = id ? treeCardHtml(id) : '';
             }
 
             function loadTreeRecipientMap() {
@@ -532,39 +549,43 @@
                 const host = $('overpayGuard');
                 if (!host) return;
                 if (!_overpayFlags) { host.innerHTML = ''; return; }
-                const ids = U.parseTreeIds($('treeIds').value);
+                const selected = String(_selectedTreeId || '').trim();
                 const flagged = Object.keys(_overpayFlags).sort();
                 let html = '<div class="overpay-summary">Overpay guard: <strong>' + flagged.length +
                     '</strong> pending tree(s) carry a risk flag. ' +
-                    (ids.length ? 'Checking your ' + ids.length + ' entered id(s).'
-                                : 'Enter tree ids above to check them.') +
+                    (selected ? 'Checking <code>' + escapeHtml(selected) + '</code>.'
+                              : 'Pick a tree above to check it.') +
                     '<div class="overpay-legend">A tree is flagged when it <strong>shares a photo</strong> with another row, ' +
                     '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
                     ' m of a <em>different</em> tree (GPS staleness can put several picks on one fix).</div></div>';
 
-                const seen = {};
-                ids.forEach(function (id) {
-                    if (seen[id]) return; seen[id] = 1;
-                    const f = _overpayFlags[id];
-                    if (!f) return;
-                    const bits = [];
-                    if (f.duplicate) {
-                        bits.push('possible <strong>duplicate</strong>' +
-                            (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.join(', ')) : ''));
+                if (selected) {
+                    const f = _overpayFlags[selected];
+                    if (f) {
+                        const bits = [];
+                        if (f.duplicate) {
+                            bits.push('possible <strong>duplicate</strong>' +
+                                (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.join(', ')) : ''));
+                        }
+                        if (f.colocated) {
+                            bits.push('<strong>co-located</strong> with ' + escapeHtml(
+                                f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
+                        }
+                        html += '<div class="overpay-row">\u26a0 <code>' + escapeHtml(selected) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
+                        // Its own detail card appears right here (Gary item 3).
+                        html += '<div class="overpay-tree-card">' + treeCardHtml(selected) + '</div>';
                     }
-                    if (f.colocated) {
-                        bits.push('<strong>co-located</strong> with ' + escapeHtml(
-                            f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
-                    }
-                    html += '<div class="overpay-row">\u26a0 <code>' + escapeHtml(id) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
-                });
+                }
 
                 if (flagged.length) {
                     html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
                         ' flagged tree(s) \u2014 with reasons</summary><div class="overpay-all-list">' +
                         flagged.map(function (id) {
                             var why = U.overpayReasonBits(_overpayFlags[id]).join(' \u00b7 ');
-                            return '<div class="overpay-all-row"><code>' + escapeHtml(id) + '</code> \u2014 ' +
+                            var isSel = (id === selected) ? ' is-selected' : '';
+                            return '<div class="overpay-all-row' + isSel + '">' +
+                                '<button type="button" class="flagged-pick" data-tree-id="' + escapeHtml(id) + '">' +
+                                '<code>' + escapeHtml(id) + '</code></button> \u2014 ' +
                                 escapeHtml(why) + '</div>';
                         }).join('') +
                         '</div></details>';
@@ -782,9 +803,8 @@
                     paidAt: $('paidAt').value,
                     bankRefType: $('bankRefType').value,
                     bankRef: $('bankRef').value,
-                    recipientName: $('recipientName').value,
                     recipientPkHash: $('recipientPkHash').value,
-                    treeIds: $('treeIds').value,
+                    treeIds: _selectedTreeId,
                     status: U.deriveStatus($('paidAt').value),
                     receiptUrl: $('receiptUrl').value,
                     receiptFileName: cachedReceiptFileName || '',
@@ -873,15 +893,17 @@
                 boot();
                 loadTreeRecipientMap();
                 $('submitButton').addEventListener('click', submit);
-                const treeInput = $('treeIds');
-                if (treeInput) treeInput.addEventListener('input', function () {
-                    renderOverpayGuard();
-                    renderTreeDetails();
-                });
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('change', renderTreeOptions);
                 const picker = $('treePicker');
                 if (picker) picker.addEventListener('change', addPickedTree);
+                const guardHost = $('overpayGuard');
+                if (guardHost) guardHost.addEventListener('click', function (e) {
+                    const t = e.target;
+                    const btn = t && t.closest ? t.closest('.flagged-pick') : null;
+                    if (!btn) return;
+                    selectTreeById(btn.getAttribute('data-tree-id'));
+                });
                 wireReceiptAttachment();
             });
         })();

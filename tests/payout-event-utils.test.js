@@ -71,9 +71,9 @@ test('validate: recipient is OPTIONAL (often unknown; tree id is the anchor)', (
     const r = u.validate(Object.assign({}, GOOD, { recipientName: '' }));
     assert.strictEqual(r.valid, true, JSON.stringify(r.errors));
 });
-test('buildAttributes: a blank recipient is emitted as an empty value (never fails)', () => {
-    const map = Object.fromEntries(u.buildAttributes(Object.assign({}, GOOD, { recipientName: '' }), {}));
-    assert.strictEqual(map['Recipient'], '');
+test('buildAttributes: no free-text Recipient line is emitted (redundant field removed)', () => {
+    const labels = u.buildAttributes(Object.assign({}, GOOD, { recipientName: 'Paulo' }), {}).map((p) => p[0]);
+    assert.ok(!labels.includes('Recipient'), 'the Recipient line must be gone: ' + labels.join(', '));
 });
 test('validate: bankRef is required (reconciliation anchor)', () => {
     const r = u.validate(Object.assign({}, GOOD, { bankRef: '' }));
@@ -118,12 +118,13 @@ test('PRIVACY: the payload contract has no raw-PIX field at all', () => {
     const labels = u.buildAttributes(GOOD, {}).map((p) => p[0]);
     assert.ok(!labels.some((l) => /pix/i.test(l)), 'no PIX label may appear: ' + labels.join(', '));
 });
-test('PRIVACY: a CPF-like string passed as recipient name is not silently kept as a pk hash', () => {
-    // even if an operator pastes a CPF into the name field, it lands in Recipient,
-    // never in the pk-hash slot unless explicitly given there.
+test('PRIVACY: a CPF-like string in a stray recipientName never reaches the payload', () => {
+    // The name field is gone; even if a stale caller passes one, it must not surface.
     const attrs = u.buildAttributes(Object.assign({}, GOOD, { recipientName: '111.444.777-35', recipientPkHash: '' }), {});
     const map = Object.fromEntries(attrs);
     assert.strictEqual(map['Recipient PK Hash'], u.UNLINKED_RECIPIENT);
+    const joined = JSON.stringify(attrs);
+    assert.ok(!/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(joined), 'no CPF-shaped value may appear');
 });
 
 test('buildAttributes emits Attached Filename + private Destination when a receipt is attached', () => {
@@ -295,7 +296,6 @@ test('PRIVACY: dedupe parser has no pix_key (raw) accessor -- masked only', () =
     assert.ok(!/(^|[^_])\bpix_key\b(?!_)/.test(fn), 'dedupe parser must not read the raw pix_key field');
 });
 
-
 // --- tree recipient map (governor-only read) --------------------------------
 test('buildTreeRecipientMap: {data:{items}} -> tree_id->pk_hash', () => {
     const p = { status: 'success', data: { items: [
@@ -393,6 +393,33 @@ test('feedHasProgramData: true only when a tree carries attribution', function (
   assert.strictEqual(u.feedHasProgramData([]), false);
   assert.strictEqual(u.feedHasProgramData(null), false);
 });
+
+test('programSlugsByHost maps host->slug from the registry (SSOT)', () => {
+const reg = { hosts: { 'cfr.truesight.me': 'crf-anapu', 'BETA.cfr.truesight.me': 'crf-anapu', 'x.truesight.me': 'x-prog' } };
+assert.deepStrictEqual(u.programSlugsByHost(reg), {
+  'cfr.truesight.me': 'crf-anapu',
+  'beta.cfr.truesight.me': 'crf-anapu',
+  'x.truesight.me': 'x-prog',
+});
+assert.deepStrictEqual(u.programSlugsByHost(null), {});
+  });
+
+test('programForTree: explicit slug wins; else resolves the source host via the map', () => {
+const map = { 'cfr.truesight.me': 'crf-anapu' };
+assert.strictEqual(u.programForTree({ program_slug: 'x-prog', submission_source: 'https://cfr.truesight.me/' }, map), 'x-prog');
+assert.strictEqual(u.programForTree({ submission_source: 'https://cfr.truesight.me/plant' }, map), 'crf-anapu');
+assert.strictEqual(u.programForTree({ submission_source: 'https://beta.cfr.truesight.me/x' }, map), 'crf-anapu');
+// Unattributable rows resolve to '' (the page keeps them visible).
+assert.strictEqual(u.programForTree({}, map), '');
+assert.strictEqual(u.programForTree({ submission_source: 'https://sunmint.truesight.me/' }, map), '');
+  });
+
+test('submissionSourceHost: URL or bare host -> lowercased host', () => {
+assert.strictEqual(u.submissionSourceHost('https://cfr.truesight.me/x'), 'cfr.truesight.me');
+assert.strictEqual(u.submissionSourceHost('https://cfr.truesight.me:443/x'), 'cfr.truesight.me');
+assert.strictEqual(u.submissionSourceHost('cfr.truesight.me'), 'cfr.truesight.me');
+assert.strictEqual(u.submissionSourceHost(''), '');
+  });
 
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

@@ -216,7 +216,6 @@ test.describe('report_payout_event.html', () => {
     // Valid amount + date, but NO bank_ref -> inline reject, no submission.
     await page.fill('#amount', '50,00');
     await page.fill('#paidAt', '2026-09-12');
-    await page.fill('#recipientName', 'Paulo');
     await page.selectOption('#programSlug', 'crf-anapu');
     await page.fill('#bankRef', '');
     await page.click('#submitButton');
@@ -261,8 +260,8 @@ test.describe('report_payout_event.html', () => {
     await page.selectOption('#currency', 'BRL');
     await page.fill('#paidAt', '2026-09-12T21:38:00Z');
     await page.fill('#bankRef', 'E6890081000000000000000000000');
-    await page.fill('#recipientName', 'Paulo');
-    await page.fill('#treeIds', 'T-1, T-2');
+    // No separate tree-id text field: the picker is the only input (single-select).
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
     // No Status dropdown: it is derived. A 2026-09-12 paidAt is a prior UTC day,
     // so the payload must self-report Status: backfill.
     await page.click('#submitButton');
@@ -274,9 +273,9 @@ test.describe('report_payout_event.html', () => {
     expect(requestPre).toContain('Amount: 50');
     expect(requestPre).toContain('Bank Ref: E6890081000000000000000000000');
     expect(requestPre).toContain('Status: backfill');
-    expect(requestPre).toContain('Tree Planting IDs: T-1, T-2');
-    // The unlinked marker is used because no pk hash was supplied.
-    expect(requestPre).toContain('Recipient PK Hash: unlinked_recipient');
+    expect(requestPre).toContain('Tree Planting IDs: Edgar_TEST_T1');
+    // Picking Edgar_TEST_T1 auto-fills its registered recipient pk_hash.
+    expect(requestPre).toContain('Recipient PK Hash: pk-qkejKJJW3IAD');
     expect(requestPre).toContain('Request Transaction ID');
 
     // PRIVACY: no PIX-key field name and no CPF-shaped value in the payload.
@@ -318,7 +317,6 @@ test.describe('report_payout_event.html', () => {
     await page.selectOption('#currency', 'BRL');
     await page.fill('#paidAt', '2026-09-12T21:38:00Z');
     await page.fill('#bankRef', 'E6890081000000000000000000000');
-    await page.fill('#recipientName', 'Paulo');
     await page.click('#submitButton');
 
     await expect(page.locator('#status')).toContainText(/Payout recorded/i, { timeout: 20000 });
@@ -349,11 +347,15 @@ test.describe('report_payout_event.html', () => {
 
     // The picker exposes the unpaid trees.
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
-    // Picking one appends it to #treeIds.
+    // There is NO separate tree-id text field: only the picker.
+    await expect(page.locator('#treeIds')).toHaveCount(0);
+    // Single-select: picking T2 REPLACES T1.
     await page.selectOption('#treePicker', 'Edgar_TEST_T1');
-    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1');
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T1');
     await page.selectOption('#treePicker', 'Edgar_TEST_T2');
-    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1, Edgar_TEST_T2');
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T2');
+    // Put T1 back so the paid-tree assertions below match the payload.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
 
     // Recipient is OPTIONAL - leave it blank.
     await page.fill('#amount', 'R$ 50,00');
@@ -364,18 +366,17 @@ test.describe('report_payout_event.html', () => {
 
     await expect(page.locator('#status')).toContainText(/Payout recorded/i, { timeout: 20000 });
     const requestPre = await page.locator('#requestPre').textContent();
-    expect(requestPre).toContain('Tree Planting IDs: Edgar_TEST_T1, Edgar_TEST_T2');
-    expect(requestPre).toContain('Recipient: \n'); // blank recipient -> empty value
+    expect(requestPre).toContain('Tree Planting IDs: Edgar_TEST_T1');
 
-    // The just-paid trees are NO LONGER selectable...
+    // Only the PAID tree leaves the list (single-select: T2 was never paid)...
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(0);
-    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(0);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(1);
     // ...and the button now offers a fresh form.
     await expect(page.locator('#submitButton')).toHaveText(/Submit another payout/i);
 
-    // Clicking it RESETS the form.
+    // Clicking it RESETS the form (the picker clears).
     await page.click('#submitButton');
-    await expect(page.locator('#treeIds')).toHaveValue('');
+    await expect(page.locator('#treePicker')).toHaveValue('');
     await expect(page.locator('#amount')).toHaveValue('');
     await expect(page.locator('#submitButton')).toHaveText(/Submit Payout/i);
   });
@@ -405,6 +406,46 @@ test.describe('report_payout_event.html', () => {
     await expect(list).toContainText('Edgar_FLAG_A');
     await expect(list).toContainText('co-located with');
     await expect(list).toContainText('(0 m)');
+  });
+
+  test('flagged list sits UNDER the tree detail card; clicking a flagged tree shows its card', async ({ page }) => {
+    await mockBackend(page);
+    // Two DIFFERENT trees on the SAME fix (0 m) -> both flagged co-located -> both in the list.
+    await page.route('**/sunmint_pending.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', count: 2, items: [
+        { telegram_message_id: 'Edgar_FLAG_A', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/a.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+        { telegram_message_id: 'Edgar_FLAG_B', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/b.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // The flagged list must FOLLOW the detail card in DOM order (i.e. sit under it).
+    await expect(page.locator('#overpayGuard details.overpay-all summary')).toBeVisible({ timeout: 15000 });
+    const under = await page.evaluate(() => {
+      const b = document.getElementById('overpayGuard');
+      const d = document.getElementById('treeDetails');
+      return !!(b && d) && (d.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(under, 'flagged list must sit under the tree detail card').toBe(true);
+
+    // Clicking a flagged tree renders ITS detail card (even though it is not the picker's value).
+    await page.click('#overpayGuard details.overpay-all summary');
+    await page.click('#overpayGuard .flagged-pick[data-tree-id="Edgar_FLAG_A"]');
+    const card = page.locator('#treeDetails .tree-card').first();
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(1);
+    await expect(card.locator('.tc-id')).toHaveText('Edgar_FLAG_A');
+    await expect(card.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/a.jpg');
+    // The clicked row is highlighted as the current selection.
+    await expect(page.locator('#overpayGuard .overpay-all-row.is-selected')).toContainText('Edgar_FLAG_A');
+    // ...and the tree's OWN card renders inside the guard (overpay-tree-card), one per pick.
+    await expect(page.locator('#overpayGuard .overpay-tree-card .tree-card')).toHaveCount(1);
+    await expect(page.locator('#overpayGuard .overpay-tree-card .tc-id')).toHaveText('Edgar_FLAG_A');
+    // Rows are one-per-line (block flow, not inline).
+    const block = await page.locator('#overpayGuard .overpay-all-row').first().evaluate((el) => getComputedStyle(el).display);
+    expect(block).toBe('block');
   });
 
   test('attaching a receipt emits a PRIVATE destination and never the public store', async ({ page }) => {
@@ -516,8 +557,8 @@ test.describe('report_payout_event.html', () => {
     // The tree's photo is shown.
     await expect(card.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/t1.jpg');
 
-    // Clearing the field clears the cards.
-    await page.fill('#treeIds', '');
+    // Clearing the selection (blank option) clears the cards.
+    await page.selectOption('#treePicker', '');
     await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
   });
 
@@ -544,8 +585,8 @@ test.describe('report_payout_event.html', () => {
     await page.selectOption('#treePicker', 'Edgar_TEST_T2');
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
 
-    // A multi-tree selection is ambiguous -> the field is left untouched.
-    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1, Edgar_TEST_T2');
+    // Single-select: there is no multi-tree state to be ambiguous about.
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T2');
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
   });
 });
