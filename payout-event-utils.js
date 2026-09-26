@@ -124,6 +124,26 @@
     }
 
     /**
+     * Derive the capture `status` instead of asking the operator for it. The
+     * distinction the ledger cares about is live ("captured as it happened") vs
+     * backfill ("reconstructed after the fact") -- and the operator ALREADY
+     * signals that with `paidAt` (a historical date == a backfill). So:
+     *   same UTC calendar day as `now` (or a future date) -> 'live'
+     *   any earlier UTC calendar day                     -> 'backfill'
+     * A blank/unparseable paidAt degrades to 'live' (the caller's validation
+     * rejects a bad date before submit anyway).
+     */
+    function deriveStatus(paidAt, nowIso) {
+        var d = new Date(paidAt);
+        if (!paidAt || isNaN(d.getTime())) return 'live';
+        var now = new Date(nowIso || Date.now());
+        if (isNaN(now.getTime())) now = new Date();
+        var a = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        var b = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+        return a < b ? 'backfill' : 'live';
+    }
+
+    /**
      * Ordered [label, value] pairs for the Edgar payload. Order is part of the
      * contract (the payload is signed verbatim, so the label order is fixed).
      * No PII: the recipient is carried as a display name + an optional pk hash.
@@ -371,7 +391,8 @@
         buildTreeRecipientMap: buildTreeRecipientMap,
         findPendingTree: findPendingTree,
         treeDetailFields: treeDetailFields,
-        maskedKeyByPkHash: maskedKeyByPkHash
+        maskedKeyByPkHash: maskedKeyByPkHash,
+        deriveStatus: deriveStatus
     };
 
     global.PayoutEventUtils = utils;
