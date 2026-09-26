@@ -21,7 +21,7 @@
     <script src="./scripts/permissions.js"></script>
     <script src="./scripts/edgar_payload_helper.js"></script>
     <script src="./scripts/edgar_submission.js?v=20260913a"></script>
-    <script src="./payout-event-utils.js"></script>
+    <script src="./payout-event-utils.js?v=20260926a"></script>
 
     <style>
         /* TrueSight DApp — light "Saffron Monk" / earthen palette, matching link_tree_planting.html */
@@ -357,34 +357,29 @@
                 renderProgramFilterNote();
             }
 
-            // Loud-failure affordance: when a program is chosen but the feed has no
-            // program attribution to filter on, say so instead of silently listing
-            // every unpaid tree as if the filter had applied.
+            // Loud-failure affordance: when a program is chosen but the feed carries
+            // NO program attribution at all, the filter cannot narrow -- say so
+            // instead of silently listing every unpaid tree as if it had applied.
             function renderProgramFilterNote() {
                 const el = $('programFilterNote');
                 if (!el) return;
-                const p = currentProgram();
-                if (p && _pendingTrees.length && !_pendingHasProgramData) {
+                if (U.programFilterNotApplied(currentProgram(), _pendingTrees, _pendingHasProgramData)) {
                     el.style.display = 'block';
                     el.style.color = '#8a6d3b';
-                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution (no <code>submission_source</code>) yet, so all unpaid trees are still listed. Once the feed records the origin host, choosing a program narrows this list.';
+                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution yet, so all unpaid trees are still listed. Once the feed records each tree\u2019s program, choosing a program narrows this list.';
                 } else {
                     el.style.display = 'none';
                     el.innerHTML = '';
                 }
             }
 
-            // Blank program => ALL trees. A chosen program narrows to that program's
-            // trees, matched by origin (Submission Source host), mirroring the plan's
-            // "program mapping is by origin". Rows that carry no origin yet are kept
-            // visible rather than silently hidden.
+            // STRICT program filter: a chosen program narrows to trees whose
+            // attribution EQUALS it (unattributed rows are hidden, never shown as if
+            // they matched). A blank program = general disbursement = every tree.
+            // While the feed carries no attribution at all the filter cannot narrow,
+            // so the list stays complete and renderProgramFilterNote() says so.
             function treesForProgram(program) {
-                if (!program) return _pendingTrees;
-                return _pendingTrees.filter(function (t) {
-                    var p = U.programForTree(t, _programHosts);
-                    if (p) return p === program;
-                    return true;   // unattributed rows stay visible (never silently hidden)
-                });
+                return U.treesForProgram(_pendingTrees, program, _programHosts, _pendingHasProgramData);
             }
 
             // The PICKER lists only UNPAID trees (the public pending cache is already

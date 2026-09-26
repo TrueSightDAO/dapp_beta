@@ -457,6 +457,34 @@
         });
     }
 
+    // STRICT program filter (governor directive, thread 35944): when a program is
+    // chosen, KEEP a tree only when its resolved program EQUALS it. Rows that
+    // resolve to '' (unattributed) are HIDDEN -- never shown as if they belonged.
+    // A blank program is the general disbursement => every tree. `hasProgramData`
+    // guards the pre-attribution feed: while NO row carries attribution the filter
+    // cannot narrow, so every tree is kept and programFilterNotApplied() says so.
+    function treesForProgram(trees, program, hostMap, hasProgramData) {
+        var all = trees || [];
+        if (!program) return all;
+        var hasData = (typeof hasProgramData === 'boolean')
+            ? hasProgramData
+            : feedHasProgramData(all);
+        if (!hasData) return all;
+        return all.filter(function (t) { return programForTree(t, hostMap) === program; });
+    }
+
+    // True when a program is chosen but the feed carries no program attribution to
+    // filter on -- the page must SAY so rather than imply the filter applied.
+    function programFilterNotApplied(program, trees, hasProgramData) {
+        if (!program) return false;
+        var all = trees || [];
+        if (!all.length) return false;
+        var hasData = (typeof hasProgramData === 'boolean')
+            ? hasProgramData
+            : feedHasProgramData(all);
+        return !hasData;
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -485,7 +513,9 @@
         programSlugsByHost: programSlugsByHost,
         programForTree: programForTree,
         submissionSourceHost: submissionSourceHost,
-        feedHasProgramData: feedHasProgramData
+        feedHasProgramData: feedHasProgramData,
+        treesForProgram: treesForProgram,
+        programFilterNotApplied: programFilterNotApplied
     };
 
     global.PayoutEventUtils = utils;
