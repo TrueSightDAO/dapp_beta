@@ -204,7 +204,7 @@
             <select id="treePicker">
                 <option value="">Loading unpaid trees&hellip;</option>
             </select>
-            <div class="hint">Pick one <strong>unpaid</strong> tree (canonical <code>Edgar_&hellip;</code> id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
+            <div class="hint">Pick one <strong>unpaid</strong> tree &mdash; identified by its signed <code>Request Transaction ID</code> (<code>tx:&hellip;</code>, the canonical key; older rows without a txid fall back to the <code>Edgar_&hellip;</code> transport id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
             <div class="cards-compare">
                 <div class="compare-col">
                     <div class="compare-heading">Tree Details <span class="hint-inline">&mdash; from the picker above</span></div>
@@ -433,7 +433,7 @@
                     }
                     var tail = chosen[id] ? ' \u2713' : '';
                     opts.push('<option value="' + escapeHtml(id) + '">' +
-                        escapeHtml(id + (parts ? ' \u2014 ' + parts : '') + warn + tail) + '</option>');
+                        escapeHtml(dispId(id) + (parts ? ' \u2014 ' + parts : '') + warn + tail) + '</option>');
                 });
                 sel.innerHTML = opts.join('');
                 sel.value = chosen[_selectedTreeId] ? _selectedTreeId : '';
@@ -510,6 +510,17 @@
             // The detail card for the ONE currently-selected tree: species, planting
             // date, coordinates, photo, and -- when the governor-only map resolves it
             // -- the recipient pk_hash the payout would link to.
+            // Display identity for a tree id: the signed `Request Transaction ID`
+            // rendered `tx:<8>` when the row carries one, else the transport id.
+            // LABEL ONLY -- every map, the picker value and the signed payload keep
+            // the canonical id, so autofill/reject/consumer joins are unchanged.
+            function dispId(id) {
+                id = String(id || '').trim();
+                if (!id) return '';
+                var t = U.findPendingTree(_pendingTrees, id);
+                return U.treeDisplayId(t) || id;
+            }
+
             function treeCardHtml(id) {
                 const t = U.findPendingTree(_pendingTrees, id);
                 const pk = _treeRecipientMap[id] || '';
@@ -528,7 +539,7 @@
                       '</div>'
                     : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
                 return '<div class="tree-card">' + photo +
-                    '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
+                    '<div class="tc-main"><div class="tc-id">' + escapeHtml(dispId(id)) + '</div>' +
                     (meta ? '<div class="tc-meta">' + meta + '</div>'
                           : '<div class="tc-meta">Not in the public pending list (already paid, or not currently selectable).</div>') +
                     pkLine + '</div></div>';
@@ -603,7 +614,7 @@
                 const flagged = Object.keys(_overpayFlags).sort();
                 let html = '<div class="overpay-summary">Overpay guard: <strong>' + flagged.length +
                     '</strong> pending tree(s) carry a risk flag. ' +
-                    (selected ? 'Checking <code>' + escapeHtml(selected) + '</code>.'
+                    (selected ? 'Checking <code>' + escapeHtml(dispId(selected)) + '</code>.'
                               : 'Pick a tree above to check it.') +
                     '<div class="overpay-legend">A tree is flagged when it <strong>shares a photo</strong> with another row, ' +
                     '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
@@ -615,13 +626,13 @@
                     const bits = [];
                     if (f.duplicate) {
                         bits.push('possible <strong>duplicate</strong>' +
-                            (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.join(', ')) : ''));
+                            (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.map(dispId).join(', ')) : ''));
                     }
                     if (f.colocated) {
                         bits.push('<strong>co-located</strong> with ' + escapeHtml(
-                            f.colocated_with.map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; }).join(', ')));
+                            f.colocated_with.map(function (c) { return dispId(c.tree_id) + ' (' + c.meters + ' m)'; }).join(', ')));
                     }
-                    return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(id) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
+                    return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(dispId(id)) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
                 }
                 // The reason block follows the PICKER selection -- the operator's sole
                 // question is whether to pay for THAT tree.
@@ -631,11 +642,13 @@
                     html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
                         ' flagged tree(s) \u2014 with reasons; click one to select it</summary><div class="overpay-all-list">' +
                         flagged.map(function (id) {
-                            var why = U.overpayReasonBits(_overpayFlags[id]).join(' \u00b7 ');
+                            // Reason partner ids render in DISPLAY form (tx:<8>); the
+                            // stored flag keys stay canonical.
+                            var why = U.overpayReasonBits(_overpayFlags[id], { labelFor: dispId }).join(' \u00b7 ');
                             var isSel = (id === selected) ? ' is-selected' : '';
                             return '<div class="overpay-all-row' + isSel + '">' +
                                 '<button type="button" class="flagged-pick" data-tree-id="' + escapeHtml(id) + '">' +
-                                '<code>' + escapeHtml(id) + '</code></button> \u2014 ' +
+                                '<code>' + escapeHtml(dispId(id)) + '</code></button> \u2014 ' +
                                 escapeHtml(why) + '</div>';
                         }).join('') +
                         '</div></details>';
