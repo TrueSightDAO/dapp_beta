@@ -490,5 +490,52 @@ test('TREE_REJECT_EVENT_NAME matches the GAS consumer marker', () => {
     assert.strictEqual(u.TREE_REJECT_EVENT_NAME, 'TREE PLANTING REJECT EVENT');
 });
 
+// --- overpayConflictPartners (the SELECTION's collision set) -----------------
+test('overpayConflictPartners: an unflagged tree has no partners', () => {
+    const flags = u.computeOverpayFlags([
+        { tree_id: 'A', latitude: '-3.1', longitude: '-52.1' },
+        { tree_id: 'B', latitude: '-3.2', longitude: '-52.2' }
+    ]);
+    assert.deepStrictEqual(u.overpayConflictPartners(flags, 'A'), []);
+});
+test('overpayConflictPartners: missing flags / unknown id -> [] (never throws)', () => {
+    assert.deepStrictEqual(u.overpayConflictPartners(null, 'A'), []);
+    assert.deepStrictEqual(u.overpayConflictPartners({}, 'A'), []);
+    assert.deepStrictEqual(u.overpayConflictPartners(undefined, ''), []);
+});
+test('overpayConflictPartners: returns the co-located partner, nearest first', () => {
+    // A-B on the same fix (0 m); C ~2 m away -> A's partners ordered [B, C].
+    const flags = u.computeOverpayFlags([
+        { tree_id: 'A', latitude: '-3.100000', longitude: '-52.100000' },
+        { tree_id: 'B', latitude: '-3.100000', longitude: '-52.100000' },
+        { tree_id: 'C', latitude: '-3.100018', longitude: '-52.100000' } // ~2 m
+    ]);
+    const p = u.overpayConflictPartners(flags, 'A');
+    assert.deepStrictEqual(p, ['B', 'C']);
+});
+test('overpayConflictPartners: duplicate partners are appended and de-duplicated', () => {
+    // A and B share a photo (duplicate) and are also co-located -> listed ONCE.
+    const flags = u.computeOverpayFlags([
+        { tree_id: 'A', photo_url: 'http://x/same.jpg', latitude: '-3.1', longitude: '-52.1' },
+        { tree_id: 'B', photo_url: 'http://x/same.jpg', latitude: '-3.1', longitude: '-52.1' }
+    ]);
+    assert.deepStrictEqual(u.overpayConflictPartners(flags, 'A'), ['B']);
+});
+test('overpayConflictPartners: caps the comparison list (default 3)', () => {
+    const rows = [{ tree_id: 'A', latitude: '-3.1', longitude: '-52.1' }];
+    for (let i = 0; i < 5; i++) rows.push({ tree_id: 'P' + i, latitude: '-3.1', longitude: '-52.1' });
+    const flags = u.computeOverpayFlags(rows);
+    assert.strictEqual(u.overpayConflictPartners(flags, 'A').length, 3);
+    assert.strictEqual(u.overpayConflictPartners(flags, 'A', 2).length, 2);
+});
+test('overpayConflictPartners: reads NO PII in its output', () => {
+    const flags = u.computeOverpayFlags([
+        { tree_id: 'A', latitude: '-3.1', longitude: '-52.1' },
+        { tree_id: 'B', latitude: '-3.1', longitude: '-52.1' }
+    ]);
+    const blob = JSON.stringify(u.overpayConflictPartners(flags, 'A'));
+    assert.strictEqual(/pix|cpf|pk_hash|publicKey/i.test(blob), false);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

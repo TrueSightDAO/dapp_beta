@@ -94,7 +94,6 @@
         .overpay-legend { font-size: 0.75rem; color: #777; margin-top: 0.25rem; line-height: 1.45; }
         .overpay-all-row { display: block; width: 100%; font-size: 0.8rem; color: #555; line-height: 1.7; }
         .overpay-all-row.is-selected { background: var(--yellow-bg); border-radius: 4px; padding: 0 0.3rem; }
-        .overpay-all-row.is-overpay-selected { box-shadow: inset 3px 0 0 var(--accent); background: #eef4fc; border-radius: 4px; }
         .flagged-pick { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: #1a4d8f; }
         .flagged-pick:hover code, .flagged-pick:focus code { background: #e8f0fb; text-decoration: underline; }
         .tree-details { margin: 0.2rem 0 0.9rem; }
@@ -111,6 +110,8 @@
         .cards-compare .compare-heading { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; color: #555; font-weight: 700; margin-bottom: 0.15rem; }
         .cards-compare .compare-heading .hint-inline { text-transform: none; letter-spacing: 0; font-weight: 400; color: #999; font-size: 0.72rem; }
         .cards-compare .compare-empty { font-size: 0.78rem; color: #999; font-style: italic; padding: 0.5rem 0.2rem; }
+        .cards-compare .compare-clear { font-size: 0.8rem; color: #1e6b34; background: #e6f4ea; border: 1px solid #b7dfc4;
+            border-radius: 6px; padding: 0.5rem 0.6rem; line-height: 1.5; }
         .primary-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
             background: var(--accent); color: #fff; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
         .opt-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
@@ -210,7 +211,7 @@
                     <div id="treeDetails" class="tree-details"></div>
                 </div>
                 <div class="compare-col">
-                    <div class="compare-heading">Overpay Tree Details <span class="hint-inline">&mdash; from the flagged list below</span></div>
+                    <div class="compare-heading">Overpay Conflict <span class="hint-inline">&mdash; the tree it collides with</span></div>
                     <div id="overpayTreeDetails" class="tree-details"></div>
                 </div>
             </div>
@@ -333,7 +334,6 @@
             let _submittedTreeIds = {};      // ids already paid in THIS session -> hidden from the picker
             let _awaitingAnotherPayout = false;
             let _selectedTreeId = '';        // picker selection -- the tree being paid (drives autofill/reject)
-            let _overpayTreeId = '';         // flagged-list selection -- the comparison card (overpayTreeDetails)
             let _programHosts = {};          // host -> program slug (from the registry, SSOT)
             let _signedInName = '';          // resolved contributor name (for the reject payload)
 
@@ -460,16 +460,8 @@
                 }
                 maybeAutoFillRecipient(id ? [id] : []);
                 renderTreeDetails();
-                renderOverpayGuard();
-            }
-
-            // Flagged-list selection: fills ONLY the second (Overpay Tree Details)
-            // card so the operator can compare it against the picker's tree. It must
-            // NOT touch the picker, the payout, autofill or the reject target.
-            function selectOverpayTreeById(id) {
-                _overpayTreeId = String(id || '').trim();
                 renderOverpayTreeDetails();
-                renderOverpayGuard();   // refresh the row highlight
+                renderOverpayGuard();
             }
 
             // After a payout lands, hide the paid trees + offer a fresh form.
@@ -477,7 +469,6 @@
                 const paidId = String(_selectedTreeId || (form && form.treeIds) || '').trim();
                 if (paidId) _submittedTreeIds[paidId] = 1;
                 _selectedTreeId = '';
-                _overpayTreeId = '';
                 const tp = $('treePicker'); if (tp) tp.value = '';
                 renderTreeOptions();
                 renderTreeDetails();
@@ -493,7 +484,6 @@
                 ['amount', 'paidAt', 'bankRef', 'recipientPkHash', 'receiptUrl']
                     .forEach(function (id) { const el = $(id); if (el) el.value = ''; });
                 _selectedTreeId = '';
-                _overpayTreeId = '';
                 const tp = $('treePicker'); if (tp) tp.value = '';
                 renderTreeDetails();
                 renderOverpayTreeDetails();
@@ -554,16 +544,28 @@
                 if (zone) zone.style.display = id ? 'flex' : 'none';
             }
 
-            // The SECOND card: filled ONLY by clicking a row in the flagged list, so
-            // the operator can hold a flagged tree next to the one they are about to
-            // pay (side-by-side comparison). Deliberately independent of the picker
-            // selection -- it never changes what gets submitted.
+            // The SECOND card answers the operator's ONLY question about the selected
+            // tree -- "should I pay for this one?" -- by showing the tree(s) the
+            // SELECTION collides with (nearest co-located first, then duplicate
+            // partners), or an explicit all-clear when the selection is clean. It is
+            // DERIVED from the picker selection, so there is no second, independent
+            // selection to drift out of sync with what actually gets submitted.
             function renderOverpayTreeDetails() {
                 const host = $('overpayTreeDetails');
                 if (!host) return;
-                const id = String(_overpayTreeId || '').trim();
-                host.innerHTML = id ? treeCardHtml(id)
-                    : '<div class="compare-empty">Click a flagged tree below to compare it here.</div>';
+                const id = String(_selectedTreeId || '').trim();
+                if (!id) {
+                    host.innerHTML = '<div class="compare-empty">Pick a tree above to check it for overpay risk.</div>';
+                    return;
+                }
+                const partners = U.overpayConflictPartners(_overpayFlags, id);
+                if (!partners.length) {
+                    host.innerHTML = '<div class="compare-clear">&#10003; <strong>No overpay risk found.</strong> ' +
+                        'Nothing shares this tree&rsquo;s photo or id, and no other tree is within ' +
+                        U.OVERPAY_COLOCATED_METERS + ' m.</div>';
+                    return;
+                }
+                host.innerHTML = partners.map(function (pid) { return treeCardHtml(pid); }).join('');
             }
 
             function loadTreeRecipientMap() {
@@ -621,18 +623,17 @@
                     }
                     return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(id) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
                 }
-                const overpaySel = String(_overpayTreeId || '').trim();
-                [selected, overpaySel].filter(function (v, i, a) { return v && a.indexOf(v) === i; })
-                    .forEach(function (id) { html += reasonRow(id); });
+                // The reason block follows the PICKER selection -- the operator's sole
+                // question is whether to pay for THAT tree.
+                if (selected) html += reasonRow(selected);
 
                 if (flagged.length) {
                     html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
-                        ' flagged tree(s) \u2014 with reasons</summary><div class="overpay-all-list">' +
+                        ' flagged tree(s) \u2014 with reasons; click one to select it</summary><div class="overpay-all-list">' +
                         flagged.map(function (id) {
                             var why = U.overpayReasonBits(_overpayFlags[id]).join(' \u00b7 ');
                             var isSel = (id === selected) ? ' is-selected' : '';
-                            var isOv = (id === overpaySel) ? ' is-overpay-selected' : '';
-                            return '<div class="overpay-all-row' + isSel + isOv + '">' +
+                            return '<div class="overpay-all-row' + isSel + '">' +
                                 '<button type="button" class="flagged-pick" data-tree-id="' + escapeHtml(id) + '">' +
                                 '<code>' + escapeHtml(id) + '</code></button> \u2014 ' +
                                 escapeHtml(why) + '</div>';
@@ -1013,7 +1014,7 @@
                     const t = e.target;
                     const btn = t && t.closest ? t.closest('.flagged-pick') : null;
                     if (!btn) return;
-                    selectOverpayTreeById(btn.getAttribute('data-tree-id'));
+                    selectTreeById(btn.getAttribute('data-tree-id'));
                 });
                 const markBtn = $('markInvalidButton');
                 if (markBtn) markBtn.addEventListener('click', rejectTree);
