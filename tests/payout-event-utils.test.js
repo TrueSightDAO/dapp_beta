@@ -467,5 +467,28 @@ assert.strictEqual(u.submissionSourceHost('cfr.truesight.me'), 'cfr.truesight.me
 assert.strictEqual(u.submissionSourceHost(''), '');
   });
 
+// --- [TREE PLANTING REJECT EVENT] payload (mark-tree-invalid) --------------
+test('buildTreeRejectAttributes: exact monitor-page labels + (unlinked) QR sentinel', () => {
+    const a = u.buildTreeRejectAttributes('Edgar_20260903083532_007', '', 'Gary Teh', '');
+    assert.deepStrictEqual(Object.keys(a), ['QR Code', 'SunMint Submission Message ID', 'Updated by', 'Reason']);
+    assert.strictEqual(a['QR Code'], '(unlinked)');
+    assert.strictEqual(a['SunMint Submission Message ID'], 'Edgar_20260903083532_007');
+    assert.strictEqual(a['Updated by'], 'Gary Teh');
+    assert.strictEqual(a['Reason'], 'Not a valid tree');
+});
+test('buildTreeRejectAttributes: passes a real QR through and honours a custom reason', () => {
+    const a = u.buildTreeRejectAttributes('Edgar_T1', '2024OSCAR_20260121_12', 'Gary', 'duplicate row');
+    assert.strictEqual(a['QR Code'], '2024OSCAR_20260121_12');
+    assert.strictEqual(a['Reason'], 'duplicate row');
+});
+test('buildTreeRejectAttributes: carries NO recipient material (no PIX/CPF/pk_hash)', () => {
+    const a = u.buildTreeRejectAttributes('Edgar_T1', '', 'Gary', '');
+    const blob = JSON.stringify(a);
+    assert.strictEqual(/pix|cpf|pk_hash|pix_key/i.test(blob), false);
+});
+test('TREE_REJECT_EVENT_NAME matches the GAS consumer marker', () => {
+    assert.strictEqual(u.TREE_REJECT_EVENT_NAME, 'TREE PLANTING REJECT EVENT');
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
