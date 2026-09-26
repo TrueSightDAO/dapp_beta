@@ -410,7 +410,7 @@ test.describe('report_payout_event.html', () => {
     await expect(list).toContainText('(0 m)');
   });
 
-  test('flagged list sits UNDER the tree detail card; clicking a flagged tree shows its card', async ({ page }) => {
+  test('flagged list sits UNDER the detail cards; clicking a flagged tree fills the comparison card', async ({ page }) => {
     await mockBackend(page);
     // Two DIFFERENT trees on the SAME fix (0 m) -> both flagged co-located -> both in the list.
     await page.route('**/sunmint_pending.json', (route) => route.fulfill({
@@ -433,23 +433,70 @@ test.describe('report_payout_event.html', () => {
     });
     expect(under, 'flagged list must sit under the tree detail card').toBe(true);
 
-    // Clicking a flagged tree renders ITS detail card (even though it is not the picker's value).
+    // Clicking a flagged tree fills the SEPARATE "Overpay Tree Details" card. It
+    // must NOT touch the picker's "Tree Details" card (that one is the payout target).
     await page.click('#overpayGuard details.overpay-all summary');
     await page.click('#overpayGuard .flagged-pick[data-tree-id="Edgar_FLAG_A"]');
-    const card = page.locator('#treeDetails .tree-card').first();
-    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(1);
-    await expect(card.locator('.tc-id')).toHaveText('Edgar_FLAG_A');
-    await expect(card.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/a.jpg');
-    // The clicked row is highlighted as the current selection.
-    await expect(page.locator('#overpayGuard .overpay-all-row.is-selected')).toContainText('Edgar_FLAG_A');
-    // The card renders EXACTLY ONCE -- in #treeDetails, which sits ABOVE the guard.
-    // The guard must NOT also render it (Gary bug 2026-09-26: clicking a flagged
-    // row updated BOTH #treeDetails and #overpay-tree-card with the same details).
-    await expect(page.locator('#overpayGuard .overpay-tree-card')).toHaveCount(0);
-    await expect(page.locator('.tree-card')).toHaveCount(1);
+    const ovCard = page.locator('#overpayTreeDetails .tree-card').first();
+    await expect(page.locator('#overpayTreeDetails .tree-card')).toHaveCount(1);
+    await expect(ovCard.locator('.tc-id')).toHaveText('Edgar_FLAG_A');
+    await expect(ovCard.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/a.jpg');
+    // No picker selection yet -> the picker card stays EMPTY (the two are independent).
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
+    // The clicked row is highlighted as the OVERPAY selection (not the picker one).
+    await expect(page.locator('#overpayGuard .overpay-all-row.is-overpay-selected')).toContainText('Edgar_FLAG_A');
+    await expect(page.locator('#overpayGuard .overpay-all-row.is-selected')).toHaveCount(0);
     // Rows are one-per-line (block flow, not inline).
     const block = await page.locator('#overpayGuard .overpay-all-row').first().evaluate((el) => getComputedStyle(el).display);
     expect(block).toBe('block');
+  });
+
+  test('two cards: picker fills Tree Details, flagged row fills Overpay Tree Details, side by side', async ({ page }) => {
+    await mockBackend(page);
+    // T1 selectable via the picker; FLAG_A/FLAG_B co-located (0 m) so both are flagged.
+    await page.route('**/sunmint_pending.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', count: 3, items: [
+        { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW', program: 'crf-anapu' },
+        { telegram_message_id: 'Edgar_FLAG_A', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/a.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW', program: 'crf-anapu' },
+        { telegram_message_id: 'Edgar_FLAG_B', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/b.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW', program: 'crf-anapu' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+
+    // 1) Picker selection -> Tree Details card; the Overpay card is still a placeholder.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(1);
+    await expect(page.locator('#treeDetails .tc-id')).toHaveText('Edgar_TEST_T1');
+    await expect(page.locator('#overpayTreeDetails .tree-card')).toHaveCount(0);
+
+    // 2) Flagged-row click -> Overpay Tree Details card; the picker card is UNTOUCHED.
+    await page.click('#overpayGuard details.overpay-all summary');
+    await page.click('#overpayGuard .flagged-pick[data-tree-id="Edgar_FLAG_A"]');
+    await expect(page.locator('#overpayTreeDetails .tree-card')).toHaveCount(1);
+    await expect(page.locator('#overpayTreeDetails .tc-id')).toHaveText('Edgar_FLAG_A');
+    await expect(page.locator('#treeDetails .tc-id')).toHaveText('Edgar_TEST_T1'); // still the picker's
+    // Both cards exist at once -- this IS the side-by-side comparison view.
+    await expect(page.locator('.tree-card')).toHaveCount(2);
+
+    // 3) Tree Details sits in the FIRST column, Overpay Tree Details in the SECOND.
+    const order = await page.evaluate(() => {
+      const a = document.getElementById('treeDetails');
+      const b = document.getElementById('overpayTreeDetails');
+      return !!(a && b) && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(order, 'treeDetails must sit before overpayTreeDetails').toBe(true);
+
+    // 4) The payout still targets the PICKER's tree -- the overpay click never repoints it.
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T1');
+
+    // 5) Clearing the picker empties only the picker card; the overpay card is preserved.
+    await page.selectOption('#treePicker', '');
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
+    await expect(page.locator('#overpayTreeDetails .tc-id')).toHaveText('Edgar_FLAG_A');
   });
 
   test('attaching a receipt emits a PRIVATE destination and never the public store', async ({ page }) => {
