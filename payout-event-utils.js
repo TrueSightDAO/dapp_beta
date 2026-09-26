@@ -279,6 +279,60 @@
         return order.map(function (pk) { return byPk[pk]; });
     }
 
+    /**
+     * Build a `tree_id -> pk_hash` lookup from the governor-only
+     * `getTreeRecipientMap` payload (`{status, data:{items:[{tree_id, pk_hash}]}}`).
+     * Tolerant of shape drift: a missing/blank list yields {}, never a throw.
+     */
+    function buildTreeRecipientMap(payload) {
+        var out = {};
+        var items = (payload && payload.data && payload.data.items) || [];
+        items.forEach(function (it) {
+            if (!it) return;
+            var id = trim(it.tree_id);
+            var pk = trim(it.pk_hash);
+            if (id && pk && !out[id]) out[id] = pk;
+        });
+        return out;
+    }
+
+    /**
+     * Find one tree row in the public pending list by id (canonical
+     * `telegram_message_id`, falling back to `tree_id`). Returns null when the id
+     * is absent -- a typed-in id, or one already paid and dropped from the list.
+     */
+    function findPendingTree(rows, treeId) {
+        var id = trim(treeId);
+        if (!id) return null;
+        var list = rows || [];
+        for (var i = 0; i < list.length; i++) {
+            var t = list[i];
+            if (!t) continue;
+            var tid = trim(t.telegram_message_id || t.tree_id || '');
+            if (tid === id) return t;
+        }
+        return null;
+    }
+
+    /**
+     * Ordered, blank-stripped [label, value] pairs describing a pending tree.
+     * Kept pure so the details panel and its tests share ONE definition of what a
+     * tree shows. `photo_url` is deliberately excluded -- the panel renders it as
+     * an <img>, not as text.
+     */
+    function treeDetailFields(tree) {
+        if (!tree) return [];
+        var fields = [
+            ['Tree ID', trim(tree.telegram_message_id || tree.tree_id || '')],
+            ['Species', trim(tree.species)],
+            ['Planting date', trim(tree.planting_date)],
+            ['Latitude', trim(tree.latitude)],
+            ['Longitude', trim(tree.longitude)],
+            ['Submitted by', trim(tree.submitted_name)]
+        ];
+        return fields.filter(function (f) { return f[1] !== ''; });
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -296,7 +350,10 @@
         OVERPAY_COLOCATED_METERS: OVERPAY_COLOCATED_METERS,
         haversineMeters: haversineMeters,
         computeOverpayFlags: computeOverpayFlags,
-        overpayWarningsFor: overpayWarningsFor
+        overpayWarningsFor: overpayWarningsFor,
+        buildTreeRecipientMap: buildTreeRecipientMap,
+        findPendingTree: findPendingTree,
+        treeDetailFields: treeDetailFields
     };
 
     global.PayoutEventUtils = utils;

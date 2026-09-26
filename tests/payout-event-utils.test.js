@@ -295,5 +295,41 @@ test('PRIVACY: dedupe parser has no pix_key (raw) accessor -- masked only', () =
     assert.ok(!/(^|[^_])\bpix_key\b(?!_)/.test(fn), 'dedupe parser must not read the raw pix_key field');
 });
 
+
+// --- tree recipient map (governor-only read) --------------------------------
+test('buildTreeRecipientMap: {data:{items}} -> tree_id->pk_hash', () => {
+    const p = { status: 'success', data: { items: [
+        { tree_id: 'Edgar_A', pk_hash: 'pk-1' }, { tree_id: 'Edgar_B', pk_hash: 'pk-2' } ] } };
+    assert.deepStrictEqual(u.buildTreeRecipientMap(p), { Edgar_A: 'pk-1', Edgar_B: 'pk-2' });
+});
+test('buildTreeRecipientMap: malformed/blank input -> {} (never throws)', () => {
+    assert.deepStrictEqual(u.buildTreeRecipientMap(null), {});
+    assert.deepStrictEqual(u.buildTreeRecipientMap({}), {});
+    assert.deepStrictEqual(u.buildTreeRecipientMap({ data: { items: null } }), {});
+    assert.deepStrictEqual(u.buildTreeRecipientMap({ data: { items: [
+        { tree_id: '', pk_hash: 'pk-x' }, { tree_id: 'Edgar_C', pk_hash: '' }, null ] } }), {});
+});
+test('buildTreeRecipientMap: first occurrence wins for a dup tree_id', () => {
+    const p = { data: { items: [ { tree_id: 'E', pk_hash: 'pk-1' }, { tree_id: 'E', pk_hash: 'pk-2' } ] } };
+    assert.deepStrictEqual(u.buildTreeRecipientMap(p), { E: 'pk-1' });
+});
+test('findPendingTree: matches telegram_message_id, falls back to tree_id, else null', () => {
+    const rows = [ { telegram_message_id: 'Edgar_A', species: 'Cacau' }, { tree_id: 'Edgar_B' } ];
+    assert.strictEqual(u.findPendingTree(rows, 'Edgar_A').species, 'Cacau');
+    assert.strictEqual(u.findPendingTree(rows, 'Edgar_B').tree_id, 'Edgar_B');
+    assert.strictEqual(u.findPendingTree(rows, 'nope'), null);
+    assert.strictEqual(u.findPendingTree(null, 'Edgar_A'), null);
+    assert.strictEqual(u.findPendingTree(rows, ''), null);
+});
+test('treeDetailFields: ordered, blank-stripped, no photo_url / no PII fields', () => {
+    const f = u.treeDetailFields({ telegram_message_id: 'Edgar_A', species: 'Cacau',
+        planting_date: '2026-09-01', latitude: '-3.1', longitude: '', submitted_name: 'Ana',
+        photo_url: 'http://x/a.jpg' });
+    assert.deepStrictEqual(f.map(x => x[0]),
+        ['Tree ID', 'Species', 'Planting date', 'Latitude', 'Submitted by']);   // longitude blank dropped
+    assert.ok(!JSON.stringify(f).includes('jjpg'), 'photo_url must not leak into detail fields');
+    assert.deepStrictEqual(u.treeDetailFields(null), []);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

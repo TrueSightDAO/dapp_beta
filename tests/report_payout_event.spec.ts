@@ -81,6 +81,19 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
   // FOUR rows for the SAME pk_hash (1 RECORDED + 3 UPDATED) — the mess Gary sees.
   await page.route('**/macros/**/exec*', (route) => {
     const url = route.request().url();
+    if (url.includes('getTreeRecipientMap')) {
+      // Governor-only tree_id -> pk_hash map (hash-only, no raw PII).
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          data: { count: 1, items: [
+            { tree_id: 'Edgar_TEST_T1', pk_hash: 'pk-qkejKJJW3IAD' },
+          ] },
+        }),
+      });
+    }
     if (url.includes('getPendingPayoutRegistrations')) {
       return route.fulfill({
         status: 200,
@@ -407,5 +420,55 @@ test.describe('report_payout_event.html', () => {
     // Clicking Use fills the recipient field (no hand-typing a hash).
     await row.locator('button.rp-use').click();
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
+  });
+
+  test('governor: picking a tree shows its details card', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // No selection -> no cards.
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
+
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+
+    // One card, carrying the tree's own details (species / dates / coordinates).
+    const card = page.locator('#treeDetails .tree-card').first();
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(1);
+    await expect(card.locator('.tc-id')).toHaveText('Edgar_TEST_T1');
+    await expect(card.locator('.tc-meta')).toContainText('Cacau');
+    await expect(card.locator('.tc-meta')).toContainText('2026-09-01');
+    await expect(card.locator('.tc-meta')).toContainText('-3.1');
+    // The tree's photo is shown.
+    await expect(card.locator('img.tc-photo')).toHaveAttribute('src', 'http://x/t1.jpg');
+
+    // Clearing the field clears the cards.
+    await page.fill('#treeIds', '');
+    await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
+  });
+
+  test('governor: a single resolved tree auto-fills the recipient pk_hash (and never clobbers a typed one)', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Edgar_TEST_T1 is IN the governor map -> picking it auto-fills the recipient.
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
+    // ...and the card shows the linked pk_hash.
+    await expect(page.locator('#treeDetails .tc-pk')).toContainText('pk-qkejKJJW3IAD');
+
+    // A tree NOT in the map must NOT clobber an operator-typed hash.
+    await page.fill('#recipientPkHash', 'pk-typed-by-operator');
+    await page.selectOption('#treePicker', 'Edgar_TEST_T2');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
+
+    // A multi-tree selection is ambiguous -> the field is left untouched.
+    await expect(page.locator('#treeIds')).toHaveValue('Edgar_TEST_T1, Edgar_TEST_T2');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
   });
 });
