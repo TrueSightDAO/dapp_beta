@@ -97,8 +97,8 @@
      * Validate a payout-entry form. Returns { valid, errors[], amount }.
      * `bankRef` (the transfer E2E id) is required: it is the reconciliation
      * anchor that lets the sink match this row to the bank statement.
-     * `recipientName` is OPTIONAL: the recipient is frequently unknown, in which
-     * case the tree id(s) are the sole linkage (Gary, 2026-09-25).
+     * The recipient is linked by `recipientPkHash` alone (the tree picker fills it);
+     * there is no free-text recipient-name field (Gary, 2026-09-25).
      */
     function validate(f) {
         f = f || {};
@@ -159,7 +159,6 @@
             ['Paid At', trim(f.paidAt)],
             ['Bank Ref Type', trim(f.bankRefType) || 'PIX-E2E'],
             ['Bank Ref', trim(f.bankRef)],
-            ['Recipient', trim(f.recipientName)],
             ['Recipient PK Hash', trim(f.recipientPkHash) || UNLINKED_RECIPIENT],
             ['Tree Planting IDs', treeIds.length ? treeIds.join(', ') : UNLINKED_TREES],
             ['Status', trim(f.status) || 'live'],
@@ -404,6 +403,50 @@
         return Object.keys(seen).sort();
     }
 
+    // host -> program slug, from the registry's `hosts` map. This is the SSOT the
+    // page uses to turn a submission's ORIGIN HOST into a program slug (the domain
+    // itself is never the slug, e.g. cfr.truesight.me -> crf-anapu).
+    function programSlugsByHost(reg) {
+        var hosts = (reg && reg.hosts) || {};
+        var out = {};
+        Object.keys(hosts).forEach(function (h) {
+            var host = String(h || '').trim().toLowerCase();
+            var slug = String(hosts[h] || '').trim();
+            if (host && slug) out[host] = slug;
+        });
+        return out;
+    }
+
+    // The program slug a pending tree belongs to, given the registry host map.
+    // Prefers an explicit program_slug/program on the row; else resolves the
+    // `submission_source` URL's host through hostMap. '' when unattributable.
+    function programForTree(tree, hostMap) {
+        if (!tree) return '';
+        var explicit = String(tree.program_slug || tree.program || '').trim();
+        if (explicit) return explicit;
+        var src = String(tree.submission_source || '').trim();
+        if (!src) return '';
+        var host = submissionSourceHost(src);
+        if (!host) return '';
+        var map = hostMap || {};
+        if (map[host]) return map[host];
+        // Tolerate a leading 'www.' or a sub-domain of a registered host.
+        var keys = Object.keys(map);
+        for (var i = 0; i < keys.length; i++) {
+            if (host === keys[i] || host.slice(-(keys[i].length + 1)) === '.' + keys[i]) return map[keys[i]];
+        }
+        return '';
+    }
+
+    // Extract the host from a Submission Source value (a URL or a bare host).
+    function submissionSourceHost(src) {
+        var s = String(src || '').trim();
+        if (!s) return '';
+        var m = s.match(/^[a-zA-Z][a-zA-Z0-9+.\-]*:\/\/([^\/\s]+)/);
+        if (m) return m[1].toLowerCase().replace(/:\d+$/, '');
+        return s.split('/')[0].toLowerCase();
+    }
+
     // True when the pending-tree feed carries ANY program attribution
     // (program_slug / program / submission_source). Until it does, a Program
     // filter cannot narrow the list -- the page says so plainly rather than
@@ -439,6 +482,9 @@
         maskedKeyByPkHash: maskedKeyByPkHash,
         deriveStatus: deriveStatus,
         programsFromRegistry: programsFromRegistry,
+        programSlugsByHost: programSlugsByHost,
+        programForTree: programForTree,
+        submissionSourceHost: submissionSourceHost,
         feedHasProgramData: feedHasProgramData
     };
 
