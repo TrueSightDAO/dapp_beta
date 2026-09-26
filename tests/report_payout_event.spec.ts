@@ -63,8 +63,8 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
           status: 'success',
           count: 2,
           items: [
-            { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW' },
-            { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW' },
+            { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW', program: 'crf-anapu' },
+            { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW', program: '' },
           ],
         }),
       });
@@ -165,13 +165,13 @@ test.describe('report_payout_event.html', () => {
     });
     expect(above).toBe(true);
 
-    // Both unpaid trees show while the feed lacks program attribution.
+    // STRICT: the default program (crf-anapu) keeps ONLY its own trees; the
+    // unattributed tree is hidden -- never shown as if it belonged to the program.
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
-    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(1);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(0);
 
-    // Program chosen but feed carries no attribution -> say so, don't pretend.
-    await expect(page.locator('#programFilterNote')).toBeVisible();
-    await expect(page.locator('#programFilterNote')).toContainText(/no program attribution/i);
+    // The feed HAS attribution, so the filter APPLIED -> no 'not applied' note.
+    await expect(page.locator('#programFilterNote')).toBeHidden();
 
     // Blank program = general disbursement: note clears, all trees stay listed.
     await page.selectOption('#programSlug', '');
@@ -345,7 +345,9 @@ test.describe('report_payout_event.html', () => {
       return route.continue();
     });
 
-    // The picker exposes the unpaid trees.
+    // The picker exposes the unpaid trees. Use the general-disbursement view (blank
+    // program) so BOTH trees are listed regardless of their program attribution.
+    await page.selectOption('#programSlug', '');
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
     // There is NO separate tree-id text field: only the picker.
     await expect(page.locator('#treeIds')).toHaveCount(0);
@@ -580,7 +582,9 @@ test.describe('report_payout_event.html', () => {
     const cardHtml = await page.locator('#treeDetails').innerHTML();
     expect(cardHtml).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
 
-    // A tree NOT in the map must NOT clobber an operator-typed hash.
+    // A tree NOT in the map must NOT clobber an operator-typed hash. (Use the
+    // general-disbursement view so the unattributed T2 is listed.)
+    await page.selectOption('#programSlug', '');
     await page.fill('#recipientPkHash', 'pk-typed-by-operator');
     await page.selectOption('#treePicker', 'Edgar_TEST_T2');
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');

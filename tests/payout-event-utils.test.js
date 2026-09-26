@@ -414,6 +414,52 @@ assert.strictEqual(u.programForTree({}, map), '');
 assert.strictEqual(u.programForTree({ submission_source: 'https://sunmint.truesight.me/' }, map), '');
   });
 
+test('treesForProgram: STRICT -- only rows whose program EQUALS the chosen one', () => {
+  const map = { 'cfr.truesight.me': 'crf-anapu' };
+  const trees = [
+    { telegram_message_id: 'A', program: 'crf-anapu' },
+    { telegram_message_id: 'B', program: 'zeta-program' },
+    { telegram_message_id: 'C' },                       // unattributed
+    { telegram_message_id: 'D', submission_source: 'https://cfr.truesight.me/' },
+  ];
+  // hasProgramData=true -> strict narrowing; unattributed + other programs hidden.
+  assert.deepStrictEqual(
+    u.treesForProgram(trees, 'crf-anapu', map, true).map((t) => t.telegram_message_id),
+    ['A', 'D']
+  );
+  // A different program keeps only its own.
+  assert.deepStrictEqual(
+    u.treesForProgram(trees, 'zeta-program', map, true).map((t) => t.telegram_message_id),
+    ['B']
+  );
+  // Blank program = general disbursement = every tree.
+  assert.deepStrictEqual(u.treesForProgram(trees, '', map, true), trees);
+});
+
+test('treesForProgram: cannot narrow while the feed has no attribution (honest passthrough)', () => {
+  const map = { 'cfr.truesight.me': 'crf-anapu' };
+  const trees = [{ telegram_message_id: 'A' }, { telegram_message_id: 'B' }];  // no program/submission_source
+  assert.deepStrictEqual(
+    u.treesForProgram(trees, 'crf-anapu', map, false).map((t) => t.telegram_message_id),
+    ['A', 'B']
+  );
+  // Even when hasProgramData is inferred (not passed), an unattributed feed passes through.
+  assert.deepStrictEqual(
+    u.treesForProgram(trees, 'crf-anapu', map).map((t) => t.telegram_message_id),
+    ['A', 'B']
+  );
+  assert.deepStrictEqual(u.treesForProgram(null, 'crf-anapu', map, true), []);
+});
+
+test('programFilterNotApplied: true only when a program is chosen but the feed has no attribution', () => {
+  const withData = [{ telegram_message_id: 'A', program: 'crf-anapu' }];
+  const noData = [{ telegram_message_id: 'A' }];
+  assert.strictEqual(u.programFilterNotApplied('crf-anapu', noData, false), true);
+  assert.strictEqual(u.programFilterNotApplied('crf-anapu', withData, true), false);
+  assert.strictEqual(u.programFilterNotApplied('', noData, false), false);   // blank program
+  assert.strictEqual(u.programFilterNotApplied('crf-anapu', [], false), false);  // empty feed
+});
+
 test('submissionSourceHost: URL or bare host -> lowercased host', () => {
 assert.strictEqual(u.submissionSourceHost('https://cfr.truesight.me/x'), 'cfr.truesight.me');
 assert.strictEqual(u.submissionSourceHost('https://cfr.truesight.me:443/x'), 'cfr.truesight.me');
