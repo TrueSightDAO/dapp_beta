@@ -32,6 +32,20 @@
 
     function _s(v) { return v == null ? '' : String(v); }
     function trim(v) { return _s(v).trim(); }
+    function _uniq(a) {
+        var seen = {}, out = [];
+        (a || []).forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; out.push(x); } });
+        return out;
+    }
+    function _nearestByTreeId(list) {
+        var best = {}, order = [];
+        (list || []).forEach(function (c) {
+            if (!c || !c.tree_id) return;
+            if (!(c.tree_id in best)) { best[c.tree_id] = c; order.push(c.tree_id); }
+            else if ((c.meters || 0) < (best[c.tree_id].meters || 0)) best[c.tree_id] = c;
+        });
+        return order.map(function (t) { return best[t]; });
+    }
 
     /**
      * Split a pasted list of tree ids on commas / semicolons / whitespace,
@@ -171,6 +185,8 @@
 
     // Gary (2026-09-25): flag a DIFFERENT tree within 3 m. (Was 1 m.)
     var OVERPAY_COLOCATED_METERS = 3.0;
+    // Max co-located partners named in a human reason string (nearest first).
+    var OVERPAY_REASON_PARTNER_LIMIT = 3;
 
     /** Coerce a possibly-stringy coordinate to a finite number, else null. */
     function _num(v) {
@@ -206,6 +222,7 @@
             return {
                 tree_id: trim(r.tree_id || r.telegram_message_id || ''),
                 photo_url: trim(r.photo_url || ''),
+                request_txid: trim(r.request_txid || ''),
                 latitude: _num(r.latitude),
                 longitude: _num(r.longitude)
             };
@@ -213,7 +230,7 @@
         var byId = {};
         function bucket(id) {
             if (!byId[id]) {
-                byId[id] = { tree_id: id, duplicate: false, duplicate_with: [], colocated: false, colocated_with: [] };
+                byId[id] = { tree_id: id, duplicate: false, duplicate_with: [], duplicate_txid: '', colocated: false, colocated_with: [] };
             }
             return byId[id];
         }
@@ -242,12 +259,39 @@
         norm.forEach(function (r) { if (r.tree_id) counts[r.tree_id] = (counts[r.tree_id] || 0) + 1; });
         Object.keys(counts).forEach(function (id) { if (counts[id] > 1) bucket(id).duplicate = true; });
 
+        // duplicate (PRIMARY KEY): rows sharing the same non-empty Request
+        // Transaction ID are ONE signed submission re-ingested -- a signature is
+        // unique per submission (Gary, 2026-09-26, thread 35944). This replaces
+        // the noisy telegram-update-id keying: two trees that merely sit on the
+        // same GPS fix but carry DIFFERENT txids are separate, legitimate
+        // submissions and must NOT be flagged as a duplicate pair.
+        var byTx = {};
+        norm.forEach(function (r) {
+            if (!r.tree_id || !r.request_txid) return;
+            (byTx[r.request_txid] = byTx[r.request_txid] || []).push(r.tree_id);
+        });
+        Object.keys(byTx).forEach(function (tx) {
+            var ids = byTx[tx];
+            if (ids.length < 2) return;
+            ids.forEach(function (id) {
+                var b = bucket(id);
+                b.duplicate = true;
+                b.duplicate_txid = tx;
+                ids.forEach(function (o) {
+                    if (o !== id && b.duplicate_with.indexOf(o) === -1) b.duplicate_with.push(o);
+                });
+            });
+        });
+
         // colocated: a DIFFERENT tree_id within `within` metres
         for (var i = 0; i < norm.length; i++) {
             for (var j = i + 1; j < norm.length; j++) {
                 var a = norm[i], b = norm[j];
                 if (!a.tree_id || !b.tree_id || a.tree_id === b.tree_id) continue;
                 if (a.latitude === null || a.longitude === null || b.latitude === null || b.longitude === null) continue;
+                // same Request Transaction ID => same submission, already a duplicate;
+                // not two DISTINCT trees that merely landed close together.
+                if (a.request_txid && a.request_txid === b.request_txid) continue;
                 var m = haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
                 if (m > within) continue;
                 var rounded = Math.round(m * 10) / 10;
@@ -261,6 +305,11 @@
         var out = {};
         Object.keys(byId).forEach(function (id) {
             var b = byId[id];
+            // collapse partner lists: a partner is never listed twice (the feed can
+            // carry the same tree_id on more than one row, which previously made a
+            // co-located partner repeat, e.g. "Edgar_.._093 (0 m), Edgar_.._093 (0 m)").
+            b.colocated_with = _nearestByTreeId(b.colocated_with);
+            b.duplicate_with = _uniq(b.duplicate_with);
             if (b.duplicate || b.colocated) out[id] = b;
         });
         return out;
@@ -278,11 +327,25 @@
         if (!f) return bits;
         if (f.duplicate) {
             var dw = (f.duplicate_with || []);
-            bits.push('duplicate' + (dw.length ? ' (same record as ' + dw.join(', ') + ')' : ''));
+            if (f.duplicate_txid) {
+                bits.push('duplicate (same Request Transaction ID as ' + (dw.length ? dw.join(', ') : 'another row') + ')');
+            } else {
+                bits.push('duplicate' + (dw.length ? ' (same record as ' + dw.join(', ') + ')' : ''));
+            }
         }
         if (f.colocated) {
-            var cw = (f.colocated_with || []).map(function (c) { return c.tree_id + ' (' + c.meters + ' m)'; });
-            bits.push('co-located with ' + cw.join(', '));
+            // Co-location is ADVISORY. A single stale GPS fix can put ~20 DISTINCT
+            // submissions on one coordinate, which used to render as a 20-id
+            // "co-located with ... 0 m" chain -- the noise Gary flagged (2026-09-26,
+            // thread 35944). Show only the nearest few, then a count.
+            var cwAll = _nearestByTreeId(f.colocated_with || []).sort(function (a, b) {
+                return (a.meters || 0) - (b.meters || 0);
+            });
+            var shown = cwAll.slice(0, OVERPAY_REASON_PARTNER_LIMIT).map(function (c) {
+                return c.tree_id + ' (' + c.meters + ' m)';
+            });
+            var extra = cwAll.length - OVERPAY_REASON_PARTNER_LIMIT;
+            bits.push('co-located with ' + shown.join(', ') + (extra > 0 ? ' and ' + extra + ' more' : ''));
         }
         return bits;
     }
