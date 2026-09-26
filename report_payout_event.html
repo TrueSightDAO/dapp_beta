@@ -91,6 +91,15 @@
         .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
         .overpay-all-list { margin-top: 0.3rem; line-height: 1.8; }
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
+        .tree-details { margin: 0.2rem 0 0.9rem; }
+        .tree-card { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.6rem 0.7rem; margin: 0.35rem 0; display: flex; gap: 0.7rem; }
+        .tree-card img.tc-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; flex: 0 0 auto; background: #eee; }
+        .tree-card .tc-main { flex: 1; min-width: 0; }
+        .tree-card .tc-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #111; word-break: break-all; }
+        .tree-card .tc-meta { font-size: 0.78rem; color: #666; margin-top: 0.15rem; line-height: 1.5; }
+        .tree-card .tc-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; margin-top: 0.2rem; }
+        .tree-card .tc-masked { display: block; margin-top: 0.15rem; font-size: 0.76rem; color: #7a5c00; font-weight: 600; }
+        .tree-card .tc-none { font-size: 0.78rem; color: #8a6d3b; margin-top: 0.2rem; }
         .primary-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
             background: var(--accent); color: #fff; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
         .opt-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
@@ -176,6 +185,7 @@
             <input type="text" id="treeIds" placeholder="Edgar_20260908010248_071 (comma/space separated)" autocomplete="off">
             <div class="hint">Auto-filled by the picker above; you can also type ids directly.</div>
             <div id="overpayGuard" class="overpay-guard"></div>
+            <div id="treeDetails" class="tree-details"></div>
 
             <label for="programSlug">Program</label>
             <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu (blank = all programs)" autocomplete="off">
@@ -277,6 +287,11 @@
             const PAYOUT_REG_ENDPOINT = (window.Routes && window.Routes.gas && window.Routes.gas.payoutRegistrations)
                 || 'https://script.google.com/macros/s/AKfycbxQDdGnwS7G6iJhNj9japW-9sFA7EUvrnznmJCu44S5ZHqOoIks2be4FXbIVpuaOHVW/exec';
 
+            // Governor-only read of the CFR program `tree planting` tab: `tree_id -> pk_hash`.
+            // Lets a picked tree auto-fill the recipient and show its details. Hash-only,
+            // no raw PII. Same Apps Script project (and therefore URL) as the register read.
+            const TREE_RECIPIENT_ENDPOINT = PAYOUT_REG_ENDPOINT;
+
             const U = window.PayoutEventUtils;
             const FIELDS = ['amount', 'paidAt', 'bankRef', 'recipientName', 'programSlug', 'treeIds', 'recipientPkHash', 'receiptUrl'];
 
@@ -286,6 +301,9 @@
             const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
             let _overpayFlags = null;
             let _pendingTrees = [];
+            let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
+            let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
+            let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
             const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
             let uploadedReceiptFile = null;
             let cachedReceiptFileName = null;
@@ -301,6 +319,7 @@
                         _overpayFlags = U.computeOverpayFlags(_pendingTrees);
                         renderTreeOptions();
                         renderOverpayGuard();
+                        renderTreeDetails();
                     })
                     .catch(function () { _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); });
             }
@@ -366,8 +385,10 @@
                 if (ids.indexOf(id) === -1) ids.push(id);
                 $('treeIds').value = ids.join(', ');
                 sel.value = '';
+                maybeAutoFillRecipient(ids);
                 renderTreeOptions();
                 renderOverpayGuard();
+                renderTreeDetails();
             }
 
             // After a payout lands, hide the paid trees + offer a fresh form.
@@ -395,8 +416,71 @@
                 _awaitingAnotherPayout = false;
                 const btn = $('submitButton'); if (btn) btn.textContent = 'Submit Payout';
                 setStatus('');
+                _autoFilledPk = '';
                 renderTreeOptions();
                 renderOverpayGuard();
+                renderTreeDetails();
+            }
+
+            // One card per id currently in the tree field: species, planting date,
+            // coordinates, photo, and -- when the governor-only map resolves it -- the
+            // recipient pk_hash the payout would link to.
+            function renderTreeDetails() {
+                const host = $('treeDetails');
+                if (!host) return;
+                const input = $('treeIds');
+                const ids = U.parseTreeIds(input ? input.value : '');
+                if (!ids.length) { host.innerHTML = ''; return; }
+                host.innerHTML = ids.map(function (id) {
+                    const t = U.findPendingTree(_pendingTrees, id);
+                    const pk = _treeRecipientMap[id] || '';
+                    const fields = U.treeDetailFields(t);
+                    const meta = fields.filter(function (f) { return f[0] !== 'Tree ID'; })
+                        .map(function (f) { return escapeHtml(f[0]) + ': ' + escapeHtml(f[1]); })
+                        .join(' &middot; ');
+                    const photo = (t && t.photo_url)
+                        ? '<img class="tc-photo" src="' + escapeHtml(t.photo_url) + '" alt="Tree photo" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+                        : '';
+                    const mk = (pk && _maskedKeyByPk[pk]) ? _maskedKeyByPk[pk] : null;
+                    const mkText = mk ? [mk.pix_key_type, mk.pix_key_masked].filter(Boolean).join(' ') : '';
+                    const pkLine = pk
+                        ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong>' +
+                          (mkText ? '<span class="tc-masked">\uD83D\uDD12 partial key: ' + escapeHtml(mkText) + '</span>' : '') +
+                          '</div>'
+                        : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
+                    return '<div class="tree-card">' + photo +
+                        '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
+                        (meta ? '<div class="tc-meta">' + meta + '</div>'
+                              : '<div class="tc-meta">Not in the public pending list (already paid, or typed in).</div>') +
+                        pkLine + '</div></div>';
+                }).join('');
+            }
+
+            function loadTreeRecipientMap() {
+                if (typeof fetch !== 'function') return;
+                return fetch(TREE_RECIPIENT_ENDPOINT + '?action=getTreeRecipientMap', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) { _treeRecipientMap = U.buildTreeRecipientMap(data); renderTreeDetails(); })
+                    .catch(function () { _treeRecipientMap = {}; });
+            }
+
+            // Auto-fill the recipient pk_hash when the selection resolves to exactly ONE
+            // tree. Never clobbers an operator-entered hash: we only overwrite an empty
+            // field, or a value we ourselves filled.
+            function maybeAutoFillRecipient(ids) {
+                const pkEl = $('recipientPkHash');
+                if (!pkEl) return;
+                const resolved = ids.map(function (id) { return _treeRecipientMap[id] || ''; })
+                    .filter(Boolean)
+                    .filter(function (v, i, a) { return a.indexOf(v) === i; });
+                if (ids.length === 1 && resolved.length === 1) {
+                    const cur = String(pkEl.value || '').trim();
+                    if (cur === '' || cur === _autoFilledPk) {
+                        pkEl.value = resolved[0];
+                        pkEl.classList.remove('invalid');
+                        _autoFilledPk = resolved[0];
+                    }
+                }
             }
 
             function renderOverpayGuard() {
@@ -453,7 +537,10 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         const items = (data && data.data && data.data.items) || [];
-                        renderRegistrations(U.dedupeActiveRegistrations(items));
+                        const deduped = U.dedupeActiveRegistrations(items);
+                        _maskedKeyByPk = U.maskedKeyByPkHash(deduped);
+                        renderTreeDetails();
+                        renderRegistrations(deduped);
                     })
                     .catch(function () {
                         panel.style.display = 'block';
@@ -731,9 +818,13 @@
 
             window.addEventListener('DOMContentLoaded', function () {
                 boot();
+                loadTreeRecipientMap();
                 $('submitButton').addEventListener('click', submit);
                 const treeInput = $('treeIds');
-                if (treeInput) treeInput.addEventListener('input', renderOverpayGuard);
+                if (treeInput) treeInput.addEventListener('input', function () {
+                    renderOverpayGuard();
+                    renderTreeDetails();
+                });
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('input', renderTreeOptions);
                 const picker = $('treePicker');
