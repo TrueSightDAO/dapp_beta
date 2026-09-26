@@ -231,6 +231,64 @@ test('overpayWarningsFor: filters to entered ids, input order preserved', () => 
     assert.strictEqual(out.length, 1);
     assert.strictEqual(out[0].tree_id, 'T2');
 });
+// --- PR3: Request Transaction ID is the duplicate key (Gary 2026-09-26, thread 35944)
+test('computeOverpayFlags: rows sharing a Request Transaction ID are duplicates (txid is the key)', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '1', longitude: '1', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '1', longitude: '1', request_txid: 'SIG1' }
+    ]);
+    assert.strictEqual(f.T1.duplicate, true);
+    assert.strictEqual(f.T2.duplicate, true);
+    assert.strictEqual(f.T1.duplicate_txid, 'SIG1');
+    assert.deepStrictEqual(f.T1.duplicate_with, ['T2']);
+});
+
+test('computeOverpayFlags: DISTINCT txids on one GPS fix are NOT duplicates (the noise Gary flagged)', () => {
+    // Same coordinate, different signed submissions -> co-located advisory only, never "duplicate".
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.5229198', longitude: '-51.5749711', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.5229198', longitude: '-51.5749711', request_txid: 'SIG2' }
+    ]);
+    assert.notStrictEqual(f.T1.duplicate, true);
+    assert.notStrictEqual(f.T2.duplicate, true);
+    assert.strictEqual(f.T1.colocated, true);  // advisory proximity still shown
+});
+
+test('computeOverpayFlags: a same-txid pair is a duplicate, NOT a co-located pair (distinct trees)', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '1', longitude: '1', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/a.jpg', latitude: '1', longitude: '1', request_txid: 'SIG1' }
+    ]);
+    assert.strictEqual(f.T1.duplicate, true);
+    assert.strictEqual(f.T1.colocated, false);
+    assert.deepStrictEqual(f.T1.colocated_with, []);
+});
+
+test('computeOverpayFlags: a co-located partner is listed ONCE even if the feed repeats its row', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '1', longitude: '1', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '1', longitude: '1', request_txid: 'SIG2' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '1', longitude: '1', request_txid: 'SIG2' }
+    ]);
+    const partners = f.T1.colocated_with.map((c) => c.tree_id);
+    assert.deepStrictEqual(partners, ['T2']);
+});
+
+test('overpayReasonBits: duplicate names the shared Request Transaction ID', () => {
+    assert.deepStrictEqual(
+        u.overpayReasonBits({ duplicate: true, duplicate_with: ['T2'], duplicate_txid: 'SIG1', colocated: false, colocated_with: [] }),
+        ['duplicate (same Request Transaction ID as T2)']);
+});
+
+test('overpayReasonBits: a long co-located chain is capped to the nearest few + a count', () => {
+    const cw = [];
+    for (let i = 0; i < 16; i++) cw.push({ tree_id: 'X' + i, meters: 0 });
+    const bits = u.overpayReasonBits({ duplicate: false, colocated: true, colocated_with: cw });
+    assert.strictEqual(bits.length, 1);
+    assert.ok(bits[0].startsWith('co-located with X0 (0 m), X1 (0 m), X2 (0 m)'), bits[0]);
+    assert.ok(bits[0].endsWith('and 13 more'), bits[0]);
+});
+
 test('PRIVACY: overpay guard helpers never emit a PIX/CPF-bearing field name', () => {
     const f = u.computeOverpayFlags([{ tree_id: 'T1', photo_url: 'a', latitude: 0, longitude: 0 }]);
     assert.deepStrictEqual(Object.keys(f), []);
