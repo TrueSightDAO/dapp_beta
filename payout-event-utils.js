@@ -287,6 +287,29 @@
         return bits;
     }
 
+    /**
+     * The tree ids the given tree is flagged AGAINST -- nearest co-located partner
+     * first, then any duplicate partners. This is exactly what a reviewer must look
+     * at side by side when deciding whether to pay `id`: not every flagged tree in
+     * the feed, only the ones that actually collide with THIS one. Empty array =
+     * this tree carries no overpay risk. Pure; never reads PII.
+     */
+    function overpayConflictPartners(flags, id, limit) {
+        var f = (flags || {})[id];
+        if (!f) return [];
+        var ordered = [];
+        var seen = {};
+        (f.colocated_with || []).slice()
+            .sort(function (a, b) { return (a.meters || 0) - (b.meters || 0); })
+            .forEach(function (c) {
+                if (c && c.tree_id && !seen[c.tree_id]) { seen[c.tree_id] = 1; ordered.push(c.tree_id); }
+            });
+        (f.duplicate_with || []).forEach(function (d) {
+            if (d && !seen[d]) { seen[d] = 1; ordered.push(d); }
+        });
+        return ordered.slice(0, (typeof limit === 'number' && limit > 0) ? limit : 3);
+    }
+
     /** Flags for the ids the operator actually entered (input order preserved). */
     function overpayWarningsFor(flags, treeIds) {
         var out = [];
@@ -525,6 +548,7 @@
         buildAttributes: buildAttributes,
         dedupeActiveRegistrations: dedupeActiveRegistrations,
         OVERPAY_COLOCATED_METERS: OVERPAY_COLOCATED_METERS,
+        overpayConflictPartners: overpayConflictPartners,
         haversineMeters: haversineMeters,
         computeOverpayFlags: computeOverpayFlags,
         overpayWarningsFor: overpayWarningsFor,
