@@ -566,6 +566,51 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#treeDetails .tree-card')).toHaveCount(0);
   });
 
+  test('governor: "Mark tree as invalid" is hidden until a tree is selected, then emits the REJECT event', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    // Auto-accept the confirm(); supply the prompt() reason.
+    page.on('dialog', (d) => d.accept(d.type() === 'prompt' ? 'Not a valid tree' : ''));
+
+    let submitted = '';
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        submitted = route.request().postData() || '';
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: 'success' }) });
+      }
+      return route.continue();
+    });
+
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Swap in an EPHEMERAL RSA keypair so the in-browser signing is real.
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+
+    // Hidden with no selection; appears once a tree is picked (Gary's rule).
+    await expect(page.locator('#invalidZone')).toBeHidden();
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#invalidZone')).toBeVisible();
+
+    await page.locator('#markInvalidButton').click();
+    await expect(page.locator('#status')).toContainText('INVALID', { timeout: 15000 });
+
+    // The verbatim payload reaches the forensic panel with the exact labels...
+    const req = await page.locator('#requestPre').textContent();
+    expect(req).toContain('[TREE PLANTING REJECT EVENT]');
+    expect(req).toContain('- SunMint Submission Message ID: Edgar_TEST_T1');
+    expect(req).toContain('- QR Code: (unlinked)');
+    // ...it hit Edgar, and REJECT never carries a raw CPF.
+    expect(submitted).toContain('TREE PLANTING REJECT EVENT');
+    expect(req).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
+  });
+
   test('governor: a single resolved tree auto-fills the recipient pk_hash (and never clobbers a typed one)', async ({ page }) => {
     await mockBackend(page);
     await signIn(page, GOV_PUBLIC_KEY);
