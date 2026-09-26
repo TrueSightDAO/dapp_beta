@@ -331,5 +331,27 @@ test('treeDetailFields: ordered, blank-stripped, no photo_url / no PII fields', 
     assert.deepStrictEqual(u.treeDetailFields(null), []);
 });
 
+test('maskedKeyByPkHash: maps pk_hash -> masked type+key, first wins', () => {
+  const m = u.maskedKeyByPkHash([
+    { pk_hash: 'pk-A', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+    { pk_hash: 'pk-A', pix_key_type: 'CPF', pix_key_masked: '***.***.***-19' },
+    { pk_hash: 'pk-B', pix_key_type: 'EMAIL', pix_key_masked: 'g***@e***.com' },
+    { pk_hash: '', pix_key_type: 'X', pix_key_masked: 'y' },
+  ]);
+  assert.strictEqual(m['pk-A'].pix_key_masked, '***.***.***-19');
+  assert.strictEqual(m['pk-B'].pix_key_type, 'EMAIL');
+  assert.strictEqual(Object.keys(m).length, 2);
+});
+test('maskedKeyByPkHash: malformed input -> {} (never throws)', () => {
+  assert.deepStrictEqual(u.maskedKeyByPkHash(null), {});
+  assert.deepStrictEqual(u.maskedKeyByPkHash(undefined), {});
+});
+test('PRIVACY: maskedKeyByPkHash never emits a raw pix_key/pix field', () => {
+  const m = u.maskedKeyByPkHash([{ pk_hash: 'pk-A', pix_key: 'RAW-SECRET', pix_key_masked: '***' }]);
+  const json = JSON.stringify(m);
+  assert.ok(!/RAW-SECRET/.test(json), 'raw pix_key must not survive');
+  assert.ok(!/\bpix_key\b/.test(json), 'pix_key field name must not appear');
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

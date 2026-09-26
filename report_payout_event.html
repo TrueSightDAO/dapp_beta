@@ -98,6 +98,7 @@
         .tree-card .tc-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #111; word-break: break-all; }
         .tree-card .tc-meta { font-size: 0.78rem; color: #666; margin-top: 0.15rem; line-height: 1.5; }
         .tree-card .tc-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; margin-top: 0.2rem; }
+        .tree-card .tc-masked { display: block; margin-top: 0.15rem; font-size: 0.76rem; color: #7a5c00; font-weight: 600; }
         .tree-card .tc-none { font-size: 0.78rem; color: #8a6d3b; margin-top: 0.2rem; }
         .primary-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
             background: var(--accent); color: #fff; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
@@ -301,6 +302,7 @@
             let _overpayFlags = null;
             let _pendingTrees = [];
             let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
+            let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
             const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
             let uploadedReceiptFile = null;
@@ -439,8 +441,12 @@
                     const photo = (t && t.photo_url)
                         ? '<img class="tc-photo" src="' + escapeHtml(t.photo_url) + '" alt="Tree photo" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
                         : '';
+                    const mk = (pk && _maskedKeyByPk[pk]) ? _maskedKeyByPk[pk] : null;
+                    const mkText = mk ? [mk.pix_key_type, mk.pix_key_masked].filter(Boolean).join(' ') : '';
                     const pkLine = pk
-                        ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong></div>'
+                        ? '<div class="tc-pk">\uD83D\uDD17 recipient pk_hash: <strong>' + escapeHtml(pk) + '</strong>' +
+                          (mkText ? '<span class="tc-masked">\uD83D\uDD12 partial key: ' + escapeHtml(mkText) + '</span>' : '') +
+                          '</div>'
                         : '<div class="tc-none">No registered recipient for this tree \u2014 leave recipient blank (records as unlinked_recipient).</div>';
                     return '<div class="tree-card">' + photo +
                         '<div class="tc-main"><div class="tc-id">' + escapeHtml(id) + '</div>' +
@@ -531,7 +537,10 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         const items = (data && data.data && data.data.items) || [];
-                        renderRegistrations(U.dedupeActiveRegistrations(items));
+                        const deduped = U.dedupeActiveRegistrations(items);
+                        _maskedKeyByPk = U.maskedKeyByPkHash(deduped);
+                        renderTreeDetails();
+                        renderRegistrations(deduped);
                     })
                     .catch(function () {
                         panel.style.display = 'block';

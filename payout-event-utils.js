@@ -333,6 +333,23 @@
         return fields.filter(function (f) { return f[1] !== ''; });
     }
 
+    /**
+     * Build a `pk_hash -> {pix_key_type, pix_key_masked}` lookup from the payout
+     * register payload, so a tree card can show the PARTIAL (masked) key of the
+     * account a payout would reach. Privacy-safe by construction: it reads ONLY the
+     * already-masked fields, so a raw key value can never pass through here.
+     */
+    function maskedKeyByPkHash(rows) {
+        var out = {};
+        (rows || []).forEach(function (r) {
+            if (!r) return;
+            var pk = trim(r.pk_hash);
+            if (!pk || out[pk]) return;
+            out[pk] = { pix_key_type: trim(r.pix_key_type), pix_key_masked: trim(r.pix_key_masked) };
+        });
+        return out;
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -353,7 +370,8 @@
         overpayWarningsFor: overpayWarningsFor,
         buildTreeRecipientMap: buildTreeRecipientMap,
         findPendingTree: findPendingTree,
-        treeDetailFields: treeDetailFields
+        treeDetailFields: treeDetailFields,
+        maskedKeyByPkHash: maskedKeyByPkHash
     };
 
     global.PayoutEventUtils = utils;

@@ -459,8 +459,13 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
     await page.selectOption('#treePicker', 'Edgar_TEST_T1');
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
-    // ...and the card shows the linked pk_hash.
+    // ...and the card shows the linked pk_hash AND its PARTIAL (masked) key.
     await expect(page.locator('#treeDetails .tc-pk')).toContainText('pk-qkejKJJW3IAD');
+    await expect(page.locator('#treeDetails .tc-masked')).toContainText('***.***.***-19');
+    await expect(page.locator('#treeDetails .tc-masked')).toContainText(/CPF|EMAIL|PHONE|RANDOM/i);
+    // PRIVACY: only the masked key may appear on the card -- never a raw CPF.
+    const cardHtml = await page.locator('#treeDetails').innerHTML();
+    expect(cardHtml).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
 
     // A tree NOT in the map must NOT clobber an operator-typed hash.
     await page.fill('#recipientPkHash', 'pk-typed-by-operator');
