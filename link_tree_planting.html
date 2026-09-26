@@ -376,6 +376,7 @@
                 const opt = document.createElement('option');
                 opt.value = item.telegram_message_id;
                 opt.textContent = '#' + item.telegram_message_id + ' · ' + (item.submitted_name || '(unknown)') + ' — ' + (item.species || 'N/A') +
+                    (item.request_txid ? ' · tx:' + String(item.request_txid).slice(0, 8) : ' · tx:(none)') +
                     ' · planted ' + (item.planting_date || 'N/A') +
                     (item.latitude && item.longitude ? ' · ' + item.latitude + ', ' + item.longitude : '');
                 if (item.telegram_message_id === selectedSubmission) opt.selected = true;
@@ -601,6 +602,12 @@
                 if (selectedPlot) {
                     attrPairs.push(['Plot ID', selectedPlot]);
                 } else {
+                    // Link by the signed request txid (col V) — the stable key that survives
+                    // Telegram re-ingestion (col D 'Telegram Message ID' drifts). The handler is
+                    // txid-primary with a col-D fallback, so we emit BOTH for a safe transition.
+                    const linkSub = sunmintItems.find(function (s) { return s.telegram_message_id === selectedSubmission; });
+                    const linkTxid = (linkSub && linkSub.request_txid) ? linkSub.request_txid : '';
+                    if (linkTxid) attrPairs.push(['SunMint Submission Transaction ID', linkTxid]);
                     attrPairs.push(['SunMint Submission Message ID', selectedSubmission]);
                 }
 
@@ -675,11 +682,15 @@
             reportOutput.style.display = 'none';
 
             try {
+                // Same txid-first keying as the link path (handler is txid-primary, col-D fallback).
+                const rejectSub = sunmintItems.find(function (s) { return s.telegram_message_id === selectedSubmission; });
+                const rejectTxid = (rejectSub && rejectSub.request_txid) ? rejectSub.request_txid : '';
                 const attrPairs = [
-                    ['QR Code', selectedQrCode],
-                    ['SunMint Submission Message ID', selectedSubmission],
-                    ['Updated by', contributorName || 'Unknown']
+                    ['QR Code', selectedQrCode]
                 ];
+                if (rejectTxid) attrPairs.push(['SunMint Submission Transaction ID', rejectTxid]);
+                attrPairs.push(['SunMint Submission Message ID', selectedSubmission]);
+                attrPairs.push(['Updated by', contributorName || 'Unknown']);
                 const reason = (reasonInput && reasonInput.value.trim()) || '';
                 if (reason) attrPairs.push(['Reason', reason]);
 
