@@ -240,11 +240,7 @@
                 <div id="recipientsStatus" class="hint"></div>
             </div>
 
-            <label for="payoutStatus">Status</label>
-            <select id="payoutStatus">
-                <option value="live">live &mdash; captured as it happened</option>
-                <option value="backfill">backfill &mdash; reconstructed after the fact</option>
-            </select>
+            <div class="hint">Status is set automatically from <strong>Paid At</strong>: <code>backfill</code> when it is before today, otherwise <code>live</code> &mdash; no need to pick it.</div>
 
             <label for="receiptPasteArea">Receipt (attachment)</label>
             <div class="hint">Optional. Attach the bank-transfer receipt (image or PDF). It is uploaded to the <strong>private</strong> <code>TrueSightDAO/payout-receipts-raw</code> repo &mdash; never a public one.</div>
@@ -408,7 +404,6 @@
                 updateReceiptInfo('');
                 const rp = $('receipt-file-preview'); if (rp) { rp.style.display = 'none'; rp.src = ''; }
                 const ps = $('programSlug'); if (ps) ps.value = 'crf-anapu';
-                const pay = $('payoutStatus'); if (pay) pay.value = 'live';
                 const cur = $('currency'); if (cur) cur.value = 'BRL';
                 const brt = $('bankRefType'); if (brt) brt.value = 'PIX-E2E';
                 const sr = $('submissionResult'); if (sr) sr.style.display = 'none';
@@ -732,7 +727,7 @@
                     recipientName: $('recipientName').value,
                     recipientPkHash: $('recipientPkHash').value,
                     treeIds: $('treeIds').value,
-                    status: $('payoutStatus').value,
+                    status: U.deriveStatus($('paidAt').value),
                     receiptUrl: $('receiptUrl').value,
                     receiptFileName: cachedReceiptFileName || '',
                     receiptLocation: cachedReceiptFileName ? RECEIPT_REPO_BASE_URL + cachedReceiptFileName : '',

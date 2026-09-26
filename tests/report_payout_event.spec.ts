@@ -212,6 +212,9 @@ test.describe('report_payout_event.html', () => {
       return route.continue();
     });
 
+    // The redundant Status form field must be GONE (derived from Paid At instead).
+    await expect(page.locator('#payoutStatus')).toHaveCount(0);
+
     await page.fill('#programSlug', 'crf-anapu');
     await page.fill('#amount', 'R$ 50,00');
     await page.selectOption('#currency', 'BRL');
@@ -219,7 +222,8 @@ test.describe('report_payout_event.html', () => {
     await page.fill('#bankRef', 'E6890081000000000000000000000');
     await page.fill('#recipientName', 'Paulo');
     await page.fill('#treeIds', 'T-1, T-2');
-    await page.selectOption('#payoutStatus', 'backfill');
+    // No Status dropdown: it is derived. A 2026-09-12 paidAt is a prior UTC day,
+    // so the payload must self-report Status: backfill.
     await page.click('#submitButton');
 
     // Success status + the verbatim signed payload rendered into the forensic panel.

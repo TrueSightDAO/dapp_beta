@@ -353,5 +353,18 @@ test('PRIVACY: maskedKeyByPkHash never emits a raw pix_key/pix field', () => {
   assert.ok(!/\bpix_key\b/.test(json), 'pix_key field name must not appear');
 });
 
+test('deriveStatus: same UTC day (or future) -> live; earlier day -> backfill', () => {
+  const now = '2026-09-26T08:00:00Z';
+  assert.strictEqual(u.deriveStatus('2026-09-26T07:59:00Z', now), 'live');
+  assert.strictEqual(u.deriveStatus('2026-09-26T23:00:00Z', now), 'live');
+  assert.strictEqual(u.deriveStatus('2026-09-27T00:00:00Z', now), 'live');
+  assert.strictEqual(u.deriveStatus('2026-09-25T23:59:59Z', now), 'backfill');
+  assert.strictEqual(u.deriveStatus('2026-09-12T21:38:00Z', now), 'backfill');
+});
+test('deriveStatus: blank/garbage -> live (validation rejects it upstream)', () => {
+  assert.strictEqual(u.deriveStatus('', '2026-09-26T08:00:00Z'), 'live');
+  assert.strictEqual(u.deriveStatus('not-a-date', '2026-09-26T08:00:00Z'), 'live');
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
