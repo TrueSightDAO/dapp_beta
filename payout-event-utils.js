@@ -391,6 +391,29 @@
         return out;
     }
 
+    // Unique program slugs declared in a sunmint_program_registry.json
+    // ({hosts:{host:slug}}). Data-driven so a new program appears in the
+    // Program dropdown without a code change.
+    function programsFromRegistry(reg) {
+        var hosts = (reg && reg.hosts) || {};
+        var seen = {};
+        Object.keys(hosts).forEach(function (h) {
+            var s = String(hosts[h] || '').trim();
+            if (s) seen[s] = 1;
+        });
+        return Object.keys(seen).sort();
+    }
+
+    // True when the pending-tree feed carries ANY program attribution
+    // (program_slug / program / submission_source). Until it does, a Program
+    // filter cannot narrow the list -- the page says so plainly rather than
+    // silently showing everything.
+    function feedHasProgramData(trees) {
+        return (trees || []).some(function (tree) {
+            return String((tree && (tree.program_slug || tree.program || tree.submission_source)) || '').trim() !== '';
+        });
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         CURRENCIES: CURRENCIES,
@@ -414,7 +437,9 @@
         findPendingTree: findPendingTree,
         treeDetailFields: treeDetailFields,
         maskedKeyByPkHash: maskedKeyByPkHash,
-        deriveStatus: deriveStatus
+        deriveStatus: deriveStatus,
+        programsFromRegistry: programsFromRegistry,
+        feedHasProgramData: feedHasProgramData
     };
 
     global.PayoutEventUtils = utils;

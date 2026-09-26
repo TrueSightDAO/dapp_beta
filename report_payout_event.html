@@ -178,6 +178,14 @@
         </div>
 
         <div class="input-group">
+            <label for="programSlug">Program</label>
+            <select id="programSlug">
+                <option value="">(no program &mdash; general disbursement)</option>
+                <option value="crf-anapu" selected>crf-anapu</option>
+            </select>
+            <div class="hint">The program this payout belongs to. Pick one to narrow the unpaid-tree list below to that program&rsquo;s trees; leave it as <em>no program</em> for a general disbursement (the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write does not fire).</div>
+            <div id="programFilterNote" class="hint" style="display:none;"></div>
+
             <label for="treePicker">Tree Planting IDs <span class="primary-tag">primary</span></label>
             <select id="treePicker">
                 <option value="">Loading unpaid trees&hellip;</option>
@@ -188,10 +196,6 @@
             <div class="hint">Auto-filled by the picker above; you can also type ids directly.</div>
             <div id="overpayGuard" class="overpay-guard"></div>
             <div id="treeDetails" class="tree-details"></div>
-
-            <label for="programSlug">Program</label>
-            <input type="text" id="programSlug" value="crf-anapu" placeholder="e.g. crf-anapu (blank = all programs)" autocomplete="off">
-            <div class="hint">Optional &mdash; the program this payout belongs to. Leave it <strong>blank</strong> for a general disbursement; the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write simply does not fire.</div>
 
             <div class="row2">
                 <div>
@@ -302,6 +306,7 @@
             let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
             let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
+            let _pendingHasProgramData = false;  // does the pending feed carry program attribution?
             const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
             let uploadedReceiptFile = null;
             let cachedReceiptFileName = null;
@@ -315,6 +320,7 @@
                     .then(function (data) {
                         _pendingTrees = (data && data.items) || [];
                         _overpayFlags = U.computeOverpayFlags(_pendingTrees);
+                        _pendingHasProgramData = U.feedHasProgramData(_pendingTrees);  // matches treesForProgram()'s join keys
                         renderTreeOptions();
                         renderOverpayGuard();
                         renderTreeDetails();
@@ -325,6 +331,47 @@
             function currentProgram() {
                 const el = $('programSlug');
                 return el ? String(el.value || '').trim() : '';
+            }
+
+            // Populate the Program dropdown from the live registry (SSOT) so a new
+            // program appears without a code change. Keeps the current selection.
+            function loadProgramOptions() {
+                const sel = $('programSlug');
+                if (!sel) return;
+                const keep = sel.value || 'crf-anapu';
+                fetch('https://raw.githubusercontent.com/TrueSightDAO/lineage-engine/main/scripts/sunmint_program_registry.json', { cache: 'no-cache' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (reg) { applyProgramOptions(sel, U.programsFromRegistry(reg), keep); })
+                    .catch(function () { /* keep the static options */ });
+            }
+
+            function applyProgramOptions(sel, slugs, keep) {
+                var opts = ['<option value="">(no program \u2014 general disbursement)</option>'];
+                var seen = {};
+                (slugs || []).forEach(function (s) {
+                    if (s && !seen[s]) { seen[s] = 1; opts.push('<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>'); }
+                });
+                if (keep && !seen[keep]) opts.splice(1, 0, '<option value="' + escapeHtml(keep) + '">' + escapeHtml(keep) + '</option>');
+                sel.innerHTML = opts.join('');
+                sel.value = keep || '';
+                renderProgramFilterNote();
+            }
+
+            // Loud-failure affordance: when a program is chosen but the feed has no
+            // program attribution to filter on, say so instead of silently listing
+            // every unpaid tree as if the filter had applied.
+            function renderProgramFilterNote() {
+                const el = $('programFilterNote');
+                if (!el) return;
+                const p = currentProgram();
+                if (p && _pendingTrees.length && !_pendingHasProgramData) {
+                    el.style.display = 'block';
+                    el.style.color = '#8a6d3b';
+                    el.innerHTML = 'Program filter not applied: the unpaid-tree feed carries no program attribution yet, so all unpaid trees are still listed.';
+                } else {
+                    el.style.display = 'none';
+                    el.innerHTML = '';
+                }
             }
 
             // Blank program => ALL trees. A chosen program narrows to that program's
@@ -372,6 +419,7 @@
                 });
                 sel.innerHTML = opts.join('');
                 sel.value = '';
+                renderProgramFilterNote();
             }
 
             function addPickedTree() {
@@ -651,6 +699,7 @@
                             $('authBadge').textContent = 'Governor';
                             $('authBadge').className = 'status-badge governor';
                             $('content').style.display = 'block';
+                            loadProgramOptions();
                             loadPendingTrees();
                             loadRegistrations();
                         },
@@ -830,7 +879,7 @@
                     renderTreeDetails();
                 });
                 const programSel = $('programSlug');
-                if (programSel) programSel.addEventListener('input', renderTreeOptions);
+                if (programSel) programSel.addEventListener('change', renderTreeOptions);
                 const picker = $('treePicker');
                 if (picker) picker.addEventListener('change', addPickedTree);
                 wireReceiptAttachment();

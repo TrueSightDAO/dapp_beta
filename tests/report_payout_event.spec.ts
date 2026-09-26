@@ -69,6 +69,11 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
         }),
       });
     }
+    if (url.includes('sunmint_program_registry.json')) {
+      // SSOT the Program dropdown is populated from.
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ hosts: { 'cfr.truesight.me': 'crf-anapu' } }) });
+    }
     if (url.includes('/public_keys/')) {
       // Per-key path is tried first; 404 makes permissions.js fall back to the monolith.
       return route.fulfill({ status: 404, body: 'mocked 404' });
@@ -139,6 +144,42 @@ async function signIn(page: Page, publicKey: string, privateKey = 'fake') {
 }
 
 test.describe('report_payout_event.html', () => {
+  test('Program is a dropdown ABOVE the tree picker; blank program lists all trees', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+
+    // Program is now a <select>, not a free-text input.
+    await expect(page.locator('select#programSlug')).toHaveCount(1, { timeout: 15000 });
+    await expect(page.locator('input#programSlug')).toHaveCount(0);
+
+    // Populated from the live registry (SSOT); defaults to crf-anapu.
+    await expect(page.locator('#programSlug option[value="crf-anapu"]')).toHaveCount(1);
+    await expect(page.locator('#programSlug')).toHaveValue('crf-anapu');
+
+    // It sits ABOVE the tree picker in DOM order.
+    const above = await page.evaluate(() => {
+      const p = document.getElementById('programSlug');
+      const t = document.getElementById('treePicker');
+      return !!(p && t) && (p.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(above).toBe(true);
+
+    // Both unpaid trees show while the feed lacks program attribution.
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(1);
+
+    // Program chosen but feed carries no attribution -> say so, don't pretend.
+    await expect(page.locator('#programFilterNote')).toBeVisible();
+    await expect(page.locator('#programFilterNote')).toContainText(/no program attribution/i);
+
+    // Blank program = general disbursement: note clears, all trees stay listed.
+    await page.selectOption('#programSlug', '');
+    await expect(page.locator('#programFilterNote')).toBeHidden();
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(1);
+  });
+
   test('signed-out: shows the "No digital signature" gate and hides the form', async ({ page }) => {
     await mockBackend(page);
     await page.goto('/report_payout_event.html');
@@ -176,7 +217,7 @@ test.describe('report_payout_event.html', () => {
     await page.fill('#amount', '50,00');
     await page.fill('#paidAt', '2026-09-12');
     await page.fill('#recipientName', 'Paulo');
-    await page.fill('#programSlug', 'crf-anapu');
+    await page.selectOption('#programSlug', 'crf-anapu');
     await page.fill('#bankRef', '');
     await page.click('#submitButton');
 
@@ -215,7 +256,7 @@ test.describe('report_payout_event.html', () => {
     // The redundant Status form field must be GONE (derived from Paid At instead).
     await expect(page.locator('#payoutStatus')).toHaveCount(0);
 
-    await page.fill('#programSlug', 'crf-anapu');
+    await page.selectOption('#programSlug', 'crf-anapu');
     await page.fill('#amount', 'R$ 50,00');
     await page.selectOption('#currency', 'BRL');
     await page.fill('#paidAt', '2026-09-12T21:38:00Z');
@@ -272,7 +313,7 @@ test.describe('report_payout_event.html', () => {
     });
 
     // Program deliberately left blank -> a general disbursement is still valid.
-    await page.fill('#programSlug', '');
+    await page.selectOption('#programSlug', '');
     await page.fill('#amount', 'R$ 50,00');
     await page.selectOption('#currency', 'BRL');
     await page.fill('#paidAt', '2026-09-12T21:38:00Z');

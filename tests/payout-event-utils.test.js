@@ -379,5 +379,20 @@ test('overpayReasonBits: names the duplicate counterpart and the co-located dist
   assert.deepStrictEqual(u.overpayReasonBits(null), []);
 });
 
+test('programsFromRegistry: dedups + sorts slugs, tolerates gaps', function () {
+  assert.deepStrictEqual(u.programsFromRegistry({ hosts: { 'cfr.truesight.me': 'crf-anapu', 'beta.cfr.truesight.me': 'crf-anapu', 'x.example': 'zeta-program' } }), ['crf-anapu', 'zeta-program']);
+  assert.deepStrictEqual(u.programsFromRegistry({}), []);
+  assert.deepStrictEqual(u.programsFromRegistry(null), []);
+  assert.deepStrictEqual(u.programsFromRegistry({ hosts: { 'a.b': '', 'c.d': '  ' } }), []);
+});
+
+test('feedHasProgramData: true only when a tree carries attribution', function () {
+  assert.strictEqual(u.feedHasProgramData([{ telegram_message_id: 'X' }]), false);
+  assert.strictEqual(u.feedHasProgramData([{ telegram_message_id: 'X', program_slug: 'crf-anapu' }]), true);
+  assert.strictEqual(u.feedHasProgramData([{ submission_source: 'cfr.truesight.me' }]), true);
+  assert.strictEqual(u.feedHasProgramData([]), false);
+  assert.strictEqual(u.feedHasProgramData(null), false);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
