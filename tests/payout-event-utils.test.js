@@ -185,23 +185,24 @@ test('computeOverpayFlags: a repeated tree_id alone is flagged as duplicate', ()
 });
 test('computeOverpayFlags: the default co-located threshold is 3 m', () => {
     assert.strictEqual(u.OVERPAY_COLOCATED_METERS, 3.0);
+    assert.strictEqual(u.OVERPAY_SAME_FIX_METERS, 0.5);
 });
-test('computeOverpayFlags: two DIFFERENT trees <3 m apart are co-located (Gary 2026-09-25)', () => {
+test('computeOverpayFlags: DISTINCT trees on the SAME fix ARE flagged (identical coord)', () => {
     const f = u.computeOverpayFlags([
         { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
-        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094582', longitude: '-52.094964' }
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094581', longitude: '-52.094964' }
     ]);
     assert.strictEqual(f.T1.colocated, true);
     assert.strictEqual(f.T1.colocated_with[0].tree_id, 'T2');
+    assert.strictEqual(f.T1.colocated_with[0].meters, 0);
 });
-test('computeOverpayFlags: two DIFFERENT trees ~2 m apart ARE flagged at the 3 m default', () => {
-    // 0.00002 deg latitude ~= 2.2 m -> inside the 3 m window.
+test('computeOverpayFlags: distinct trees merely ~2 m apart are NOT flagged (dense planting)', () => {
+    // 0.00002 deg latitude ~= 2.2 m -> well outside the sub-metre same-fix window.
     const f = u.computeOverpayFlags([
         { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.094581', longitude: '-52.094964' },
         { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.094601', longitude: '-52.094964' }
     ]);
-    assert.strictEqual(f.T1.colocated, true);
-    assert.strictEqual(f.T2.colocated, true);
+    assert.deepStrictEqual(f, {});
 });
 test('computeOverpayFlags: trees ~9 m apart are NOT flagged (outside the 3 m window)', () => {
     // 0.00008 deg latitude ~= 8.9 m -> beyond 3 m.
@@ -225,6 +226,27 @@ test('computeOverpayFlags: rows without coordinates cannot be co-located', () =>
     ]);
     assert.deepStrictEqual(f, {});
 });
+test('computeOverpayFlags: near-identical photo_hash (same photo under a NEW url) => duplicate', () => {
+    // Exact photo_url differs, but the perceptual hashes are 4 bits apart -> the SAME
+    // physical photo re-ingested. This is the safety net the exact-url check misses.
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', photo_hash: 'ffffffffffffffff', latitude: '1', longitude: '1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', photo_hash: 'fffffffffffffff0', latitude: '1', longitude: '1' }
+    ]);
+    assert.strictEqual(f.T1.duplicate, true);
+    assert.ok(f.T1.duplicate_with.indexOf('T2') !== -1);
+});
+
+test('computeOverpayFlags: DIFFERENT photos (>=14 bits apart) are NOT duplicates', () => {
+    // Live feed: the closest DISTINCT-photo pair is 14/64, so the <=8 gate (and 14
+    // here) never merges two real trees.
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', photo_hash: '0000000000000000', latitude: '1', longitude: '1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', photo_hash: '0000000000003fff', latitude: '9', longitude: '9' }
+    ]);
+    assert.deepStrictEqual(f, {});
+});
+
 test('overpayWarningsFor: filters to entered ids, input order preserved', () => {
     const flags = { T2: { tree_id: 'T2', duplicate: true, duplicate_with: ['T1'] } };
     const out = u.overpayWarningsFor(flags, ['T9', 'T2']);
@@ -251,7 +273,7 @@ test('computeOverpayFlags: DISTINCT txids on one GPS fix are NOT duplicates (the
     ]);
     assert.notStrictEqual(f.T1.duplicate, true);
     assert.notStrictEqual(f.T2.duplicate, true);
-    assert.strictEqual(f.T1.colocated, true);  // advisory proximity still shown
+    assert.strictEqual(f.T1.colocated, true);  // same GPS fix -> still flagged
 });
 
 test('computeOverpayFlags: a same-txid pair is a duplicate, NOT a co-located pair (distinct trees)', () => {
@@ -280,12 +302,12 @@ test('overpayReasonBits: duplicate names the shared Request Transaction ID', () 
         ['duplicate (same Request Transaction ID as T2)']);
 });
 
-test('overpayReasonBits: a long co-located chain is capped to the nearest few + a count', () => {
+test('overpayReasonBits: a long same-fix chain is capped to the nearest few + a count', () => {
     const cw = [];
     for (let i = 0; i < 16; i++) cw.push({ tree_id: 'X' + i, meters: 0 });
     const bits = u.overpayReasonBits({ duplicate: false, colocated: true, colocated_with: cw });
     assert.strictEqual(bits.length, 1);
-    assert.ok(bits[0].startsWith('co-located with X0 (0 m), X1 (0 m), X2 (0 m)'), bits[0]);
+    assert.ok(bits[0].startsWith('same GPS fix as X0 (0 m), X1 (0 m), X2 (0 m)'), bits[0]);
     assert.ok(bits[0].endsWith('and 13 more'), bits[0]);
 });
 
@@ -412,8 +434,8 @@ test('treeDisplayId: two rows sharing one txid render the SAME label (they are t
 test('overpayReasonBits: labelFor renders partner ids in display form, keys unchanged', () => {
     const f = { duplicate: false, colocated: true, colocated_with: [{ tree_id: 'P1', meters: 0.4 }] };
     const bits = u.overpayReasonBits(f, { labelFor: (x) => 'tx:' + x });
-    assert.deepStrictEqual(bits, ['co-located with tx:P1 (0.4 m)']);
-    assert.deepStrictEqual(u.overpayReasonBits(f), ['co-located with P1 (0.4 m)']);
+    assert.deepStrictEqual(bits, ['same GPS fix as tx:P1 (0.4 m)']);
+    assert.deepStrictEqual(u.overpayReasonBits(f), ['same GPS fix as P1 (0.4 m)']);
 });
 
 test('maskedKeyByPkHash: maps pk_hash -> masked type+key, first wins', () => {
@@ -457,10 +479,10 @@ test('overpayReasonBits: names the duplicate counterpart and the co-located dist
     ['duplicate (same record as X)']);
   assert.deepStrictEqual(
     u.overpayReasonBits({ duplicate: false, colocated: true, colocated_with: [{ tree_id: 'Y', meters: 0.4 }] }),
-    ['co-located with Y (0.4 m)']);
+    ['same GPS fix as Y (0.4 m)']);
   assert.deepStrictEqual(
     u.overpayReasonBits({ duplicate: true, duplicate_with: [], colocated: true, colocated_with: [{ tree_id: 'Z', meters: 0 }] }),
-    ['duplicate', 'co-located with Z (0 m)']);
+    ['duplicate', 'same GPS fix as Z (0 m)']);
   assert.deepStrictEqual(u.overpayReasonBits(null), []);
 });
 
@@ -589,11 +611,12 @@ test('overpayConflictPartners: missing flags / unknown id -> [] (never throws)',
     assert.deepStrictEqual(u.overpayConflictPartners(undefined, ''), []);
 });
 test('overpayConflictPartners: returns the co-located partner, nearest first', () => {
-    // A-B on the same fix (0 m); C ~2 m away -> A's partners ordered [B, C].
+    // A-B on the same fix (0 m); C ~0.4 m away (still inside the same-fix window)
+    // -> A's partners ordered nearest first: [B, C].
     const flags = u.computeOverpayFlags([
         { tree_id: 'A', latitude: '-3.100000', longitude: '-52.100000' },
         { tree_id: 'B', latitude: '-3.100000', longitude: '-52.100000' },
-        { tree_id: 'C', latitude: '-3.100018', longitude: '-52.100000' } // ~2 m
+        { tree_id: 'C', latitude: '-3.100004', longitude: '-52.100000' } // ~0.4 m
     ]);
     const p = u.overpayConflictPartners(flags, 'A');
     assert.deepStrictEqual(p, ['B', 'C']);

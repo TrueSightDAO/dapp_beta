@@ -185,6 +185,18 @@
 
     // Gary (2026-09-25): flag a DIFFERENT tree within 3 m. (Was 1 m.)
     var OVERPAY_COLOCATED_METERS = 3.0;
+    // A SAME-FIX collision: two DIFFERENT trees sitting on (effectively) ONE GPS
+    // fix. A single stale fix re-reported across submissions lands several trees on
+    // the SAME coordinate -- that IS an overpay risk (one pick could be paid twice).
+    // Merely-NEARBY distinct trees (a dense plantation, ~3 m apart) are NOT a risk.
+    // So the default window is sub-metre; OVERPAY_COLOCATED_METERS stays only as a
+    // "nearby" advisory a caller may opt into (Gary, 2026-09-27, thread 35944).
+    var OVERPAY_SAME_FIX_METERS = 0.5;
+    // Perceptual-hash DUPLICATE gate (dHash-64, bits): a safety net for the same
+    // photo re-ingested under a NEW url, which the exact photo_url check misses. On
+    // the live feed the closest DISTINCT-photo pair is 14/64, so <=8 never merges two
+    // real trees (Gary, 2026-09-27, thread 35944).
+    var OVERPAY_PHASH_HAMMING = 8;
     // Max co-located partners named in a human reason string (nearest first).
     var OVERPAY_REASON_PARTNER_LIMIT = 3;
 
@@ -196,6 +208,22 @@
     }
 
     /** Great-circle distance in metres between two lat/lng pairs (haversine). */
+    // Hamming distance between two equal-length hex hash strings (bits differing).
+    // Returns a huge number for unparseable / unequal-length input so callers read
+    // it as "not a match".
+    function _hammingHex(a, b) {
+        a = _s(a); b = _s(b);
+        if (!a || a.length !== b.length) return 1e9;
+        var d = 0;
+        for (var i = 0; i < a.length; i++) {
+            var x = parseInt(a[i], 16), y = parseInt(b[i], 16);
+            if (isNaN(x) || isNaN(y)) return 1e9;
+            var z = x ^ y;
+            while (z) { d += z & 1; z >>= 1; }
+        }
+        return d;
+    }
+
     function haversineMeters(lat1, lng1, lat2, lng2) {
         var R = 6371000.0, toRad = Math.PI / 180;
         var dLat = (lat2 - lat1) * toRad;
@@ -209,20 +237,27 @@
     /**
      * Overpay guards over a set of pending tree rows. Returns ONLY the flagged
      * ids: { tree_id: { duplicate, duplicate_with[], colocated, colocated_with[] } }.
-     *   - duplicate  : shares a photo_url with another row, or the tree_id repeats.
-     *   - colocated  : a DIFFERENT tree_id sits within `colocatedMeters` (default 1 m).
-     * A 200 m threshold is deliberately NOT the default: on a real plantation trees
-     * sit ~3 m apart, so 200 m would flag ~98% of the list and be ignored. This is
-     * purely advisory UI and never part of the signed payload.
+     *   - duplicate  : shares a photo_url / Request Transaction ID with another row,
+     *                  a near-identical perceptual hash (photo_hash), or the tree_id repeats.
+     *   - colocated  : a DIFFERENT tree_id sits on the SAME GPS fix (within
+     *                  `sameFixMeters`, default 0.5 m) -- one stale fix shared by
+     *                  several distinct picks. NOT "merely nearby": on a real
+     *                  plantation trees legitimately sit ~3 m apart, so a 3 m window
+     *                  flagged the whole planting as at-risk and was noise (Gary,
+     *                  2026-09-27, thread 35944). Purely advisory UI; never part of
+     *                  the signed payload.
      */
     function computeOverpayFlags(rows, opts) {
         opts = opts || {};
-        var within = (typeof opts.colocatedMeters === 'number') ? opts.colocatedMeters : OVERPAY_COLOCATED_METERS;
+        var within = (typeof opts.sameFixMeters === 'number') ? opts.sameFixMeters
+            : (typeof opts.colocatedMeters === 'number') ? opts.colocatedMeters
+            : OVERPAY_SAME_FIX_METERS;
         var norm = (rows || []).map(function (r) {
             return {
                 tree_id: trim(r.tree_id || r.telegram_message_id || ''),
                 photo_url: trim(r.photo_url || ''),
                 request_txid: trim(r.request_txid || ''),
+                photo_hash: trim(r.photo_hash || ''),
                 latitude: _num(r.latitude),
                 longitude: _num(r.longitude)
             };
@@ -283,7 +318,29 @@
             });
         });
 
-        // colocated: a DIFFERENT tree_id within `within` metres
+        // duplicate (perceptual safety net): rows whose photo_hash are near-identical
+        // (Hamming <= opts.photoHashThreshold, default 8/64) are the SAME physical
+        // photo re-ingested under a DIFFERENT url -- which the exact photo_url check
+        // above misses. On the live feed the closest DISTINCT-photo pair is 14/64,
+        // so <=8 never merges two real trees (Gary, 2026-09-27, thread 35944).
+        var phThr = (typeof opts.photoHashThreshold === 'number') ? opts.photoHashThreshold : OVERPAY_PHASH_HAMMING;
+        var hashed = [];
+        norm.forEach(function (r) { if (r.tree_id && r.photo_hash) hashed.push({ id: r.tree_id, h: r.photo_hash }); });
+        for (var pI = 0; pI < hashed.length; pI++) {
+            for (var pJ = pI + 1; pJ < hashed.length; pJ++) {
+                if (hashed[pI].id === hashed[pJ].id) continue;
+                if (_hammingHex(hashed[pI].h, hashed[pJ].h) > phThr) continue;
+                var pid = hashed[pI].id, oid = hashed[pJ].id;
+                var bp = bucket(pid);
+                bp.duplicate = true;
+                if (bp.duplicate_with.indexOf(oid) === -1) bp.duplicate_with.push(oid);
+                var bp2 = bucket(oid);
+                bp2.duplicate = true;
+                if (bp2.duplicate_with.indexOf(pid) === -1) bp2.duplicate_with.push(pid);
+            }
+        }
+
+        // colocated: a DIFFERENT tree_id on the SAME GPS fix (within `within` metres)
         for (var i = 0; i < norm.length; i++) {
             for (var j = i + 1; j < norm.length; j++) {
                 var a = norm[i], b = norm[j];
@@ -349,7 +406,9 @@
                 return L(c.tree_id) + ' (' + c.meters + ' m)';
             });
             var extra = cwAll.length - OVERPAY_REASON_PARTNER_LIMIT;
-            bits.push('co-located with ' + shown.join(', ') + (extra > 0 ? ' and ' + extra + ' more' : ''));
+            // Name it honestly: these are DISTINCT trees sharing ONE (stale) GPS fix
+            // -- a real duplicate-pick risk, not "merely nearby".
+            bits.push('same GPS fix as ' + shown.join(', ') + (extra > 0 ? ' and ' + extra + ' more' : ''));
         }
         return bits;
     }
@@ -642,6 +701,8 @@
         buildAttributes: buildAttributes,
         dedupeActiveRegistrations: dedupeActiveRegistrations,
         OVERPAY_COLOCATED_METERS: OVERPAY_COLOCATED_METERS,
+        OVERPAY_SAME_FIX_METERS: OVERPAY_SAME_FIX_METERS,
+        OVERPAY_PHASH_HAMMING: OVERPAY_PHASH_HAMMING,
         overpayConflictPartners: overpayConflictPartners,
         haversineMeters: haversineMeters,
         computeOverpayFlags: computeOverpayFlags,
