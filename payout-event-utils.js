@@ -189,9 +189,15 @@
     // fix. A single stale fix re-reported across submissions lands several trees on
     // the SAME coordinate -- that IS an overpay risk (one pick could be paid twice).
     // Merely-NEARBY distinct trees (a dense plantation, ~3 m apart) are NOT a risk.
-    // So the default window is sub-metre; OVERPAY_COLOCATED_METERS stays only as a
-    // "nearby" advisory a caller may opt into (Gary, 2026-09-27, thread 35944).
-    var OVERPAY_SAME_FIX_METERS = 0.5;
+    // Gary (2026-09-27): tighten to 0.15 m so ONLY a genuinely SHARED fix flags. A GPS
+    // fix is a fixed decimal string, so two submissions reporting the same one land on
+    // byte-identical coordinates (0 m) or floating-point noise -- never 0.2 m. The old
+    // 0.5 m window raised a FALSE POSITIVE: two DISTINCT trees (different photo_hash,
+    // different capture dates, coord_source=submitted) 0.22 m apart were read as one
+    // stale fix. Real tree spacing is never sub-metre, and burn-in resolution (already
+    // live on the feed) moves genuinely distinct trees APART, not to 0.2 m.
+    // OVERPAY_COLOCATED_METERS stays only as an opt-in "nearby" advisory.
+    var OVERPAY_SAME_FIX_METERS = 0.15;
     // Perceptual-hash DUPLICATE gate (dHash-64, bits): a safety net for the same
     // photo re-ingested under a NEW url, which the exact photo_url check misses. On
     // the live feed the closest DISTINCT-photo pair is 14/64, so <=8 never merges two
@@ -240,7 +246,7 @@
      *   - duplicate  : shares a photo_url / Request Transaction ID with another row,
      *                  a near-identical perceptual hash (photo_hash), or the tree_id repeats.
      *   - colocated  : a DIFFERENT tree_id sits on the SAME GPS fix (within
-     *                  `sameFixMeters`, default 0.5 m) -- one stale fix shared by
+     *                  `sameFixMeters`, default 0.15 m) -- one stale fix shared by
      *                  several distinct picks. NOT "merely nearby": on a real
      *                  plantation trees legitimately sit ~3 m apart, so a 3 m window
      *                  flagged the whole planting as at-risk and was noise (Gary,
