@@ -88,6 +88,7 @@
             border-radius: 6px; padding: 0.4rem 0.6rem; margin: 0.25rem 0; color: #6b5408; line-height: 1.45;
         }
         .overpay-row code { background: #fff; padding: 0 0.2rem; border-radius: 3px; }
+        .overpay-reason { margin: 0.25rem 0 0; }
         .overpay-all { font-size: 0.8rem; margin-top: 0.3rem; }
         .overpay-all-list { margin-top: 0.3rem; display: flex; flex-direction: column; gap: 0.15rem; }
         .overpay-all-list code { background: #f2f2f2; padding: 0.05rem 0.25rem; border-radius: 3px; }
@@ -212,6 +213,7 @@
                 </div>
                 <div class="compare-col">
                     <div class="compare-heading">Overpay Conflict <span class="hint-inline">&mdash; the tree it collides with</span></div>
+                    <div id="overpayReason" class="overpay-reason"></div>
                     <div id="overpayTreeDetails" class="tree-details"></div>
                 </div>
             </div>
@@ -521,6 +523,26 @@
                 return U.treeDisplayId(t) || id;
             }
 
+            // The SPECIFIC collision reason for `id` (duplicate / co-located, with
+            // distances), as a yellow note. Rendered INLINE on the Overpay Conflict
+            // card so the "why" reads without scrolling to the guard section below
+            // (Gary, 2026-09-24, thread 35944). '' when `id` is unflagged.
+            function overpayReasonHtml(id) {
+                const f = _overpayFlags[String(id || '').trim()];
+                if (!f) return '';
+                const bits = [];
+                if (f.duplicate) {
+                    bits.push('possible <strong>duplicate</strong>' +
+                        (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.map(dispId).join(', ')) : ''));
+                }
+                if (f.colocated) {
+                    bits.push('<strong>co-located</strong> with ' + escapeHtml(
+                        f.colocated_with.map(function (c) { return dispId(c.tree_id) + ' (' + c.meters + ' m)'; }).join(', ')));
+                }
+                if (!bits.length) return '';
+                return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(dispId(id)) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
+            }
+
             function treeCardHtml(id) {
                 const t = U.findPendingTree(_pendingTrees, id);
                 const pk = _treeRecipientMap[id] || '';
@@ -564,11 +586,16 @@
             function renderOverpayTreeDetails() {
                 const host = $('overpayTreeDetails');
                 if (!host) return;
+                const reasonHost = $('overpayReason');
                 const id = String(_selectedTreeId || '').trim();
                 if (!id) {
                     host.innerHTML = '<div class="compare-empty">Pick a tree above to check it for overpay risk.</div>';
+                    if (reasonHost) reasonHost.innerHTML = '';
                     return;
                 }
+                // The reason sits ON the card -- under the heading, above the
+                // compared tree(s) -- so it reads without scrolling to the guard below.
+                if (reasonHost) reasonHost.innerHTML = overpayReasonHtml(id);
                 const partners = U.overpayConflictPartners(_overpayFlags, id);
                 if (!partners.length) {
                     host.innerHTML = '<div class="compare-clear">&#10003; <strong>No overpay risk found.</strong> ' +
@@ -620,24 +647,10 @@
                     '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
                     ' m of a <em>different</em> tree (GPS staleness can put several picks on one fix).</div></div>';
 
-                function reasonRow(id) {
-                    const f = _overpayFlags[id];
-                    if (!f) return '';
-                    const bits = [];
-                    if (f.duplicate) {
-                        bits.push('possible <strong>duplicate</strong>' +
-                            (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.map(dispId).join(', ')) : ''));
-                    }
-                    if (f.colocated) {
-                        bits.push('<strong>co-located</strong> with ' + escapeHtml(
-                            f.colocated_with.map(function (c) { return dispId(c.tree_id) + ' (' + c.meters + ' m)'; }).join(', ')));
-                    }
-                    return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(dispId(id)) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
-                }
-                // The reason block follows the PICKER selection -- the operator's sole
-                // question is whether to pay for THAT tree.
-                if (selected) html += reasonRow(selected);
-
+                // NOTE: the selected tree's SPECIFIC collision reason is rendered
+                // INLINE on the Overpay Conflict card (overpayReasonHtml), NOT here --
+                // the guard keeps only the summary, the filter legend and the
+                // all-flagged list (Gary, 2026-09-24, thread 35944).
                 if (flagged.length) {
                     html += '<details class="overpay-all"><summary>Show all ' + flagged.length +
                         ' flagged tree(s) \u2014 with reasons; click one to select it</summary><div class="overpay-all-list">' +
