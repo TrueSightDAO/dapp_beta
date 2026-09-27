@@ -430,7 +430,7 @@
                     if (f) {
                         var why = [];
                         if (f.duplicate) why.push('duplicate');
-                        if (f.colocated) why.push('co-located');
+                        if (f.colocated) why.push('same-fix');
                         warn = ' \u26a0 ' + why.join('/');
                     }
                     var tail = chosen[id] ? ' \u2713' : '';
@@ -536,7 +536,7 @@
                         (f.duplicate_with.length ? ' \u2014 same record as ' + escapeHtml(f.duplicate_with.map(dispId).join(', ')) : ''));
                 }
                 if (f.colocated) {
-                    bits.push('<strong>co-located</strong> with ' + escapeHtml(
+                    bits.push('<strong>same GPS fix</strong> as ' + escapeHtml(
                         f.colocated_with.map(function (c) { return dispId(c.tree_id) + ' (' + c.meters + ' m)'; }).join(', ')));
                 }
                 if (!bits.length) return '';
@@ -600,7 +600,7 @@
                 if (!partners.length) {
                     host.innerHTML = '<div class="compare-clear">&#10003; <strong>No overpay risk found.</strong> ' +
                         'Nothing shares this tree&rsquo;s photo or id, and no other tree is within ' +
-                        U.OVERPAY_COLOCATED_METERS + ' m.</div>';
+                        U.OVERPAY_SAME_FIX_METERS + ' m.</div>';
                     return;
                 }
                 host.innerHTML = partners.map(function (pid) { return treeCardHtml(pid); }).join('');
@@ -644,8 +644,8 @@
                     (selected ? 'Checking <code>' + escapeHtml(dispId(selected)) + '</code>.'
                               : 'Pick a tree above to check it.') +
                     '<div class="overpay-legend">A tree is flagged when it <strong>shares a photo</strong> with another row, ' +
-                    '<strong>repeats a tree id</strong>, or sits within ' + U.OVERPAY_COLOCATED_METERS +
-                    ' m of a <em>different</em> tree (GPS staleness can put several picks on one fix).</div></div>';
+                    '<strong>repeats a tree id</strong>, or sits on the <strong>same GPS fix</strong> as a <em>different</em> tree ' +
+                    '(a stale fix can put several distinct picks on ONE coordinate).</div></div>';
 
                 // NOTE: the selected tree's SPECIFIC collision reason is rendered
                 // INLINE on the Overpay Conflict card (overpayReasonHtml), NOT here --
