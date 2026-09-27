@@ -505,6 +505,49 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#overpayTreeDetails .tc-id')).toHaveText('Edgar_FLAG_B');
   });
 
+  test('collision reason renders INLINE on the Overpay Conflict card (not in the guard below)', async ({ page }) => {
+    await mockBackend(page);
+    // Two DIFFERENT trees on the SAME fix (0 m apart) -> both flagged co-located.
+    await page.route('**/sunmint_pending.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', count: 2, items: [
+        { telegram_message_id: 'Edgar_FLAG_A', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/a.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+        { telegram_message_id: 'Edgar_FLAG_B', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/b.jpg', latitude: '-3.100000', longitude: '-52.100000', status: 'NEW' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_FLAG_A"]')).toHaveCount(1, { timeout: 15000 });
+
+    // Pick a FLAGGED tree -> the reason appears ON the conflict card, spelling out
+    // WHAT it collides with and the distance.
+    await page.selectOption('#treePicker', 'Edgar_FLAG_A');
+    const reason = page.locator('#overpayReason .overpay-row');
+    await expect(reason).toHaveCount(1);
+    await expect(reason).toContainText('Edgar_FLAG_A');
+    await expect(reason).toContainText(/co-located with/i);
+    await expect(reason).toContainText(/0(\.\d+)? m/);
+
+    // ...and the reason sits ABOVE the compared tree card, inside the 2nd column.
+    const above = await page.evaluate(() => {
+      const r = document.getElementById('overpayReason');
+      const d = document.getElementById('overpayTreeDetails');
+      return !!(r && d) && (r.compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(above, 'reason must sit above the compared tree card').toBe(true);
+
+    // The guard no longer duplicates the selected tree's reason -- it keeps only the
+    // summary + legend + the all-flagged list (one line per tree, still present).
+    await expect(page.locator('#overpayGuard .overpay-row')).toHaveCount(0);
+    await page.click('#overpayGuard details.overpay-all summary');
+    await expect(page.locator('#overpayGuard .overpay-all-list')).toContainText('co-located with');
+
+    // Clearing the picker clears the reason with the card.
+    await page.selectOption('#treePicker', '');
+    await expect(page.locator('#overpayReason .overpay-row')).toHaveCount(0);
+  });
+
   test('attaching a receipt emits a PRIVATE destination and never the public store', async ({ page }) => {
     await mockBackend(page);
     await signIn(page, GOV_PUBLIC_KEY);
