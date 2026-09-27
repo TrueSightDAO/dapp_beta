@@ -185,7 +185,7 @@ test('computeOverpayFlags: a repeated tree_id alone is flagged as duplicate', ()
 });
 test('computeOverpayFlags: the default co-located threshold is 3 m', () => {
     assert.strictEqual(u.OVERPAY_COLOCATED_METERS, 3.0);
-    assert.strictEqual(u.OVERPAY_SAME_FIX_METERS, 0.5);
+    assert.strictEqual(u.OVERPAY_SAME_FIX_METERS, 0.15);
 });
 test('computeOverpayFlags: DISTINCT trees on the SAME fix ARE flagged (identical coord)', () => {
     const f = u.computeOverpayFlags([
@@ -195,6 +195,25 @@ test('computeOverpayFlags: DISTINCT trees on the SAME fix ARE flagged (identical
     assert.strictEqual(f.T1.colocated, true);
     assert.strictEqual(f.T1.colocated_with[0].tree_id, 'T2');
     assert.strictEqual(f.T1.colocated_with[0].meters, 0);
+});
+
+test('computeOverpayFlags: distinct trees 0.22 m apart (different photos) are NOT a same-fix flag (Gary 2026-09-27)', () => {
+    // The false positive Gary flagged: two DISTINCT submissions (different photo_hash,
+    // different capture dates) that happen to sit 0.22 m apart must not read as one
+    // stale fix. Real tree spacing is never sub-metre; a genuinely shared fix is 0 m.
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', photo_hash: '8f3f0e428b4959cc', latitude: '-3.522920', longitude: '-51.574971', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', photo_hash: 'f43427d337abc3d3', latitude: '-3.522920', longitude: '-51.574973', request_txid: 'SIG2' }
+    ]);
+    assert.deepStrictEqual(f, {});
+});
+
+test('computeOverpayFlags: identical coords still flag at the tightened 0.15 m window', () => {
+    const f = u.computeOverpayFlags([
+        { tree_id: 'T1', photo_url: 'http://x/a.jpg', latitude: '-3.522803', longitude: '-51.574812', request_txid: 'SIG1' },
+        { tree_id: 'T2', photo_url: 'http://x/b.jpg', latitude: '-3.522803', longitude: '-51.574812', request_txid: 'SIG2' }
+    ]);
+    assert.strictEqual(f.T1.colocated, true);
 });
 test('computeOverpayFlags: distinct trees merely ~2 m apart are NOT flagged (dense planting)', () => {
     // 0.00002 deg latitude ~= 2.2 m -> well outside the sub-metre same-fix window.
@@ -611,12 +630,12 @@ test('overpayConflictPartners: missing flags / unknown id -> [] (never throws)',
     assert.deepStrictEqual(u.overpayConflictPartners(undefined, ''), []);
 });
 test('overpayConflictPartners: returns the co-located partner, nearest first', () => {
-    // A-B on the same fix (0 m); C ~0.4 m away (still inside the same-fix window)
-    // -> A's partners ordered nearest first: [B, C].
+    // A-B on the same fix (0 m); C ~0.11 m away (still inside the tightened 0.15 m
+    // same-fix window) -> A's partners ordered nearest first: [B, C].
     const flags = u.computeOverpayFlags([
         { tree_id: 'A', latitude: '-3.100000', longitude: '-52.100000' },
         { tree_id: 'B', latitude: '-3.100000', longitude: '-52.100000' },
-        { tree_id: 'C', latitude: '-3.100004', longitude: '-52.100000' } // ~0.4 m
+        { tree_id: 'C', latitude: '-3.100001', longitude: '-52.100000' } // ~0.11 m
     ]);
     const p = u.overpayConflictPartners(flags, 'A');
     assert.deepStrictEqual(p, ['B', 'C']);
