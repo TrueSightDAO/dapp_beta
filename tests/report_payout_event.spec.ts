@@ -46,7 +46,7 @@ const MOCK_PERMISSIONS = {
   },
 };
 
-async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
+async function mockBackend(page: Page, opts: { submitOk?: boolean; mapDelayMs?: number } = {}) {
   await page.route('**/raw.githubusercontent.com/**', (route) => {
     const url = route.request().url();
     if (url.includes('permissions.json')) {
@@ -84,9 +84,12 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean } = {}) {
   // Governor identity resolution (cache-first) then GAS fallback — both mocked.
   // The payout-register read (a governor-only GET) returns a realistic payload:
   // FOUR rows for the SAME pk_hash (1 RECORDED + 3 UPDATED) — the mess Gary sees.
-  await page.route('**/macros/**/exec*', (route) => {
+  await page.route('**/macros/**/exec*', async (route) => {
     const url = route.request().url();
     if (url.includes('getTreeRecipientMap')) {
+      // Simulate the endpoint's real cold-start latency (it can 302/0-byte while
+      // warming). Used by the load-order race test.
+      if (opts.mapDelayMs) await new Promise((r) => setTimeout(r, opts.mapDelayMs));
       // Governor-only tree_id -> pk_hash map (hash-only, no raw PII).
       return route.fulfill({
         status: 200,
@@ -401,12 +404,12 @@ test.describe('report_payout_event.html', () => {
     await expect(guard).toContainText('2', { timeout: 15000 });
     // The filter is documented, not a mystery.
     await expect(guard).toContainText(/shares a photo/i);
-    await expect(guard).toContainText(/within 3 m/i);
+    await expect(guard).toContainText(/same GPS fix/i);
     // Expanding the list shows WHY each tree is flagged (not a bare id dump).
     await page.click('#overpayGuard details.overpay-all summary');
     const list = page.locator('#overpayGuard .overpay-all-list');
     await expect(list).toContainText('Edgar_FLAG_A');
-    await expect(list).toContainText('co-located with');
+    await expect(list).toContainText('same GPS fix');
     await expect(list).toContainText('(0 m)');
   });
 
@@ -526,7 +529,7 @@ test.describe('report_payout_event.html', () => {
     const reason = page.locator('#overpayReason .overpay-row');
     await expect(reason).toHaveCount(1);
     await expect(reason).toContainText('Edgar_FLAG_A');
-    await expect(reason).toContainText(/co-located with/i);
+    await expect(reason).toContainText(/same GPS fix/i);
     await expect(reason).toContainText(/0(\.\d+)? m/);
 
     // ...and the reason sits ABOVE the compared tree card, inside the 2nd column.
@@ -541,7 +544,7 @@ test.describe('report_payout_event.html', () => {
     // summary + legend + the all-flagged list (one line per tree, still present).
     await expect(page.locator('#overpayGuard .overpay-row')).toHaveCount(0);
     await page.click('#overpayGuard details.overpay-all summary');
-    await expect(page.locator('#overpayGuard .overpay-all-list')).toContainText('co-located with');
+    await expect(page.locator('#overpayGuard .overpay-all-list')).toContainText('same GPS fix');
 
     // Clearing the picker clears the reason with the card.
     await page.selectOption('#treePicker', '');
@@ -735,5 +738,50 @@ test.describe('report_payout_event.html', () => {
     // Single-select: there is no multi-tree state to be ambiguous about.
     await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T2');
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
+  });
+
+  test('BUGFIX: a tree picked BEFORE the recipient map lands still auto-fills (retroactive) and deep-links the URL', async ({ page }) => {
+    // The FEED is instant but the MAP is delayed 1.5s -- the exact race that used
+    // to strand the recipient field blank with no retry.
+    await mockBackend(page, { mapDelayMs: 1500 });
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    // Pick while the map is still in flight.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T1');
+
+    // The selection is mirrored into the URL immediately...
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
+    // ...and when the delayed map finally arrives the recipient fills RETROACTIVELY.
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 15000 });
+  });
+
+  test('BUGFIX: ?tree_id= in the URL selects that tree on load and fills its recipient', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html?tree_id=Edgar_TEST_T1');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T1', { timeout: 15000 });
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 15000 });
+    // ...and the link stays deep-linkable (does not get cleared on apply).
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
+  });
+
+  test('BUGFIX: clearing the picker drops ?tree_id= from the URL', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
+
+    await page.selectOption('#treePicker', '');
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBeNull();
   });
 });

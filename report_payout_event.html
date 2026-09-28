@@ -329,6 +329,7 @@
             let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
             let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
+            let _urlParamApplied = false; // ?tree_id= deep-link applied ONCE, after the feed loads
             let _pendingHasProgramData = false;  // does the pending feed carry program attribution?
             const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
             let uploadedReceiptFile = null;
@@ -351,6 +352,7 @@
                         renderOverpayGuard();
                         renderTreeDetails();
                         renderOverpayTreeDetails();
+                        applyUrlTreeParam();   // honor ?tree_id= once the picker has options
                     })
                     .catch(function () { _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); renderOverpayTreeDetails(); });
             }
@@ -450,6 +452,36 @@
                 selectTreeById(sel.value);
             }
 
+            // Mirror the picker selection into the URL (?tree_id=...) so a ticket or a
+            // colleague's link reopens EXACTLY this tree. Display/deep-link only -- the
+            // signed payload still keys off the picker value, never the URL.
+            function setUrlTreeParam(id) {
+                try {
+                    const u = new URL(window.location.href);
+                    const v = String(id || '').trim();
+                    if (v) u.searchParams.set('tree_id', v); else u.searchParams.delete('tree_id');
+                    window.history.replaceState({}, '', u.toString());
+                } catch (e) { console.warn('setUrlTreeParam', e); }
+            }
+
+            // Apply a ?tree_id= deep-link ONCE, after the feed populates the picker.
+            // Returns true only when it actually selected a listed tree.
+            function applyUrlTreeParam() {
+                if (_urlParamApplied) return false;
+                _urlParamApplied = true;
+                try {
+                    const u = new URL(window.location.href);
+                    const id = String(u.searchParams.get('tree_id') || '').trim();
+                    if (!id) return false;
+                    const sel = $('treePicker');
+                    if (!sel) return false;
+                    const isOption = Array.prototype.some.call(sel.options, function (o) { return o.value === id; });
+                    if (!isOption) return false;
+                    selectTreeById(id);
+                    return true;
+                } catch (e) { console.warn('applyUrlTreeParam', e); return false; }
+            }
+
             // Picker selection: sets the tree that will be PAID and refreshes the
             // Tree Details card + the guard (autofill + reject both key off it).
             function selectTreeById(id) {
@@ -464,6 +496,7 @@
                 renderTreeDetails();
                 renderOverpayTreeDetails();
                 renderOverpayGuard();
+                setUrlTreeParam(id);
             }
 
             // After a payout lands, hide the paid trees + offer a fresh form.
@@ -608,10 +641,39 @@
 
             function loadTreeRecipientMap() {
                 if (typeof fetch !== 'function') return;
-                return fetch(TREE_RECIPIENT_ENDPOINT + '?action=getTreeRecipientMap', { cache: 'no-cache' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) { _treeRecipientMap = U.buildTreeRecipientMap(data); renderTreeDetails(); })
-                    .catch(function () { _treeRecipientMap = {}; });
+                var attempt = 0;
+                var MAX_ATTEMPTS = 3;
+                function wait(n) { return new Promise(function (res) { setTimeout(res, 400 * n); }); }
+                function run() {
+                    attempt += 1;
+                    return fetch(TREE_RECIPIENT_ENDPOINT + '?action=getTreeRecipientMap', { cache: 'no-cache' })
+                        .then(function (r) { return r.text(); })
+                        .then(function (txt) {
+                            var data = null;
+                            var ok = false;
+                            if (txt && txt.trim()) {
+                                try { data = JSON.parse(txt); ok = true; } catch (_) { ok = false; }
+                            }
+                            // The endpoint is known to answer 302 with a 0-byte body while
+                            // cold. Retry a bounded number of times before giving up.
+                            if (!ok) {
+                                if (attempt < MAX_ATTEMPTS) return wait(attempt).then(run);
+                                _treeRecipientMap = {};
+                                return;
+                            }
+                            _treeRecipientMap = U.buildTreeRecipientMap(data);
+                            // The map can land AFTER the operator already picked a tree --
+                            // fill the recipient retroactively so the load-order race can
+                            // never strand a resolvable selection.
+                            maybeAutoFillRecipient(_selectedTreeId ? [_selectedTreeId] : []);
+                            renderTreeDetails();
+                        })
+                        .catch(function () {
+                            if (attempt < MAX_ATTEMPTS) return wait(attempt).then(run);
+                            _treeRecipientMap = {};
+                        });
+                }
+                return run();
             }
 
             // Auto-fill the recipient pk_hash when the selection resolves to exactly ONE
