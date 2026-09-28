@@ -664,5 +664,30 @@ test('overpayConflictPartners: reads NO PII in its output', () => {
     assert.strictEqual(/pix|cpf|pk_hash|publicKey/i.test(blob), false);
 });
 
+test('buildRecipientMapFromFeed: maps feed items carrying inline recipient_pk_hash', () => {
+    const m = u.buildRecipientMapFromFeed([
+        { telegram_message_id: 'A', recipient_pk_hash: 'pk-aaa' },
+        { telegram_message_id: 'B', recipient_pk_hash: 'pk-bbb' },
+        { tree_id: 'C', recipient_pk_hash: 'pk-ccc' }
+    ]);
+    assert.deepStrictEqual(m, { A: 'pk-aaa', B: 'pk-bbb', C: 'pk-ccc' });
+});
+
+test('buildRecipientMapFromFeed: skips blank/absent values and first-wins on duplicate ids', () => {
+    const m = u.buildRecipientMapFromFeed([
+        { telegram_message_id: 'A' },
+        { telegram_message_id: 'B', recipient_pk_hash: '' },
+        { telegram_message_id: 'A', recipient_pk_hash: 'pk-first' },
+        { telegram_message_id: 'A', recipient_pk_hash: 'pk-second' },
+        null, undefined
+    ]);
+    assert.deepStrictEqual(m, { A: 'pk-first' });
+});
+
+test('buildRecipientMapFromFeed: tolerant of a non-list input', () => {
+    assert.deepStrictEqual(u.buildRecipientMapFromFeed(null), {});
+    assert.deepStrictEqual(u.buildRecipientMapFromFeed(undefined), {});
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
