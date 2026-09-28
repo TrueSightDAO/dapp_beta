@@ -223,6 +223,74 @@
     );
   }
 
+  /**
+   * The recent-activity feed: the index is ALREADY sorted recent-first
+   * (events_ordered is submitted_at desc, built by the generator), so this is
+   * a slice, not a sort. `limit` <= 0 or absent means "all".
+   */
+  function recentActivity(index, limit) {
+    var rows = indexRows(index);
+    if (limit && limit > 0) return rows.slice(0, limit);
+    return rows;
+  }
+
+  /** Human label for an event_type_folder: "tree_planting" -> "Tree Planting". */
+  function typeLabel(folder) {
+    var s = String(folder == null ? '' : folder).replace(/[_-]+/g, ' ').trim();
+    if (!s) return '(untyped)';
+    return s.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  /**
+   * Roll-up of events by event_type_folder: [{key, label, count}] sorted by
+   * count desc, then label asc. Purely derived from the rows.
+   */
+  function typeRollup(index) {
+    return rollup(indexRows(index), function (r) {
+      return r && r.event_type_folder ? String(r.event_type_folder) : '';
+    }, typeLabel);
+  }
+
+  /** Roll-up by contributor_name: [{key, label, count}] count desc, label asc. */
+  function contributorRollup(index) {
+    return rollup(indexRows(index), function (r) {
+      var n = r && r.contributor_name ? String(r.contributor_name).trim() : '';
+      return n;
+    }, function (k) { return k || '(unknown contributor)'; });
+  }
+
+  function rollup(rows, keyFn, labelFn) {
+    var counts = {};
+    for (var i = 0; i < rows.length; i++) {
+      var k = keyFn(rows[i]);
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return Object.keys(counts)
+      .map(function (k) { return { key: k, label: labelFn(k), count: counts[k] }; })
+      .sort(function (a, b) {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.label.localeCompare(b.label);
+      });
+  }
+
+  /**
+   * Filter rows by an optional {event_type, contributor_name} facet. Facets are
+   * exact matches on the folder key / contributor name. Missing/empty = no-op.
+   */
+  function filterRows(index, facets) {
+    var rows = indexRows(index);
+    var f = facets || {};
+    var byType = f.event_type ? String(f.event_type) : '';
+    var byWho = f.contributor_name ? String(f.contributor_name).trim() : '';
+    if (!byType && !byWho) return rows;
+    return rows.filter(function (r) {
+      if (!r) return false;
+      if (byType && String(r.event_type_folder || '') !== byType) return false;
+      if (byWho && String(r.contributor_name || '').trim() !== byWho) return false;
+      return true;
+    });
+  }
+
   var utils = {
     LEDGER_RAW_BASE: LEDGER_RAW_BASE,
     LEDGER_INDEX_URL: LEDGER_INDEX_URL,
@@ -231,6 +299,11 @@
     isEdgarMessageId: isEdgarMessageId,
     isNumericMessageId: isNumericMessageId,
     indexRows: indexRows,
+    recentActivity: recentActivity,
+    typeRollup: typeRollup,
+    contributorRollup: contributorRollup,
+    filterRows: filterRows,
+    typeLabel: typeLabel,
     lookupByHash: lookupByHash,
     lookupByMessageId: lookupByMessageId,
     resolveQuery: resolveQuery,
