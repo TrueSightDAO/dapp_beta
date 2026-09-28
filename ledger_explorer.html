@@ -119,6 +119,35 @@
     a { color: #007bff; }
     .hidden { display: none; }
     #freshness { text-align: center; font-size: 0.8rem; color: #999; margin-top: 0.4rem; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0.5rem; }
+    .tab {
+      background-color: #eef1f4; color: #333;
+      padding: 0.5rem 0.9rem; font-size: 0.9rem; border-radius: 20px;
+    }
+    .tab:hover { background-color: #dfe4ea; }
+    .tab.active { background-color: #4CAF50; color: #fff; }
+    .panel { margin-top: 0.5rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 1rem; }
+    .chip {
+      background-color: #f0f8ff; color: #234; border: 1px solid #cfe3f7;
+      padding: 0.35rem 0.7rem; font-size: 0.85rem; border-radius: 16px; cursor: pointer;
+    }
+    .chip:hover { background-color: #e2effb; }
+    .chip.active { background-color: #4682b4; color: #fff; border-color: #4682b4; }
+    .chip .cnt { color: #888; margin-left: 0.3rem; }
+    .chip.active .cnt { color: #e8f0f8; }
+    .feed { list-style: none; margin: 0; padding: 0; }
+    .feed li {
+      padding: 0.6rem 0.7rem; border-bottom: 1px solid #eee;
+      display: flex; gap: 0.6rem; align-items: baseline; cursor: pointer;
+    }
+    .feed li:hover { background-color: #f8f9fa; }
+    .feed .f-type { font-weight: bold; color: #234; min-width: 9rem; }
+    .feed .f-who { color: #555; }
+    .feed .f-date { color: #999; font-size: 0.85rem; margin-left: auto; white-space: nowrap; }
+    .feed .f-meta { font-size: 0.8rem; color: #aaa; font-family: monospace; }
+    .result-head { display: flex; align-items: center; justify-content: space-between; margin: 0.6rem 0 0.2rem; }
+    .result-head .rt { font-weight: bold; color: #333; }
     @media (max-width: 600px) {
       body { margin: 0.5rem; padding: 0.5rem; }
       h1 { font-size: 1.5rem; }
@@ -147,8 +176,11 @@
       canonical filename. Message ids look like <code>171</code> or
       <code>Edgar_20260924125541_071</code>.
     </p>
+    <div class="tabs" id="tabs"></div>
     <div id="freshness"></div>
     <div id="status" class="hidden"></div>
+    <div id="browse" class="panel"></div>
+    <div id="facetBar"></div>
     <div id="result"></div>
   </div>
 
@@ -165,6 +197,15 @@
       var statusEl = $('status');
       var resultEl = $('result');
       var freshEl = $('freshness');
+      var tabsEl = $('tabs');
+      var browseEl = $('browse');
+      var facetBarEl = $('facetBar');
+
+      // View tabs + the active facet filter (PR3). MODE drives which panel is
+      // visible; FACETS narrows the feed/browse lists.
+      var MODE = 'search';
+      var FACETS = { event_type: '', contributor_name: '' };
+      var FEED_LIMIT = 25;
 
       function showStatus(msg, cls) {
         statusEl.textContent = msg;
@@ -207,7 +248,7 @@
         return U.sha256Hex(rawTxid);
       }
 
-      function renderRows(rows, mode, query) {
+      function renderRows(rows, mode, query, heading) {
         resultEl.innerHTML = '';
         if (!rows.length) {
           var why = mode === 'empty'
@@ -219,7 +260,15 @@
           return;
         }
         clearStatus();
+        var head = document.createElement('div');
+        head.className = 'result-head';
+        head.innerHTML = '<span class="rt">' + esc(heading || (rows.length + ' result' + (rows.length === 1 ? '' : 's'))) +
+          '</span>' +
+          '<button class="copy-btn" id="backFeed">Back to recent activity</button>';
+        resultEl.appendChild(head);
         rows.forEach(function (row) { resultEl.appendChild(renderCard(row, mode)); });
+        var back = $('backFeed');
+        if (back) back.addEventListener('click', function () { setMode('feed'); });
       }
 
       function renderCard(row, mode) {
@@ -313,6 +362,161 @@
         });
       }
 
+      // --- PR3: tabs, recent-activity feed, browse-by-type/contributor ---
+
+      var TABS = [
+        { id: 'search', label: 'Search' },
+        { id: 'feed', label: 'Recent activity' },
+        { id: 'type', label: 'Browse by type' },
+        { id: 'contributor', label: 'Browse by contributor' }
+      ];
+
+      function renderTabs() {
+        tabsEl.innerHTML = '';
+        TABS.forEach(function (t) {
+          var b = document.createElement('button');
+          b.className = 'tab' + (MODE === t.id ? ' active' : '');
+          b.textContent = t.label;
+          b.addEventListener('click', function () { setMode(t.id); });
+          tabsEl.appendChild(b);
+        });
+      }
+
+      function setMode(mode) {
+        MODE = mode;
+        renderTabs();
+        clearStatus();
+        // Search UI is only relevant to the search tab.
+        var showSearch = mode === 'search';
+        document.querySelector('.search-row').style.display = showSearch ? '' : 'none';
+        document.querySelector('.hint').style.display = showSearch ? '' : 'none';
+        resultEl.innerHTML = '';
+        facetBarEl.innerHTML = '';
+        if (mode === 'search') { browseEl.innerHTML = ''; return; }
+        if (!INDEX) { browseEl.innerHTML = '<p class="loading">Loading ledger index\u2026</p>'; return; }
+        if (mode === 'feed') return renderFeed();
+        if (mode === 'type') return renderBrowseType();
+        if (mode === 'contributor') return renderBrowseContributor();
+      }
+
+      function renderFacetBar() {
+        facetBarEl.innerHTML = '';
+        var active = FACETS.event_type || FACETS.contributor_name;
+        if (!active) return;
+        var bar = document.createElement('div');
+        bar.className = 'chips';
+        var label = FACETS.event_type
+          ? 'Type: ' + U.typeLabel(FACETS.event_type)
+          : 'Contributor: ' + FACETS.contributor_name;
+        bar.innerHTML = '<span class="chip active">' + esc(label) +
+          '<span class="cnt"> \u00d7</span></span>';
+        bar.querySelector('.chip').addEventListener('click', function () {
+          FACETS = { event_type: '', contributor_name: '' };
+          setMode(MODE);
+        });
+        facetBarEl.appendChild(bar);
+      }
+
+      function renderFeed() {
+        browseEl.innerHTML = '<div class="section-title">Recent activity</div>';
+        renderFacetBar();
+        var rows = U.filterRows(INDEX, FACETS);
+        var shown = U.recentActivity({ events: rowMap(rows), events_ordered: rows.map(function (r) { return r.txid_hash; }) }, FEED_LIMIT);
+        if (!shown.length) {
+          browseEl.innerHTML += '<p class="info-card">No events match.</p>';
+          return;
+        }
+        var ul = document.createElement('ul');
+        ul.className = 'feed';
+        shown.forEach(function (r) { ul.appendChild(feedItem(r)); });
+        browseEl.appendChild(ul);
+        if (rows.length > shown.length) {
+          var more = document.createElement('button');
+          more.className = 'copy-btn';
+          more.textContent = 'Show all ' + rows.length + ' items';
+          more.addEventListener('click', function () { FEED_LIMIT = 0; renderFeed(); });
+          browseEl.appendChild(more);
+        }
+        if (FEED_LIMIT === 0) {
+          var fewer = document.createElement('button');
+          fewer.className = 'copy-btn';
+          fewer.textContent = 'Show fewer';
+          fewer.addEventListener('click', function () { FEED_LIMIT = 25; renderFeed(); });
+          browseEl.appendChild(fewer);
+        }
+      }
+
+      // A minimal index wrapper carrying only the filtered rows, so we can reuse
+      // indexRows/recentActivity without mutating the real index.
+      function rowMap(rows) {
+        var m = {};
+        rows.forEach(function (r) { m[r.txid_hash] = r; });
+        return m;
+      }
+
+      function feedItem(r) {
+        var li = document.createElement('li');
+        li.innerHTML =
+          '<span class="f-type">' + esc(U.typeLabel(r.event_type_folder)) + '</span>' +
+          '<span class="f-who">' + esc(r.contributor_name || '(unknown contributor)') + '</span>' +
+          '<span class="f-date">' + esc((r.submitted_at || '').slice(0, 10)) + '</span>';
+        li.addEventListener('click', function () { openRow(r); });
+        return li;
+      }
+
+      function renderBrowseType() {
+        var rollup = U.typeRollup(INDEX);
+        browseEl.innerHTML = '<div class="section-title">Browse by type</div>';
+        var chips = document.createElement('div');
+        chips.className = 'chips';
+        rollup.forEach(function (t) {
+          var c = document.createElement('span');
+          c.className = 'chip' + (FACETS.event_type === t.key ? ' active' : '');
+          c.innerHTML = esc(t.label) + '<span class="cnt">' + t.count + '</span>';
+          c.addEventListener('click', function () {
+            FACETS = { event_type: t.key, contributor_name: '' };
+            setMode('type');
+          });
+          chips.appendChild(c);
+        });
+        browseEl.appendChild(chips);
+        if (FACETS.event_type) renderFacetedList('Type: ' + U.typeLabel(FACETS.event_type));
+      }
+
+      function renderBrowseContributor() {
+        var rollup = U.contributorRollup(INDEX);
+        browseEl.innerHTML = '<div class="section-title">Browse by contributor</div>';
+        var chips = document.createElement('div');
+        chips.className = 'chips';
+        rollup.forEach(function (t) {
+          var c = document.createElement('span');
+          c.className = 'chip' + (FACETS.contributor_name === t.key ? ' active' : '');
+          c.innerHTML = esc(t.label) + '<span class="cnt">' + t.count + '</span>';
+          c.addEventListener('click', function () {
+            FACETS = { contributor_name: t.key, event_type: '' };
+            setMode('contributor');
+          });
+          chips.appendChild(c);
+        });
+        browseEl.appendChild(chips);
+        if (FACETS.contributor_name) renderFacetedList('Contributor: ' + FACETS.contributor_name);
+      }
+
+      function renderFacetedList(heading) {
+        var rows = U.filterRows(INDEX, FACETS);
+        var ul = document.createElement('ul');
+        ul.className = 'feed';
+        rows.slice(0, FEED_LIMIT || rows.length).forEach(function (r) { ul.appendChild(feedItem(r)); });
+        browseEl.appendChild(ul);
+      }
+
+      // Clicking a feed row opens its full detail card (reuses the search card).
+      function openRow(row) {
+        setMode('search');
+        clearStatus();
+        renderRows([row], 'message_id', '', 'Event detail');
+      }
+
       async function doSearch() {
         var q = U.normalizeQuery(qEl.value);
         resultEl.innerHTML = '';
@@ -341,9 +545,21 @@
         if (pre) { qEl.value = pre; }
       } catch (_) {}
 
+      renderTabs();
+      setMode('search');
+
       loadIndex().then(function () {
-        if (U.normalizeQuery(qEl.value)) doSearch();
-      }).catch(function () { /* status already shown */ });
+        if (U.normalizeQuery(qEl.value)) {
+          setMode('search');
+          doSearch();
+        } else {
+          // Land on the recent-activity feed once the index is available.
+          setMode('feed');
+        }
+      }).catch(function () {
+        // Keep the Search tab usable even if the index failed to load.
+        setMode('search');
+      });
     })();
   </script>
   <script>

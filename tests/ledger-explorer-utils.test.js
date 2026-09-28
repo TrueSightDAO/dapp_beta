@@ -191,6 +191,79 @@ test('buildOpensslVerifySnippet embeds the event URL and the README recipe', () 
   assert.ok(s.indexOf('Verified OK') >= 0, 'shows the expected outcome');
 });
 
+// --- recent activity, browse-by-type, browse-by-contributor (PR3) ----------
+
+// A richer fixture: 5 rows, 3 types, 3 contributors, deliberately out of
+// count order so the roll-up sort is actually exercised.
+const H = (c) => c.repeat(64);
+const I3 = {
+  ordered_by: 'submitted_at', order: 'desc', count: 5,
+  // recent-first
+  events_ordered: [H('e'), H('d'), H('c'), H('b'), H('a')],
+  events: {
+    [H('a')]: { txid_hash: H('a'), event_type_folder: 'tree_planting', contributor_name: 'Gary Teh', submitted_at: '2024-01-01' },
+    [H('b')]: { txid_hash: H('b'), event_type_folder: 'tree_planting', contributor_name: 'Gary Teh', submitted_at: '2024-02-01' },
+    [H('c')]: { txid_hash: H('c'), event_type_folder: 'sales_event', contributor_name: 'Edgar', submitted_at: '2025-01-01' },
+    [H('d')]: { txid_hash: H('d'), event_type_folder: 'tree_planting', contributor_name: 'Edgar', submitted_at: '2026-01-01' },
+    [H('e')]: { txid_hash: H('e'), event_type_folder: 'contribution_event', contributor_name: 'Gary Teh', submitted_at: '2026-09-01' }
+  }
+};
+
+test('recentActivity returns events_ordered, recent-first', () => {
+  const rows = U.recentActivity(I3);
+  assert.deepStrictEqual(rows.map(r => r.txid_hash), [H('e'), H('d'), H('c'), H('b'), H('a')]);
+});
+test('recentActivity honours a limit and never re-sorts', () => {
+  assert.deepStrictEqual(U.recentActivity(I3, 2).map(r => r.txid_hash), [H('e'), H('d')]);
+  assert.strictEqual(U.recentActivity(I3, 0).length, 5, 'limit 0 = all');
+  assert.strictEqual(U.recentActivity(I3, 99).length, 5, 'limit > n = all');
+});
+test('recentActivity tolerates a missing/empty index', () => {
+  assert.deepStrictEqual(U.recentActivity(null), []);
+  assert.deepStrictEqual(U.recentActivity({}, 5), []);
+});
+test('typeLabel humanises a folder key', () => {
+  assert.strictEqual(U.typeLabel('tree_planting'), 'Tree Planting');
+  assert.strictEqual(U.typeLabel('contribution-event'), 'Contribution Event');
+  assert.strictEqual(U.typeLabel(''), '(untyped)');
+  assert.strictEqual(U.typeLabel(null), '(untyped)');
+});
+test('typeRollup counts by type, count desc then label asc', () => {
+  const r = U.typeRollup(I3);
+  assert.deepStrictEqual(r.map(x => [x.key, x.count]), [
+    ['tree_planting', 3], ['contribution_event', 1], ['sales_event', 1]
+  ]);
+  assert.strictEqual(r[0].label, 'Tree Planting');
+});
+test('contributorRollup counts by contributor and labels the unknown bucket', () => {
+  const r = U.contributorRollup(I3);
+  assert.deepStrictEqual(r.map(x => [x.key, x.count]), [['Gary Teh', 3], ['Edgar', 2]]);
+  const withBlank = { events_ordered: [H('a')], count: 1,
+    events: { [H('a')]: { txid_hash: H('a'), event_type_folder: 'x', contributor_name: '' } } };
+  assert.strictEqual(U.contributorRollup(withBlank)[0].label, '(unknown contributor)');
+});
+test('filterRows: no facets is a passthrough', () => {
+  assert.strictEqual(U.filterRows(I3, {}).length, 5);
+  assert.strictEqual(U.filterRows(I3).length, 5);
+});
+test('filterRows: by event_type', () => {
+  const rows = U.filterRows(I3, { event_type: 'tree_planting' });
+  assert.deepStrictEqual(rows.map(r => r.txid_hash), [H('d'), H('b'), H('a')]);
+});
+test('filterRows: by contributor', () => {
+  const rows = U.filterRows(I3, { contributor_name: 'Edgar' });
+  assert.deepStrictEqual(rows.map(r => r.txid_hash), [H('d'), H('c')]);
+});
+test('filterRows: both facets AND together', () => {
+  const rows = U.filterRows(I3, { event_type: 'tree_planting', contributor_name: 'Edgar' });
+  assert.deepStrictEqual(rows.map(r => r.txid_hash), [H('d')]);
+});
+test('filterRows preserves the recent-first order of the source', () => {
+  const rows = U.filterRows(I3, { contributor_name: 'Gary Teh' });
+  assert.deepStrictEqual(rows.map(r => r.txid_hash), [H('e'), H('b'), H('a')]);
+});
+
+
 (async () => {
   for (const [name, fn] of tests) {
     try { await fn(); passed++; console.log('  \u2713 ' + name); }
