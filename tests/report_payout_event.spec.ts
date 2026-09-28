@@ -751,6 +751,44 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
   });
 
+  test('CLEAR: switching from a registered tree to an UNREGISTERED one empties the recipient pk_hash', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // T1 is registered -> selecting it auto-fills its pk_hash.
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
+
+    // T2 has NO recipient. Switching to it must EMPTY the field -- one tree's
+    // pk_hash must never ride along with a different tree (misfile risk).
+    await page.selectOption('#programSlug', '');
+    await page.selectOption('#treePicker', 'Edgar_TEST_T2');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('');
+    // ...and the honest "not found" hint appears (not a silent blank).
+    await expect(page.locator('#recipientLookupStatus')).toHaveText(/No payout registration found/i);
+
+    // Switching BACK to the registered tree re-fills it.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD');
+  });
+
+  test('CLEAR: an operator-typed pk_hash survives a switch to an unregistered tree', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Type a hash by hand, never having selected a registered tree.
+    await page.selectOption('#programSlug', '');
+    await page.fill('#recipientPkHash', 'pk-typed-by-operator');
+    // Selecting an unregistered tree must NOT wipe a human-typed value.
+    await page.selectOption('#treePicker', 'Edgar_TEST_T2');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-typed-by-operator');
+  });
+
   test('BUGFIX: a tree picked BEFORE the recipient map lands still auto-fills (retroactive) and deep-links the URL', async ({ page }) => {
     // The FEED is instant but the MAP is delayed 1.5s -- the exact race that used
     // to strand the recipient field blank with no retry.

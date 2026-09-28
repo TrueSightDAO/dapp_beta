@@ -53,5 +53,13 @@ test('the two honest states are present (loading vs not-found)', () => {
   assert.ok(/el\.className = 'hint loading';/.test(SRC), 'loading state must reuse .hint.loading');
 });
 
+test('a selected tree with NO registration CLEARS an auto-filled pk_hash (never rides along)', () => {
+  // The clear branch: only an auto-filled value is emptied; a typed one is kept.
+  assert.ok(/pkEl\.value = '';\s*\n\s*_autoFilledPk = '';/.test(SRC),
+    'maybeAutoFillRecipient must clear the field when the map has no entry');
+  assert.ok(/if \(cur !== '' && cur !== _autoFilledPk\) return;/.test(SRC),
+    'operator-typed values must be protected before the fill/clear logic');
+});
+
 console.log('\n' + (failed ? '\u274c' : '\u2705') + ' recipient-lookup-hint: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
