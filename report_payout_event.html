@@ -763,13 +763,22 @@
                 const resolved = ids.map(function (id) { return _treeRecipientMap[id] || ''; })
                     .filter(Boolean)
                     .filter(function (v, i, a) { return a.indexOf(v) === i; });
+                // We may only overwrite an empty field or a value WE auto-filled; an
+                // operator-typed hash (or one they explicitly chose) is never clobbered.
+                const cur = String(pkEl.value || '').trim();
+                if (cur !== '' && cur !== _autoFilledPk) return;
                 if (ids.length === 1 && resolved.length === 1) {
-                    const cur = String(pkEl.value || '').trim();
-                    if (cur === '' || cur === _autoFilledPk) {
-                        pkEl.value = resolved[0];
-                        pkEl.classList.remove('invalid');
-                        _autoFilledPk = resolved[0];
-                    }
+                    pkEl.value = resolved[0];
+                    pkEl.classList.remove('invalid');
+                    _autoFilledPk = resolved[0];
+                    return;
+                }
+                // The newly-selected tree has NO registered recipient (or the selection
+                // was cleared): drop the value WE filled, so one tree's pk_hash can never
+                // ride along with a different tree. Operator-typed values are untouched.
+                if (cur !== '' && cur === _autoFilledPk) {
+                    pkEl.value = '';
+                    _autoFilledPk = '';
                 }
             }
 
