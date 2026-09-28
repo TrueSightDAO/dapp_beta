@@ -30,6 +30,17 @@
     'https://raw.githubusercontent.com/TrueSightDAO/verify_public_signatures/main/';
   var LEDGER_INDEX_URL = LEDGER_RAW_BASE + 'ledger_index.json';
 
+  // PR4 cross-links (plans/TRUESIGHT_LEDGER_EXPLORER_PLAN.md §5). My Trees
+  // (sunmint_beta/cfr-anapu) is the "show me my trees" complement; the explorer
+  // is the "show me the receipt". VERIFIED join key: a trees/index.geojson
+  // feature's `tree_id` (e.g. Edgar_20260821175134_006) equals the ledger
+  // TREE PLANTING event's `telegram_message_id` -- NOT its `linked_tree_id`
+  // (a legacy planting label like FOUNDERHAUS_BOUGAINVILLEA_20260821_1, which
+  // does not resolve in the public tree feed). So we link on whichever id the
+  // event actually carries, preferring the explicit linked_tree_id when present.
+  var MY_TREES_URL = 'https://cfr.truesight.me/my-trees/';
+  var LEDGER_EXPLORER_URL = 'https://beta.dapp.truesight.me/ledger_explorer.html';
+
   // sha256(request_transaction_id) -> 64 lowercase hex (the canonical mirror
   // filename). See sync_sunmint_signatures.py::_txid_key.
   var TXID_HASH_RE = /^[0-9a-f]{64}$/i;
@@ -291,9 +302,52 @@
     });
   }
 
+  // --- PR4: cross-links to My Trees -------------------------------------
+
+  function isTreeEvent(label) {
+    var s = String(label == null ? '' : label).toLowerCase();
+    return s.indexOf('tree') >= 0 || s.indexOf('planting') >= 0 || s.indexOf('asset_receipt') >= 0;
+  }
+
+  /**
+   * The tree id an event should deep-link to on My Trees, or null.
+   * Prefer the explicit `linked_tree_id`; otherwise, for a tree-typed event,
+   * fall back to `telegram_message_id` (the verified My Trees join key).
+   */
+  function treeRefForEvent(ev) {
+    if (!ev || typeof ev !== 'object') return null;
+    var lt = String(ev.linked_tree_id == null ? '' : ev.linked_tree_id).trim();
+    if (lt) return lt;
+    if (isTreeEvent(ev.event_type) || isTreeEvent(ev.event_type_folder)) {
+      var mid = String(ev.telegram_message_id == null ? '' : ev.telegram_message_id).trim();
+      if (mid) return mid;
+    }
+    return null;
+  }
+
+  /** Deep-link into My Trees for a tree id ('' when no id). */
+  function buildMyTreesLink(treeId) {
+    var id = String(treeId == null ? '' : treeId).trim();
+    if (!id) return '';
+    return MY_TREES_URL + '?tree=' + encodeURIComponent(id);
+  }
+
+  /** Deep-link into the Ledger Explorer for a txid or message id ('' when none). */
+  function buildLedgerExplorerLink(id) {
+    var s = String(id == null ? '' : id).trim();
+    if (!s) return '';
+    return LEDGER_EXPLORER_URL + '?q=' + encodeURIComponent(s);
+  }
+
   var utils = {
     LEDGER_RAW_BASE: LEDGER_RAW_BASE,
     LEDGER_INDEX_URL: LEDGER_INDEX_URL,
+    MY_TREES_URL: MY_TREES_URL,
+    LEDGER_EXPLORER_URL: LEDGER_EXPLORER_URL,
+    isTreeEvent: isTreeEvent,
+    treeRefForEvent: treeRefForEvent,
+    buildMyTreesLink: buildMyTreesLink,
+    buildLedgerExplorerLink: buildLedgerExplorerLink,
     normalizeQuery: normalizeQuery,
     isTxidHash: isTxidHash,
     isEdgarMessageId: isEdgarMessageId,

@@ -264,6 +264,47 @@ test('filterRows preserves the recent-first order of the source', () => {
 });
 
 
+// --- PR4: cross-links to My Trees -----------------------------------------
+
+test('isTreeEvent recognises tree/planting/asset_receipt labels', () => {
+  assert.ok(U.isTreeEvent('[TREE PLANTING EVENT]'));
+  assert.ok(U.isTreeEvent('tree_planting'));
+  assert.ok(U.isTreeEvent('asset_receipt_event'));
+  assert.ok(!U.isTreeEvent('sales_event'));
+  assert.ok(!U.isTreeEvent(''));
+  assert.ok(!U.isTreeEvent(null));
+});
+test('treeRefForEvent prefers an explicit linked_tree_id', () => {
+  assert.strictEqual(U.treeRefForEvent({ linked_tree_id: 'FOUNDERHAUS_B_1', event_type: '[TREE PLANTING EVENT]', telegram_message_id: 'Edgar_1' }), 'FOUNDERHAUS_B_1');
+});
+test('treeRefForEvent falls back to telegram_message_id for tree events', () => {
+  assert.strictEqual(U.treeRefForEvent({ linked_tree_id: '', event_type: '[TREE PLANTING EVENT]', telegram_message_id: 'Edgar_20260821175134_006' }), 'Edgar_20260821175134_006');
+  assert.strictEqual(U.treeRefForEvent({ linked_tree_id: '', event_type_folder: 'tree_planting', telegram_message_id: '171' }), '171');
+});
+test('treeRefForEvent is null for non-tree events with no linked_tree_id', () => {
+  assert.strictEqual(U.treeRefForEvent({ linked_tree_id: '', event_type: 'sales_event', telegram_message_id: '99' }), null);
+  assert.strictEqual(U.treeRefForEvent(null), null);
+});
+test('buildMyTreesLink deep-links the tree id', () => {
+  assert.strictEqual(U.buildMyTreesLink('Edgar_20260821175134_006'), 'https://cfr.truesight.me/my-trees/?tree=Edgar_20260821175134_006');
+  assert.strictEqual(U.buildMyTreesLink(''), '');
+  assert.strictEqual(U.buildMyTreesLink(null), '');
+});
+test('buildLedgerExplorerLink deep-links q=', () => {
+  assert.strictEqual(U.buildLedgerExplorerLink('171'), 'https://beta.dapp.truesight.me/ledger_explorer.html?q=171');
+  assert.strictEqual(U.buildLedgerExplorerLink('  '), '');
+});
+test('the real planting event round-trips to a My Trees link', () => {
+  // Verified live: tree_planting/Edgar_20260821175134_006.json carries
+  // linked_tree_id FOUNDERHAUS_BOUGAINVILLEA_20260821_1, and its
+  // telegram_message_id is the GeoJSON tree_id.
+  const ev = { event_type: '[TREE PLANTING EVENT]', telegram_message_id: 'Edgar_20260821175134_006', linked_tree_id: 'FOUNDERHAUS_BOUGAINVILLEA_20260821_1' };
+  assert.strictEqual(U.buildMyTreesLink(U.treeRefForEvent(ev)), 'https://cfr.truesight.me/my-trees/?tree=FOUNDERHAUS_BOUGAINVILLEA_20260821_1');
+  const ev2 = { event_type: '[TREE PLANTING EVENT]', telegram_message_id: 'Edgar_20260821175134_006', linked_tree_id: '' };
+  assert.strictEqual(U.buildMyTreesLink(U.treeRefForEvent(ev2)), 'https://cfr.truesight.me/my-trees/?tree=Edgar_20260821175134_006');
+});
+
+
 (async () => {
   for (const [name, fn] of tests) {
     try { await fn(); passed++; console.log('  \u2713 ' + name); }
