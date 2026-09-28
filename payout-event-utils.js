@@ -492,6 +492,27 @@
     }
 
     /**
+     * Build a `tree_id -> pk_hash` lookup from the PUBLIC pending feed items,
+     * each of which now carries an inline `recipient_pk_hash` (emitted by
+     * lineage-assets from the private `tree planting` tab). This is the
+     * CACHE-FIRST source: the page already fetches this feed, so recipient
+     * autofill needs NO separate GAS round-trip and is immune to the shared
+     * deployment's queueing delay. Items with a blank/absent value are skipped
+     * (an unregistered tree simply has no entry -- the UI says so honestly);
+     * first row wins on a duplicate id.
+     */
+    function buildRecipientMapFromFeed(items) {
+        var out = {};
+        (items || []).forEach(function (it) {
+            if (!it) return;
+            var id = trim(it.telegram_message_id || it.tree_id);
+            var pk = trim(it.recipient_pk_hash);
+            if (id && pk && !out[id]) out[id] = pk;
+        });
+        return out;
+    }
+
+    /**
      * Find one tree row in the public pending list by id (canonical
      * `telegram_message_id`, falling back to `tree_id`). Returns null when the id
      * is absent -- a typed-in id, or one already paid and dropped from the list.
@@ -715,6 +736,7 @@
         overpayWarningsFor: overpayWarningsFor,
         overpayReasonBits: overpayReasonBits,
         buildTreeRecipientMap: buildTreeRecipientMap,
+        buildRecipientMapFromFeed: buildRecipientMapFromFeed,
         findPendingTree: findPendingTree,
         treeDetailFields: treeDetailFields,
         shortTxid: shortTxid,

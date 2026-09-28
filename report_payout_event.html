@@ -328,8 +328,10 @@
             const SUNMINT_PENDING_URL = 'https://raw.githubusercontent.com/TrueSightDAO/lineage-assets/main/sunmint_pending.json';
             let _overpayFlags = null;
             let _pendingTrees = [];
-            let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
-            let _treeRecipientMapLoaded = false;   // true once loadTreeRecipientMap() settles (success or give-up)
+            let _treeRecipientMap = {};   // tree_id -> pk_hash (cache-first: public feed; GAS fallback)
+            let _treeRecipientMapLoaded = false;   // true once the recipient lookup settles (feed or GAS)
+            let _treeRecipientMapFromFeed = false;   // true once the public feed supplied inline recipient_pk_hash
+            let _recipientMapGasStarted = false;   // guards the GAS fallback to a single in-flight attempt
             let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
             let _urlParamApplied = false; // ?tree_id= deep-link applied ONCE, after the feed loads
@@ -351,13 +353,46 @@
                         _pendingTrees = (data && data.items) || [];
                         _overpayFlags = U.computeOverpayFlags(_pendingTrees);
                         _pendingHasProgramData = U.feedHasProgramData(_pendingTrees);  // matches treesForProgram()'s join keys
+                        // CACHE-FIRST recipient map: the feed now carries
+                        // `recipient_pk_hash` inline, so seed the lookup from it BEFORE
+                        // applyUrlTreeParam() so a deep-linked tree fills immediately.
+                        seedRecipientMapFromFeed();
                         renderTreeOptions();
                         renderOverpayGuard();
                         renderTreeDetails();
                         renderOverpayTreeDetails();
                         applyUrlTreeParam();   // honor ?tree_id= once the picker has options
+                        // Fallback ONLY when the feed carried no inline recipient data
+                        // (e.g. an older cache): fetch the governor-only GAS map.
+                        if (!_treeRecipientMapFromFeed) loadTreeRecipientMap();
                     })
-                    .catch(function () { _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); renderOverpayTreeDetails(); });
+                    .catch(function () {
+                        _pendingTrees = []; _overpayFlags = null; renderOverpayGuard(); renderOverpayTreeDetails();
+                        // The feed failed, so the cache-first path is unavailable --
+                        // fall back to the governor-only GAS map.
+                        loadTreeRecipientMap();
+                    });
+            }
+
+            // Fold the inline `recipient_pk_hash` the public pending feed now carries
+            // (emitted by lineage-assets from the private `tree planting` tab) into the
+            // recipient map. CACHE-FIRST: the page already fetches this feed, so
+            // autofill needs no separate GAS round-trip and is immune to the shared
+            // Apps Script deployment's queueing delay. Marks the lookup settled so the
+            // hint never says "still loading" once the answer has already arrived.
+            function seedRecipientMapFromFeed() {
+                var feedMap = U.buildRecipientMapFromFeed(_pendingTrees);
+                var any = false;
+                Object.keys(feedMap).forEach(function (id) {
+                    if (!_treeRecipientMap[id]) _treeRecipientMap[id] = feedMap[id];
+                    any = true;
+                });
+                if (!any) return;
+                _treeRecipientMapFromFeed = true;
+                _treeRecipientMapLoaded = true;
+                maybeAutoFillRecipient(_selectedTreeId ? [_selectedTreeId] : []);
+                updateRecipientLookupHint();
+                renderTreeDetails();
             }
 
             function currentProgram() {
@@ -674,6 +709,10 @@
 
             function loadTreeRecipientMap() {
                 if (typeof fetch !== 'function') return;
+                // Cache-first: the public feed already supplied the map, so skip the
+                // GAS round-trip entirely (and never double-fire the fallback).
+                if (_treeRecipientMapFromFeed || _recipientMapGasStarted) return;
+                _recipientMapGasStarted = true;
                 var attempt = 0;
                 var MAX_ATTEMPTS = 3;
                 function wait(n) { return new Promise(function (res) { setTimeout(res, 400 * n); }); }
@@ -1130,7 +1169,9 @@
 
             window.addEventListener('DOMContentLoaded', function () {
                 boot();
-                loadTreeRecipientMap();
+                // The recipient lookup is now CACHE-FIRST: loadPendingTrees() seeds it
+                // from the feed and only falls back to GAS when the feed carries no
+                // inline recipient_pk_hash. Do not fire the GAS call eagerly here.
                 $('submitButton').addEventListener('click', submit);
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('change', renderTreeOptions);

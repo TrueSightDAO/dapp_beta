@@ -46,7 +46,15 @@ const MOCK_PERMISSIONS = {
   },
 };
 
-async function mockBackend(page: Page, opts: { submitOk?: boolean; mapDelayMs?: number } = {}) {
+async function mockBackend(
+  page: Page,
+  opts: { submitOk?: boolean; mapDelayMs?: number; feedRecipient?: boolean } = {},
+) {
+  // When true (default), the public pending feed carries the inline
+  // `recipient_pk_hash` the page now reads CACHE-FIRST. Set feedRecipient:false
+  // to simulate an older cache and force the governor-only GAS fallback.
+  const feedRecipient = opts.feedRecipient !== false;
+  const gasCalls: string[] = [];
   await page.route('**/raw.githubusercontent.com/**', (route) => {
     const url = route.request().url();
     if (url.includes('permissions.json')) {
@@ -63,8 +71,8 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean; mapDelayMs?: 
           status: 'success',
           count: 2,
           items: [
-            { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW', program: 'crf-anapu' },
-            { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW', program: '' },
+            { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW', program: 'crf-anapu', recipient_pk_hash: feedRecipient ? 'pk-qkejKJJW3IAD' : '' },
+            { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW', program: '', recipient_pk_hash: '' },
           ],
         }),
       });
@@ -86,6 +94,7 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean; mapDelayMs?: 
   // FOUR rows for the SAME pk_hash (1 RECORDED + 3 UPDATED) — the mess Gary sees.
   await page.route('**/macros/**/exec*', async (route) => {
     const url = route.request().url();
+    if (url.includes('getTreeRecipientMap')) gasCalls.push(url);
     if (url.includes('getTreeRecipientMap')) {
       // Simulate the endpoint's real cold-start latency (it can 302/0-byte while
       // warming). Used by the load-order race test.
@@ -134,6 +143,8 @@ async function mockBackend(page: Page, opts: { submitOk?: boolean; mapDelayMs?: 
     }
     return route.continue();
   });
+
+  return { gasCalls };
 }
 
 async function signIn(page: Page, publicKey: string, privateKey = 'fake') {
@@ -772,9 +783,11 @@ test.describe('report_payout_event.html', () => {
   });
 
   test('HINT: a slow recipient map shows "Looking up recipient…" (not a silent blank), then fills', async ({ page }) => {
-    // The map answers 3s late -- the real GAS concurrency-queue delay. During
-    // that window the field must NOT read as "found nothing".
-    await mockBackend(page, { mapDelayMs: 3000 });
+    // The map answers 3s late -- the real GAS concurrency-queue delay. This is
+    // now the FALLBACK path (an older cache with no inline recipient_pk_hash), so
+    // the feed must omit it (feedRecipient:false) to exercise it. During that
+    // window the field must NOT read as "found nothing".
+    await mockBackend(page, { mapDelayMs: 3000, feedRecipient: false });
     await signIn(page, GOV_PUBLIC_KEY);
     await page.goto('/report_payout_event.html?tree_id=Edgar_TEST_T1');
     await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
@@ -803,6 +816,50 @@ test.describe('report_payout_event.html', () => {
     await page.selectOption('#treePicker', 'Edgar_TEST_T2');
     await expect(page.locator('#recipientPkHash')).toHaveValue('');
     await expect(page.locator('#recipientLookupStatus')).toHaveText(/No payout registration found for this tree/i, { timeout: 15000 });
+  });
+
+  test('CACHE-FIRST: the public feed supplies the recipient — NO getTreeRecipientMap call', async ({ page }) => {
+    // The feed carries recipient_pk_hash inline, so the page must fill from it
+    // WITHOUT touching the governor-only GAS endpoint (the whole point of the
+    // change: no shared-deployment queueing delay).
+    const { gasCalls } = await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    // Fills promptly from cache, well under the GAS latency the old path suffered.
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 3000 });
+    // And the hint never shows the misleading "still loading" state.
+    await expect(page.locator('#recipientLookupStatus')).toHaveText('');
+    // The decisive assertion: the GAS recipient call was NEVER made.
+    expect(gasCalls.length).toBe(0);
+  });
+
+  test('CACHE-FIRST: deep-link fills from the feed with no GAS call', async ({ page }) => {
+    const { gasCalls } = await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html?tree_id=Edgar_TEST_T1');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 3000 });
+    expect(gasCalls.length).toBe(0);
+  });
+
+  test('FALLBACK: an older cache (no inline recipient) still resolves via GAS', async ({ page }) => {
+    // feedRecipient:false simulates a cache predating this change: the feed has
+    // no recipient_pk_hash, so the page MUST fall back to the governor-only GAS
+    // map and still fill correctly. Proves the migration is backward-compatible.
+    const { gasCalls } = await mockBackend(page, { feedRecipient: false });
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 15000 });
+    // The fallback DID fire (exactly once — the guard prevents double-firing).
+    expect(gasCalls.length).toBe(1);
   });
 
   test('BUGFIX: clearing the picker drops ?tree_id= from the URL', async ({ page }) => {
