@@ -335,9 +335,15 @@
 
         return '<div class="section-title">Signed payload ' + badge + '</div>' +
           '<div class="payload">' + esc(payload) + '</div>' +
-          (ev.linked_tree_id
-            ? '<div class="section-title">Linked tree</div><div class="txid">' + esc(ev.linked_tree_id) + '</div>'
-            : '') +
+          (function () {
+            var tref = U.treeRefForEvent(ev);
+            if (!tref) return '';
+            var href = U.buildMyTreesLink(tref);
+            return '<div class="section-title">Linked tree</div>' +
+              '<div class="txid">' + esc(tref) + '</div>' +
+              '<p><a href="' + esc(href) + '" target="_blank" rel="noopener">' +
+              'View in My Trees \u2192</a></p>';
+          })() +
           '<div class="section-title">Signature</div>' +
           '<div class="txid">' + esc(ev.signature || '(none)') + '</div>' +
           '<div class="section-title">Re-verify offline (openssl)</div>' +
