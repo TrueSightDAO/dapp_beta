@@ -17,9 +17,18 @@
   //   2. localStorage.routesMode (set by prior probe or prior URL override)
   //   3. default: direct
   //
+  // A page may pin itself out of the probe by setting window.ROUTES_NO_PROBE = true
+  // BEFORE this script loads. That is the correct choice for pages that must not
+  // have their in-flight fetches aborted by a mid-session reload (e.g.
+  // report_payout_event.html). ?route=proxy remains the manual escape hatch for
+  // genuinely blocked networks.
+  //
   // An async probe fires once per session on direct mode. If script.google.com
-  // is unreachable within 3 seconds, the probe flips localStorage to 'proxy'
-  // and reloads the page so subsequent URL captures see proxy URLs.
+  // is unreachable within 3 seconds the probe sets localStorage.routesMode='proxy'
+  // and raises a soft 'routes:proxy-suggested' event. It does NOT reload the page,
+  // so in-flight requests on the current page are never aborted; the proxy takes
+  // effect on the next navigation. An explicit ?route= URL param always wins and
+  // is never overridden by the probe.
 
   var PROXY_BASE = 'https://edgar.truesight.me/proxy/gas/';
 
@@ -46,6 +55,7 @@
 
   var isWindow = typeof window !== 'undefined';
   var mode = 'direct';
+  var explicitRoute = false;
 
   if (isWindow) {
     try {
@@ -53,6 +63,7 @@
       var override = params.get('route');
       if (override === 'direct' || override === 'proxy') {
         mode = override;
+        explicitRoute = true;
         localStorage.setItem('routesMode', mode);
       } else {
         mode = localStorage.getItem('routesMode') || 'direct';
@@ -76,12 +87,16 @@
   // Async probe: only in window, only on direct mode, once per session.
   // Uses sessionStorage to guard against a reload loop if the probe itself
   // triggers a reload. On failure, flip localStorage to 'proxy' and reload.
-  if (isWindow && mode === 'direct') {
+  if (isWindow && mode === 'direct' && !explicitRoute) {
     // Skip probe on localhost — developer mode, no CORS to script.google.com.
     var hostname = window.location.hostname;
+    var pinnedNoProbe = false;
+    try {
+      pinnedNoProbe = window.ROUTES_NO_PROBE === true;
+    } catch (_) {}
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       // no-op: developer is running locally
-    } else {
+    } else if (!pinnedNoProbe) {
     try {
       if (sessionStorage.getItem('routesProbed') !== 'true') {
         sessionStorage.setItem('routesProbed', 'true');
@@ -101,9 +116,15 @@
           try {
             localStorage.setItem('routesMode', 'proxy');
             if (typeof console !== 'undefined' && console.warn) {
-              console.warn('[routes.js] script.google.com unreachable; switching to Edgar proxy and reloading.');
+              console.warn('[routes.js] script.google.com unreachable; proxy mode will be used on the next navigation.');
             }
-            window.location.reload();
+            // Soft signal instead of a reload: pages may listen and re-point their
+            // own URLs, and the current page's in-flight fetches are left intact.
+            try {
+              if (typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
+                window.dispatchEvent(new window.CustomEvent('routes:proxy-suggested'));
+              }
+            } catch (_) {}
           } catch (_) {
             // localStorage unavailable — nothing to do.
           }
@@ -112,6 +133,6 @@
     } catch (_) {
       // sessionStorage unavailable — skip probe.
     }
-    } // end else (non-localhost)
-  } // end if (isWindow && mode === 'direct')
+    } // end else (non-localhost / not pinned)
+  } // end if (isWindow && mode === 'direct' && !explicitRoute)
 })(typeof self !== 'undefined' ? self : this);
