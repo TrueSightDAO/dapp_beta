@@ -771,6 +771,40 @@ test.describe('report_payout_event.html', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
   });
 
+  test('HINT: a slow recipient map shows "Looking up recipient…" (not a silent blank), then fills', async ({ page }) => {
+    // The map answers 3s late -- the real GAS concurrency-queue delay. During
+    // that window the field must NOT read as "found nothing".
+    await mockBackend(page, { mapDelayMs: 3000 });
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html?tree_id=Edgar_TEST_T1');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    const hint = page.locator('#recipientLookupStatus');
+    await expect(hint).toHaveText(/Looking up recipient/i, { timeout: 15000 });
+    await expect(hint).toHaveClass(/loading/);
+    await expect(page.locator('#recipientPkHash')).toHaveValue('');
+
+    // When the delayed map lands: the fill happens AND the loading hint clears.
+    await expect(page.locator('#recipientPkHash')).toHaveValue('pk-qkejKJJW3IAD', { timeout: 15000 });
+    await expect(hint).toHaveText('');
+  });
+
+  test('HINT: a loaded map with no entry for the tree says so explicitly (not a silent blank)', async ({ page }) => {
+    // General-disbursement view lists the unattributed T2, which is NOT in the
+    // governor map. Once the map has settled the operator must be told the
+    // difference between "still loading" and "genuinely not registered".
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+
+    await page.selectOption('#programSlug', '');
+    await page.selectOption('#treePicker', 'Edgar_TEST_T2');
+    await expect(page.locator('#recipientPkHash')).toHaveValue('');
+    await expect(page.locator('#recipientLookupStatus')).toHaveText(/No payout registration found for this tree/i, { timeout: 15000 });
+  });
+
   test('BUGFIX: clearing the picker drops ?tree_id= from the URL', async ({ page }) => {
     await mockBackend(page);
     await signIn(page, GOV_PUBLIC_KEY);

@@ -262,6 +262,7 @@
             <label for="recipientPkHash">Recipient PK Hash</label>
             <input type="text" id="recipientPkHash" placeholder="Leave blank if not yet registered" autocomplete="off">
             <div class="hint">From the private payout register. If blank, the payout is recorded as <code>unlinked_recipient</code> and can be linked later.</div>
+            <div id="recipientLookupStatus" class="hint"></div>
 
             <div id="recipientsPanel" class="recipients-panel" style="display:none;">
                 <h3>Registered recipients <span class="opt-tag">from the private register</span></h3>
@@ -328,6 +329,7 @@
             let _overpayFlags = null;
             let _pendingTrees = [];
             let _treeRecipientMap = {};   // tree_id -> pk_hash (governor-only read)
+            let _treeRecipientMapLoaded = false;   // true once loadTreeRecipientMap() settles (success or give-up)
             let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
             let _urlParamApplied = false; // ?tree_id= deep-link applied ONCE, after the feed loads
@@ -494,6 +496,7 @@
                     sel.value = isOption ? id : '';
                 }
                 maybeAutoFillRecipient(id ? [id] : []);
+                updateRecipientLookupHint();
                 renderTreeDetails();
                 renderOverpayTreeDetails();
                 renderOverpayGuard();
@@ -640,6 +643,35 @@
                 host.innerHTML = partners.map(function (pid) { return treeCardHtml(pid); }).join('');
             }
 
+            // Honest feedback for the recipient lookup. getTreeRecipientMap and
+            // getPendingPayoutRegistrations are served by the SAME Apps Script
+            // deployment, so on page load the platform serialises them and the map
+            // can answer several seconds late. Without this hint a still-loading
+            // lookup is indistinguishable from "no registration found", and the
+            // operator reasonably concludes the page is broken.
+            function updateRecipientLookupHint() {
+                const el = $('recipientLookupStatus');
+                if (!el) return;
+                const id = String(_selectedTreeId || '').trim();
+                const pkEl = $('recipientPkHash');
+                const filled = !!(pkEl && String(pkEl.value || '').trim());
+                if (!id || filled) { el.textContent = ''; el.className = 'hint'; return; }
+                if (!_treeRecipientMapLoaded) {
+                    el.textContent = 'Looking up recipient\u2026';
+                    el.className = 'hint loading';
+                    return;
+                }
+                if (_treeRecipientMap[id]) {
+                    // Map has an entry; if the field is still blank the retroactive
+                    // fill is imminent -- don't cry "not found".
+                    el.textContent = '';
+                    el.className = 'hint';
+                    return;
+                }
+                el.textContent = 'No payout registration found for this tree \u2014 enter the pk_hash manually if known.';
+                el.className = 'hint';
+            }
+
             function loadTreeRecipientMap() {
                 if (typeof fetch !== 'function') return;
                 var attempt = 0;
@@ -660,18 +692,24 @@
                             if (!ok) {
                                 if (attempt < MAX_ATTEMPTS) return wait(attempt).then(run);
                                 _treeRecipientMap = {};
+                                _treeRecipientMapLoaded = true;
+                                updateRecipientLookupHint();
                                 return;
                             }
                             _treeRecipientMap = U.buildTreeRecipientMap(data);
+                            _treeRecipientMapLoaded = true;
                             // The map can land AFTER the operator already picked a tree --
                             // fill the recipient retroactively so the load-order race can
                             // never strand a resolvable selection.
                             maybeAutoFillRecipient(_selectedTreeId ? [_selectedTreeId] : []);
                             renderTreeDetails();
+                            updateRecipientLookupHint();
                         })
                         .catch(function () {
                             if (attempt < MAX_ATTEMPTS) return wait(attempt).then(run);
                             _treeRecipientMap = {};
+                            _treeRecipientMapLoaded = true;
+                            updateRecipientLookupHint();
                         });
                 }
                 return run();
