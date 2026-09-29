@@ -717,10 +717,11 @@
     // code change; the built-in map is the fallback for the programs that vendor
     // the app today.
     //
-    // The payee holds NO planting key, so the link is a PUBLIC /my-trees/ deep link
-    // (?tree=<id>), which the page serves read-only to keyless visitors
-    // (sunmint_beta #98). `?tree=` is the tree's own exact id -- short, verifiable,
-    // and the same handle the picker and the geojson key on.
+    // The payee holds NO planting key, so the link is a PUBLIC /my-trees/ deep link,
+    // which the page serves read-only to keyless visitors (sunmint_beta #98). The
+    // link prefers the SHORT tx handle (?tx=<8 chars>, the signed Request
+    // Transaction ID -- canonical and re-post-stable, Gary 2026-09-29) and falls
+    // back to (?tree=<id>) only for a row that predates the txid column.
     var PAYEE_VIEWER_DEFAULT = 'https://beta.sunmint.truesight.me';
     var PAYEE_VIEWER_BY_PROGRAM = { 'crf-anapu': 'https://cfr.truesight.me' };
 
@@ -736,15 +737,24 @@
     }
 
     /**
-     * Public, payee-viewable URL for `tree`: `<viewer-host>/my-trees/?tree=<id>`,
-     * where the host comes from the tree's program attribution. '' when the tree
-     * carries no id to link to (nothing to show the payee).
+     * Public, payee-viewable URL for `tree`: `<viewer-host>/my-trees/?tx=<handle>`
+     * (else `?tree=<id>`), where the host comes from the tree's program
+     * attribution. '' when the tree carries no id to link to.
+     *
+     * PREFER the SHORT tx handle (?tx=<first 8 of the signed Request Transaction
+     * ID>) -- the DAO's canonical, re-post-stable identity (Gary 2026-09-29). The
+     * viewer resolves ?tx= against the public feed (substring match on
+     * request_txid) and serves it read-only to keyless payees. Falls back to the
+     * tree's own id (?tree=) only when the row predates the txid column, so a
+     * txid-less row still links.
      */
     function payeeMyTreesUrl(tree, hostMap, viewers) {
         if (!tree) return '';
+        var base = payeeViewerBase(programForTree(tree, hostMap), viewers);
+        var tx = shortTxid(tree);
+        if (tx) return base + '/my-trees/?tx=' + encodeURIComponent(tx);
         var id = trim(tree.telegram_message_id || tree.tree_id);
         if (!id) return '';
-        var base = payeeViewerBase(programForTree(tree, hostMap), viewers);
         return base + '/my-trees/?tree=' + encodeURIComponent(id);
     }
 
