@@ -760,5 +760,87 @@ test('resolveTxHandle: matches request_txid by prefix/substring, tolerates the t
 });
 
 
+// --- Farm/Plot spatial filter (PAYOUT_FARM_PLOT_FILTER_PLAN PR1) -----------
+const _PLOTS = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' },
+      geometry: { type: 'Polygon', coordinates: [[[-52.60, -3.30], [-52.59, -3.30], [-52.59, -3.29], [-52.60, -3.29], [-52.60, -3.30]]] } },
+    { type: 'Feature', properties: { plot_id: 'PL-005', farm_id: 'fazenda-bom-sucesso' },
+      geometry: { type: 'Polygon', coordinates: [[[-52.70, -3.40], [-52.69, -3.40], [-52.69, -3.39], [-52.70, -3.39], [-52.70, -3.40]]] } },
+    { type: 'Feature', properties: { plot_id: 'RM-P1', farm_id: 'rancho-maranta' },
+      geometry: { type: 'Polygon', coordinates: [[[-52.58, -3.295], [-52.57, -3.295], [-52.57, -3.29], [-52.58, -3.29], [-52.58, -3.295]]] } },
+]};
+test('treePlotMatch: a tree inside PL-002 resolves to its plot + farm', () => {
+    assert.deepStrictEqual(u.treePlotMatch({ latitude: '-3.295', longitude: '-52.595' }, _PLOTS),
+        { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' });
+});
+test('treePlotMatch: a tree outside every plot is a graceful empty match', () => {
+    assert.deepStrictEqual(u.treePlotMatch({ latitude: '-3.0', longitude: '-52.0' }, _PLOTS),
+        { plot_id: '', farm_id: '' });
+});
+test('treePlotMatch: a tree with no/blank coordinates never matches', () => {
+    assert.deepStrictEqual(u.treePlotMatch({ latitude: '', longitude: '' }, _PLOTS), { plot_id: '', farm_id: '' });
+    assert.deepStrictEqual(u.treePlotMatch({}, _PLOTS), { plot_id: '', farm_id: '' });
+    assert.deepStrictEqual(u.treePlotMatch(null, _PLOTS), { plot_id: '', farm_id: '' });
+});
+test('treePlotMatch: no plot geometry -> graceful empty', () => {
+    assert.deepStrictEqual(u.treePlotMatch({ latitude: '-3.295', longitude: '-52.595' }, null), { plot_id: '', farm_id: '' });
+});
+test('treePlotMatch: a MultiPolygon feature matches on any of its parts', () => {
+    const mp = { features: [{ properties: { plot_id: 'MP-1', farm_id: 'multi' }, geometry: { type: 'MultiPolygon', coordinates: [
+        [[[-1, -1], [-1, -0.9], [-0.9, -0.9], [-0.9, -1], [-1, -1]]],
+        [[[-52.60, -3.30], [-52.59, -3.30], [-52.59, -3.29], [-52.60, -3.29], [-52.60, -3.30]]]
+    ] } }] };
+    assert.deepStrictEqual(u.treePlotMatch({ latitude: '-3.295', longitude: '-52.595' }, mp), { plot_id: 'MP-1', farm_id: 'multi' });
+});
+test('farmsWithPlots: unique farm ids in geojson order', () => {
+    assert.deepStrictEqual(u.farmsWithPlots(_PLOTS), ['fazenda-bom-sucesso', 'rancho-maranta']);
+});
+test('plotsForFarm: only that farm\'s plots, order preserved', () => {
+    assert.deepStrictEqual(u.plotsForFarm(_PLOTS, 'fazenda-bom-sucesso'), ['PL-002', 'PL-005']);
+    assert.deepStrictEqual(u.plotsForFarm(_PLOTS, 'rancho-maranta'), ['RM-P1']);
+    assert.deepStrictEqual(u.plotsForFarm(_PLOTS, ''), []);
+});
+test('farmsById: keys by farm_id, first one wins', () => {
+    const by = u.farmsById({ farms: [{ farm_id: 'a', name: 'A' }, { farm_id: 'a', name: 'A2' }, { name: 'no-id' }] });
+    assert.strictEqual(by.a.name, 'A');
+    assert.strictEqual(Object.keys(by).length, 1);
+});
+test('treesForFarmPlot: blank facets keep every tree (backward compatible)', () => {
+    const trees = [{ latitude: '-3.295', longitude: '-52.595' }, { latitude: '-3.0', longitude: '-52.0' }];
+    assert.strictEqual(u.treesForFarmPlot(trees, '', '', _PLOTS).length, 2);
+});
+test('treesForFarmPlot: a chosen farm hides off-plot trees and other farms', () => {
+    const trees = [
+        { telegram_message_id: 'in', latitude: '-3.295', longitude: '-52.595' },
+        { telegram_message_id: 'off', latitude: '-3.0', longitude: '-52.0' },
+        { telegram_message_id: 'other-farm', latitude: '-3.292', longitude: '-52.575' },
+    ];
+    assert.deepStrictEqual(u.treesForFarmPlot(trees, 'fazenda-bom-sucesso', '', _PLOTS).map(t => t.telegram_message_id), ['in']);
+});
+test('treesForFarmPlot: a chosen plot narrows within the farm', () => {
+    const trees = [
+        { telegram_message_id: 'p2', latitude: '-3.295', longitude: '-52.595' },
+        { telegram_message_id: 'p5', latitude: '-3.395', longitude: '-52.695' },
+    ];
+    assert.deepStrictEqual(u.treesForFarmPlot(trees, 'fazenda-bom-sucesso', 'PL-005', _PLOTS).map(t => t.telegram_message_id), ['p5']);
+});
+test('treesForFarmPlot: plot facet alone still applies (farm blank)', () => {
+    const trees = [{ telegram_message_id: 'p2', latitude: '-3.295', longitude: '-52.595' }];
+    assert.deepStrictEqual(u.treesForFarmPlot(trees, '', 'PL-002', _PLOTS).map(t => t.telegram_message_id), ['p2']);
+});
+test('treesForFarmPlot: no plot geometry loaded -> cannot narrow, keep all', () => {
+    const trees = [{ latitude: '-3.0', longitude: '-52.0' }];
+    assert.strictEqual(u.treesForFarmPlot(trees, 'fazenda-bom-sucesso', '', null).length, 1);
+});
+test('farmPlotFilterNotApplied: true when a facet is set but no tree is locatable', () => {
+    const off = [{ latitude: '-3.0', longitude: '-52.0' }];
+    assert.strictEqual(u.farmPlotFilterNotApplied('fazenda-bom-sucesso', '', off, _PLOTS), true);
+    assert.strictEqual(u.farmPlotFilterNotApplied('', '', off, _PLOTS), false);
+    assert.strictEqual(u.farmPlotFilterNotApplied('fazenda-bom-sucesso', '', [], _PLOTS), false);
+    assert.strictEqual(u.farmPlotFilterNotApplied('fazenda-bom-sucesso', '', off, null), true);
+    const on = [{ latitude: '-3.295', longitude: '-52.595' }];
+    assert.strictEqual(u.farmPlotFilterNotApplied('fazenda-bom-sucesso', '', on, _PLOTS), false);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
