@@ -709,6 +709,45 @@
         };
     }
 
+    // ── Payee-viewable tree link ──────────────────────────────────────────────
+    // The public viewer surface a PAYEE opens to see the tree they planted. The
+    // host is keyed by the tree's resolved PROGRAM (SSOT: sunmint_program_registry
+    // .json `hosts`), defaulting to the SunMint beta site. `viewers` lets a caller
+    // pass a slug -> base-url map (e.g. read from the registry) to extend WITHOUT a
+    // code change; the built-in map is the fallback for the programs that vendor
+    // the app today.
+    //
+    // The payee holds NO planting key, so the link is a PUBLIC /my-trees/ deep link
+    // (?tree=<id>), which the page serves read-only to keyless visitors
+    // (sunmint_beta #98). `?tree=` is the tree's own exact id -- short, verifiable,
+    // and the same handle the picker and the geojson key on.
+    var PAYEE_VIEWER_DEFAULT = 'https://beta.sunmint.truesight.me';
+    var PAYEE_VIEWER_BY_PROGRAM = { 'crf-anapu': 'https://cfr.truesight.me' };
+
+    function payeeViewerBase(program, viewers) {
+        var map = viewers && typeof viewers === 'object' ? viewers : PAYEE_VIEWER_BY_PROGRAM;
+        var slug = trim(program);
+        if (slug && map[slug]) return map[slug];
+        // A caller-supplied map that misses the slug still falls back to the
+        // built-in map before the default, so a partial override never regresses
+        // a known program to the wrong host.
+        if (slug && PAYEE_VIEWER_BY_PROGRAM[slug]) return PAYEE_VIEWER_BY_PROGRAM[slug];
+        return PAYEE_VIEWER_DEFAULT;
+    }
+
+    /**
+     * Public, payee-viewable URL for `tree`: `<viewer-host>/my-trees/?tree=<id>`,
+     * where the host comes from the tree's program attribution. '' when the tree
+     * carries no id to link to (nothing to show the payee).
+     */
+    function payeeMyTreesUrl(tree, hostMap, viewers) {
+        if (!tree) return '';
+        var id = trim(tree.telegram_message_id || tree.tree_id);
+        if (!id) return '';
+        var base = payeeViewerBase(programForTree(tree, hostMap), viewers);
+        return base + '/my-trees/?tree=' + encodeURIComponent(id);
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         TREE_REJECT_EVENT_NAME: TREE_REJECT_EVENT_NAME,
@@ -749,7 +788,10 @@
         submissionSourceHost: submissionSourceHost,
         feedHasProgramData: feedHasProgramData,
         treesForProgram: treesForProgram,
-        programFilterNotApplied: programFilterNotApplied
+        programFilterNotApplied: programFilterNotApplied,
+        payeeViewerBase: payeeViewerBase,
+        payeeMyTreesUrl: payeeMyTreesUrl,
+        PAYEE_VIEWER_DEFAULT: PAYEE_VIEWER_DEFAULT
     };
 
     global.PayoutEventUtils = utils;
