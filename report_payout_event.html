@@ -496,29 +496,43 @@
                 selectTreeById(sel.value);
             }
 
-            // Mirror the picker selection into the URL (?tree_id=...) so a ticket or a
-            // colleague's link reopens EXACTLY this tree. Display/deep-link only -- the
-            // signed payload still keys off the picker value, never the URL.
+            // Mirror the picker selection into the URL so a ticket or a colleague's link
+            // reopens EXACTLY this tree. Gary (2026-09-29): prefer the SHORT transaction
+            // handle -- `?tx=CxSlFq7R` (the same `tx:<handle>` the dropdown already shows)
+            // -- over the long `?tree_id=Edgar_...`; a row with no signed txid still falls
+            // back to `?tree_id=<canonical id>` so nothing becomes unlinkable. Display/
+            // deep-link ONLY -- the signed payload keeps keying off the picker value.
             function setUrlTreeParam(id) {
                 try {
                     const u = new URL(window.location.href);
+                    u.searchParams.delete('tree_id');
+                    u.searchParams.delete('tx');
                     const v = String(id || '').trim();
-                    if (v) u.searchParams.set('tree_id', v); else u.searchParams.delete('tree_id');
+                    if (v) {
+                        const t = U.findPendingTree(_pendingTrees, v);
+                        const sel = U.selectionUrlParam(t, v);
+                        if (sel) u.searchParams.set(sel.key, sel.value);
+                    }
                     window.history.replaceState({}, '', u.toString());
                 } catch (e) { console.warn('setUrlTreeParam', e); }
             }
 
-            // Apply a ?tree_id= deep-link ONCE, after the feed populates the picker.
-            // Returns true only when it actually selected a listed tree.
+            // Apply a URL deep-link ONCE, after the feed populates the picker. Accepts
+            // `?tx=<short handle>` (preferred, Gary 2026-09-29) resolved against the feed
+            // by substring, and the legacy `?tree_id=<canonical id>` so old tickets still
+            // open. Returns true only when it actually selected a listed tree.
             function applyUrlTreeParam() {
                 if (_urlParamApplied) return false;
                 _urlParamApplied = true;
                 try {
                     const u = new URL(window.location.href);
-                    const id = String(u.searchParams.get('tree_id') || '').trim();
-                    if (!id) return false;
+                    const tx = String(u.searchParams.get('tx') || '').trim();
+                    const legacy = String(u.searchParams.get('tree_id') || '').trim();
                     const sel = $('treePicker');
                     if (!sel) return false;
+                    let id = tx ? U.resolveTxHandle(_pendingTrees, tx) : '';
+                    if (!id) id = legacy;
+                    if (!id) return false;
                     const isOption = Array.prototype.some.call(sel.options, function (o) { return o.value === id; });
                     if (!isOption) return false;
                     selectTreeById(id);
