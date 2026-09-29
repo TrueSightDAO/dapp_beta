@@ -107,6 +107,12 @@
         .tree-card .tc-pk { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; margin-top: 0.2rem; }
         .tree-card .tc-masked { display: block; margin-top: 0.15rem; font-size: 0.76rem; color: #7a5c00; font-weight: 600; }
         .tree-card .tc-none { font-size: 0.78rem; color: #8a6d3b; margin-top: 0.2rem; }
+        .tree-card .tc-payee { margin-top: 0.3rem; font-size: 0.78rem; }
+        .tree-card a.tc-copy { color: #1a4d8f; cursor: pointer; text-decoration: none; border-bottom: 1px dotted #1a4d8f; }
+        .tree-card a.tc-copy:hover { background: #e8f0fb; }
+        .tree-card a.tc-copy.is-copied { color: #1e6b34; border-bottom-color: #1e6b34; }
+        .tree-card .tc-payee-url { display: block; margin-top: 0.15rem; font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.72rem; color: #666; word-break: break-all; }
         .cards-compare { display: flex; gap: 0.9rem; align-items: flex-start; flex-wrap: wrap; margin: 0.25rem 0 0.2rem; }
         .cards-compare .compare-col { flex: 1 1 320px; min-width: 280px; }
         .cards-compare .compare-heading { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; color: #555; font-weight: 700; margin-bottom: 0.15rem; }
@@ -615,6 +621,49 @@
                 return '<div class="overpay-row">\u26a0 <code>' + escapeHtml(dispId(id)) + '</code>: ' + bits.join(' \u00b7 ') + '</div>';
             }
 
+            // Payee-viewable link for `t`: a public /my-trees/?tree=<id> deep link on
+            // the viewer host its PROGRAM belongs to (cfr vs SunMint beta), so a
+            // governor can copy ONE link and WhatsApp it to the payee, who opens it
+            // with no key and sees just their tree (sunmint_beta #98). Omitted when
+            // the row has no id, or for a card whose row is not in the pending feed.
+            function payeeLinkHtml(t) {
+                if (!t) return '';
+                const url = U.payeeMyTreesUrl(t, _programHosts);
+                if (!url) return '';
+                return '<div class="tc-payee">' +
+                    '<a class="tc-copy" href="#" role="button" data-copy-url="' + escapeHtml(url) + '">' +
+                    '\uD83D\uDD17 Copy payee link</a>' +
+                    '<span class="tc-payee-url" title="Share this with the payee">' + escapeHtml(url) + '</span>' +
+                    '</div>';
+            }
+
+            // Copy the payee link. Clipboard API when available (it needs a secure
+            // context — the deployed sites are https), else a hidden-textarea
+            // fallback so the click still works on http/localhost. On success the
+            // link flips to a green "Copied!" for a beat as the only feedback.
+            function copyText(text, el) {
+                function done() {
+                    if (!el) return;
+                    const label = el.textContent;
+                    el.textContent = '\u2713 Copied!';
+                    el.classList.add('is-copied');
+                    setTimeout(function () { el.textContent = label; el.classList.remove('is-copied'); }, 1500);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(function () { fallback(); });
+                } else { fallback(); }
+                function fallback() {
+                    try {
+                        const ta = document.createElement('textarea');
+                        ta.value = text; ta.setAttribute('readonly', '');
+                        ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                        document.body.appendChild(ta); ta.select();
+                        document.execCommand('copy'); document.body.removeChild(ta);
+                        done();
+                    } catch (_) { /* clipboard unavailable — the URL is on screen to copy by hand */ }
+                }
+            }
+
             function treeCardHtml(id) {
                 const t = U.findPendingTree(_pendingTrees, id);
                 const pk = _treeRecipientMap[id] || '';
@@ -636,7 +685,7 @@
                     '<div class="tc-main"><div class="tc-id">' + escapeHtml(dispId(id)) + '</div>' +
                     (meta ? '<div class="tc-meta">' + meta + '</div>'
                           : '<div class="tc-meta">Not in the public pending list (already paid, or not currently selectable).</div>') +
-                    pkLine + '</div></div>';
+                    pkLine + payeeLinkHtml(t) + '</div></div>';
             }
 
             function renderTreeDetails() {
@@ -1195,6 +1244,19 @@
                 });
                 const markBtn = $('markInvalidButton');
                 if (markBtn) markBtn.addEventListener('click', rejectTree);
+                // Copy-payee-link is delegated on the two card hosts (the cards are
+                // re-rendered, so no per-card listener can be attached once).
+                ['treeDetails', 'overpayTreeDetails'].forEach(function (hostId) {
+                    const host = $(hostId);
+                    if (!host) return;
+                    host.addEventListener('click', function (e) {
+                        const t = e.target;
+                        const link = t && t.closest ? t.closest('a.tc-copy') : null;
+                        if (!link) return;
+                        e.preventDefault();
+                        copyText(link.getAttribute('data-copy-url') || '', link);
+                    });
+                });
                 wireReceiptAttachment();
             });
         })();

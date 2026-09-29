@@ -519,6 +519,50 @@ test.describe('report_payout_event.html', () => {
     await expect(page.locator('#overpayTreeDetails .tc-id')).toHaveText('Edgar_FLAG_B');
   });
 
+  test('each tree card carries a copy-payee-link in .tc-main, keyed to its program (Gary)', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await mockBackend(page);
+    // T_CRF is program crf-anapu -> cfr host; T_SUN has no program -> SunMint beta.
+    await page.route('**/sunmint_pending.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', count: 2, items: [
+        { telegram_message_id: 'Edgar_T_CRF', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/c.jpg', latitude: '-3.0', longitude: '-52.0', status: 'NEW', program: 'crf-anapu' },
+        { telegram_message_id: 'Edgar_T_SUN', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/s.jpg', latitude: '-3.9', longitude: '-52.9', status: 'NEW', program: '' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_T_CRF"]')).toHaveCount(1, { timeout: 15000 });
+
+    // CRF tree -> the link lives INSIDE .tc-main and points at the cfr viewer.
+    await page.selectOption('#treePicker', 'Edgar_T_CRF');
+    const card = page.locator('#treeDetails .tree-card').first();
+    await expect(card).toHaveCount(1);
+    const link = card.locator('.tc-main .tc-payee a.tc-copy');
+    await expect(link).toHaveCount(1);
+    await expect(link).toContainText('Copy payee link');
+    const crfUrl = 'https://cfr.truesight.me/my-trees/?tree=Edgar_T_CRF';
+    await expect(link).toHaveAttribute('data-copy-url', crfUrl);
+    await expect(card.locator('.tc-main .tc-payee-url')).toHaveText(crfUrl);
+
+    // Clicking copies the URL to the clipboard and flips the label as feedback.
+    await link.click();
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toBe(crfUrl);
+    await expect(link).toContainText(/Copied/);
+
+    // A tree with no program attribution links to the SunMint beta viewer.
+    // The page's program filter DEFAULTS to crf-anapu, which HIDES an unattributed
+    // tree from the picker -- blank the program first so all trees are listed.
+    await page.selectOption('#programSlug', '');
+    await expect(page.locator('#treePicker option[value="Edgar_T_SUN"]')).toHaveCount(1, { timeout: 15000 });
+    await page.selectOption('#treePicker', 'Edgar_T_SUN');
+    const link2 = page.locator('#treeDetails .tree-card .tc-main .tc-payee a.tc-copy').first();
+    await expect(link2).toHaveAttribute(
+      'data-copy-url', 'https://beta.sunmint.truesight.me/my-trees/?tree=Edgar_T_SUN');
+  });
+
   test('collision reason renders INLINE on the Overpay Conflict card (not in the guard below)', async ({ page }) => {
     await mockBackend(page);
     // Two DIFFERENT trees on the SAME fix (0 m apart) -> both flagged co-located.

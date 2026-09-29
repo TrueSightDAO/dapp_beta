@@ -689,5 +689,51 @@ test('buildRecipientMapFromFeed: tolerant of a non-list input', () => {
     assert.deepStrictEqual(u.buildRecipientMapFromFeed(undefined), {});
 });
 
+// --- payee-viewable my-trees link (Gary 2026-09-29) -----------------------
+test('payeeMyTreesUrl: program picks the viewer host (crf vs SunMint beta)', () => {
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ telegram_message_id: 'Edgar_1', program: 'crf-anapu' }),
+        'https://cfr.truesight.me/my-trees/?tree=Edgar_1');
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'Edgar_2', program: '' }),
+        'https://beta.sunmint.truesight.me/my-trees/?tree=Edgar_2');
+});
+test('payeeMyTreesUrl: resolves the program from submission_source (host map)', () => {
+    const hm = { 'cfr.truesight.me': 'crf-anapu' };
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'Edgar_3', submission_source: 'https://cfr.truesight.me/' }, hm),
+        'https://cfr.truesight.me/my-trees/?tree=Edgar_3');
+    // unattributable source -> default SunMint beta
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'Edgar_4', submission_source: 'https://example.org/' }, hm),
+        'https://beta.sunmint.truesight.me/my-trees/?tree=Edgar_4');
+});
+test('payeeMyTreesUrl: URL-encodes the tree id', () => {
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'a b/c', program: '' }),
+        'https://beta.sunmint.truesight.me/my-trees/?tree=a%20b%2Fc');
+});
+test('payeeMyTreesUrl: prefers telegram_message_id, blank id -> ""', () => {
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ telegram_message_id: 'E_MSG', tree_id: 'E_TREE', program: '' }),
+        'https://beta.sunmint.truesight.me/my-trees/?tree=E_MSG');
+    assert.strictEqual(u.payeeMyTreesUrl({ program: 'crf-anapu' }), '');
+    assert.strictEqual(u.payeeMyTreesUrl(null), '');
+});
+test('payeeMyTreesUrl: a caller-supplied viewers map overrides a program host', () => {
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'X', program: 'new-prog' }, {}, { 'new-prog': 'https://new.example' }),
+        'https://new.example/my-trees/?tree=X');
+    // partial override still keeps the known crf mapping (no regression to default)
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'X', program: 'crf-anapu' }, {}, { 'new-prog': 'https://new.example' }),
+        'https://cfr.truesight.me/my-trees/?tree=X');
+});
+test('payeeViewerBase: unknown program -> SunMint beta default', () => {
+    assert.strictEqual(u.payeeViewerBase(''), u.PAYEE_VIEWER_DEFAULT);
+    assert.strictEqual(u.payeeViewerBase('mystery'), 'https://beta.sunmint.truesight.me');
+});
+
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
