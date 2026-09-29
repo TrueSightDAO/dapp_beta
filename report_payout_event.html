@@ -170,6 +170,24 @@
         .recipient-row .rp-status.active { background: var(--green-bg); color: var(--green); }
         .recipient-row button.rp-use { width: auto; max-width: none; margin: 0; padding: 0.35rem 0.7rem; font-size: 0.8rem; border-radius: 6px; background: var(--accent); }
         .recipient-row button.rp-use:hover { background: var(--accent-hover); }
+
+        .batch-toggle { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.2rem; font-weight: bold; }
+        .batch-toggle input[type=checkbox] { width: auto; margin: 0; flex: 0 0 auto; }
+        .batch-panel { border: 1px solid #d7d7d7; border-radius: 8px; background: #fbfbfb; padding: 0.8rem 0.9rem; margin: 0.5rem 0 1rem; }
+        .batch-panel h3 { margin: 0 0 0.3rem; font-size: 0.95rem; color: #333; }
+        .batch-panel .bp-sub { font-size: 0.78rem; color: #777; margin-bottom: 0.5rem; line-height: 1.4; }
+        .batch-list { max-height: 240px; overflow: auto; border: 1px solid #e4e4e4; border-radius: 6px; background: #fff; padding: 0.3rem; }
+        .batch-list label { display: flex; align-items: center; gap: 0.5rem; padding: 0.28rem 0.4rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer; }
+        .batch-list label:hover { background: #f4f6f8; }
+        .batch-list input[type=checkbox] { width: auto; margin: 0; flex: 0 0 auto; }
+        .batch-actions { display: flex; gap: 0.5rem; align-items: center; margin: 0.45rem 0 0; flex-wrap: wrap; }
+        .batch-actions button { width: auto; max-width: 220px; margin: 0; padding: 0.35rem 0.7rem; font-size: 0.8rem; border-radius: 6px; }
+        .batch-actions .bp-count { font-size: 0.82rem; color: #555; font-weight: bold; }
+        #batchSplitNote { font-size: 0.82rem; color: #555; margin-top: 0.35rem; }
+        .batch-summary { margin: 0.5rem 0; font-size: 0.85rem; text-align: left; }
+        .batch-summary .bs-ok { color: var(--green); }
+        .batch-summary .bs-fail { color: var(--red); }
+        .batch-summary ul { margin: 0.2rem 0 0.4rem; padding-left: 1.1rem; }
     </style>
 </head>
 <body>
@@ -224,6 +242,18 @@
                 <option value="">Loading unpaid trees&hellip;</option>
             </select>
             <div class="hint">Pick one <strong>unpaid</strong> tree &mdash; identified by its signed <code>Request Transaction ID</code> (<code>tx:&hellip;</code>, the canonical key; older rows without a txid fall back to the <code>Edgar_&hellip;</code> transport id). Only one tree is selected at a time &mdash; leave it blank for a general disbursement.</div>
+            <label class="batch-toggle"><input type="checkbox" id="batchMode"> Backfill a cluster &mdash; one transfer covering several trees</label>
+            <div class="batch-panel" id="batchPanel" style="display:none;">
+                <h3>Batch backfill <span class="opt-tag">cluster of trees</span></h3>
+                <div class="bp-sub">Tick every tree this <strong>one</strong> transfer covers, then enter the transfer&rsquo;s <strong>total</strong> in the Amount field below. The page fires <strong>one <code>[PAYOUT EVENT]</code> per tree</strong>, each carrying its even share (total &divide; N). The sink discharges one <code>Cacao Tree - To Be Paid For</code> unit per event &mdash; so this is the only shape that clears <em>every</em> tree (a single multi-tree event would silently under-book N&minus;1).</div>
+                <div id="batchList" class="batch-list"></div>
+                <div class="batch-actions">
+                    <button type="button" id="batchSelectAll">Select all filtered</button>
+                    <button type="button" id="batchClearAll">Clear</button>
+                    <span id="batchCount" class="bp-count">0 selected</span>
+                </div>
+                <div id="batchSplitNote"></div>
+            </div>
             <div class="cards-compare">
                 <div class="compare-col">
                     <div class="compare-heading">Tree Details <span class="hint-inline">&mdash; from the picker above</span></div>
@@ -302,9 +332,11 @@
 
         <div class="button-container">
             <button id="submitButton" type="button">Submit Payout</button>
+            <button id="batchSubmitButton" type="button" style="display:none;">Submit Batch Payout</button>
         </div>
 
         <div id="status" aria-live="polite"></div>
+        <div id="batchSummary" class="batch-summary"></div>
 
         <div id="submissionResult" aria-live="polite">
             <h3>Signed payload sent to Edgar</h3>
@@ -363,6 +395,8 @@
             let _signedInName = '';          // resolved contributor name (for the reject payload)
             let _plotsGeojson = null;        // sunmint/plots/index.geojson (SSOT for the Farm/Plot spatial join)
             let _farmsById = {};             // farm_id -> farm record (sunmint/farms/index.json)
+            let _batchMode = false;          // cluster backfill: tick N trees, one lump transfer
+            let _batchSelected = {};         // tree_id -> 1 (batch checkbox selection)
 
             function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
@@ -559,17 +593,23 @@
             // The PICKER lists only UNPAID trees (the public pending cache is already
             // Status==NEW, i.e. not-yet-paid). Trees paid in THIS session are dropped
             // via _submittedTreeIds so a just-paid tree cannot be picked twice.
-            function renderTreeOptions() {
-                const sel = $('treePicker');
-                if (!sel) return;
-                const chosen = {};
-                if (_selectedTreeId) chosen[_selectedTreeId] = 1;
-                const rows = U.treesForFarmPlot(
+            // The ONE source of filtered unpaid rows -- shared by the single-tree picker
+            // and the batch checkbox list, so the two can never drift apart.
+            function currentFilteredRows() {
+                return U.treesForFarmPlot(
                     treesForProgram(currentProgram()), currentFarm(), currentPlot(), _plotsGeojson
                 ).filter(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
                     return id && !_submittedTreeIds[id];
                 });
+            }
+
+            function renderTreeOptions() {
+                const sel = $('treePicker');
+                if (!sel) return;
+                const chosen = {};
+                if (_selectedTreeId) chosen[_selectedTreeId] = 1;
+                const rows = currentFilteredRows();
                 const opts = ['<option value="">\u2014 pick an unpaid tree \u2014</option>'];
                 rows.forEach(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
@@ -590,6 +630,7 @@
                 sel.value = chosen[_selectedTreeId] ? _selectedTreeId : '';
                 renderProgramFilterNote();
                 renderFarmPlotFilterNote();
+                renderBatchList();
             }
 
             // Single-select: picking a tree REPLACES the current selection.
@@ -985,6 +1026,181 @@
                 host.innerHTML = html;
             }
 
+            // ── Batch backfill (Gary's cluster model, 2026-09-29) ──────────────────
+            // ONE lump transfer covering N trees. The sink books exactly ONE unit of
+            // `Cacao Tree - To Be Paid For` liability PER EVENT (fpeComputeLegs_ emits a
+            // single inv(main,-1,...) in every branch; fpeBookLedger_ discharges only the
+            // FIRST resolvable tree). So a batch MUST fire N single-tree [PAYOUT EVENT]s,
+            // each carrying total/N -- never one multi-tree event, which would silently
+            // under-book N-1 trees.
+            function renderBatchList() {
+                const host = $('batchList');
+                if (!host) return;
+                const rows = currentFilteredRows();
+                const present = {};
+                rows.forEach(function (t) { present[String(t.telegram_message_id || t.tree_id || '').trim()] = 1; });
+                // Prune selections that fell out of the current filter, so "N selected"
+                // always equals what the next submit will actually fire.
+                Object.keys(_batchSelected).forEach(function (id) { if (!present[id]) delete _batchSelected[id]; });
+                if (!rows.length) {
+                    host.innerHTML = '<div class="bp-sub" style="margin:0.2rem 0;">No unpaid trees match the current filters.</div>';
+                    updateBatchCount();
+                    return;
+                }
+                host.innerHTML = rows.map(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    var parts = [t.species, t.planting_date].filter(Boolean).join(', ');
+                    var checked = _batchSelected[id] ? ' checked' : '';
+                    return '<label><input type="checkbox" class="batch-cb" value="' + escapeHtml(id) + '"' + checked + '>' +
+                        '<span>' + escapeHtml(dispId(id) + (parts ? ' \u2014 ' + parts : '')) + '</span></label>';
+                }).join('');
+                updateBatchCount();
+            }
+
+            function selectedBatchTreeIds() {
+                var out = [];
+                currentFilteredRows().forEach(function (t) {
+                    var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                    if (id && _batchSelected[id]) out.push(id);
+                });
+                return out;
+            }
+
+            function updateBatchCount() {
+                const el = $('batchCount');
+                if (el) el.textContent = selectedBatchTreeIds().length + ' selected';
+                renderBatchSplitNote();
+            }
+
+            // Honest preview of the split: total -> per-tree, plus any rounding drift.
+            function renderBatchSplitNote() {
+                const el = $('batchSplitNote');
+                if (!el) return;
+                const ids = selectedBatchTreeIds();
+                if (!ids.length) { el.textContent = ''; return; }
+                const split = U.splitBatchAmount($('amount').value, ids.length);
+                if (!split.valid) {
+                    el.textContent = 'Enter the batch total in Amount to split across ' + ids.length + ' tree(s).';
+                    return;
+                }
+                el.textContent = ids.length + ' tree(s) \u00b7 ' + split.total + ' total \u2192 ' + split.perTree +
+                    ' each' + (split.drift !== '0' ? ' (rounding drift ' + split.drift + ')' : '');
+            }
+
+            function renderBatchSummary(summary, total) {
+                const el = $('batchSummary');
+                if (!el) return;
+                var html = '';
+                if (summary.ok.length) {
+                    html += '<div class="bs-ok">\u2713 ' + summary.ok.length + ' paid: ' +
+                        summary.ok.map(function (id) { return escapeHtml(dispId(id)); }).join(', ') + '</div>';
+                }
+                if (summary.fail.length) {
+                    html += '<div class="bs-fail">\u26a0 ' + summary.fail.length + ' FAILED:</div><ul>' +
+                        summary.fail.map(function (f) {
+                            return '<li><code>' + escapeHtml(dispId(f.id)) + '</code> \u2014 ' + escapeHtml(f.reason) + '</li>';
+                        }).join('') + '</ul>';
+                }
+                if (summary.ok.length + summary.fail.length < total) {
+                    html += '<div class="loading">' + (summary.ok.length + summary.fail.length) + ' / ' + total + ' submitted\u2026</div>';
+                }
+                el.innerHTML = html;
+            }
+
+            async function submitBatch() {
+                const btn = $('batchSubmitButton');
+                clearInvalid();
+                setStatus('');
+                const ids = selectedBatchTreeIds();
+                if (!ids.length) { setStatus('Tick at least one tree to backfill.', 'error'); return; }
+                const split = U.splitBatchAmount($('amount').value, ids.length);
+                if (!split.valid) {
+                    $('amount').classList.add('invalid');
+                    setStatus('Batch total: ' + split.reason, 'error');
+                    return;
+                }
+                const base = readForm();
+                const check = U.validate(Object.assign({}, base, { amount: split.perTree, treeIds: ids[0] }));
+                if (!check.valid) {
+                    if (!U.isValidIso8601(base.paidAt)) $('paidAt').classList.add('invalid');
+                    if (!String(base.bankRef).trim()) $('bankRef').classList.add('invalid');
+                    setStatus(check.errors.join(' '), 'error');
+                    return;
+                }
+                const privateKey = (function () { try { return localStorage.getItem('privateKey'); } catch (_) { return null; } })();
+                if (!privateKey) {
+                    setStatus('Your private key is missing from this browser. Re-register via the Digital Signature Creator.', 'error');
+                    return;
+                }
+
+                var driftNote = (split.drift !== '0')
+                    ? ('\n\nRounding: ' + split.perTree + ' \u00d7 ' + ids.length + ' = ' + (Number(split.perTree) * ids.length).toFixed(2) +
+                       ', a ' + split.drift + ' difference vs the ' + split.total + ' total.')
+                    : '';
+                if (!window.confirm('Backfill ' + ids.length + ' trees with ONE transfer of ' +
+                        (base.currency || 'BRL') + ' ' + split.total + ' (' + split.perTree + ' per tree).' + driftNote +
+                        '\n\nThis fires ' + ids.length + ' separate [PAYOUT EVENT]s, sequentially. Proceed?')) {
+                    return;
+                }
+
+                btn.disabled = true;
+                const summary = { ok: [], fail: [] };
+                renderBatchSummary(summary, ids.length);
+
+                for (var i = 0; i < ids.length; i++) {
+                    var id = ids[i];
+                    setStatus('Submitting ' + (i + 1) + ' / ' + ids.length + ' \u2014 ' + dispId(id) + '\u2026', 'loading');
+                    try {
+                        const helper = new EdgarPayloadHelper({
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const form = Object.assign({}, base, {
+                            amount: split.perTree,
+                            treeIds: id,
+                            recipientPkHash: _treeRecipientMap[id] || base.recipientPkHash || ''
+                        });
+                        const attributes = U.buildAttributes(form, { source: window.location.href });
+                        const signed = await helper.generatePayload({
+                            eventName: U.EVENT_NAME,
+                            attributes: attributes,
+                            privateKey: privateKey,
+                            digitalSignature: publicKeyOrNull(),
+                            generationSource: window.location.href
+                        });
+                        const submission = await EdgarSubmission.submitWithRetry({
+                            url: EDGAR_SUBMIT,
+                            text: signed.shareText,
+                            // Shared receipt: the opaque destination is IDENTICAL for every
+                            // tree, so re-sending the same bytes overwrites one path (safe).
+                            file: uploadedReceiptFile ? await EdgarSubmission.toSendableBlob(uploadedReceiptFile) : undefined,
+                            fileName: cachedReceiptFileName || undefined,
+                            attempts: 3
+                        });
+                        const result = submission.result || {};
+                        if (result.signature_verification === 'success') {
+                            summary.ok.push(id);
+                            _submittedTreeIds[id] = 1;
+                            delete _batchSelected[id];
+                        } else {
+                            summary.fail.push({ id: id, reason: 'submitted but Edgar did not confirm verified delivery' });
+                        }
+                    } catch (err) {
+                        summary.fail.push({ id: id, reason: err.message });
+                    }
+                    renderBatchSummary(summary, ids.length);
+                }
+
+                btn.disabled = false;
+                renderTreeOptions();   // drops the paid trees + re-renders the batch list
+                if (summary.fail.length) {
+                    setStatus('Batch finished: ' + summary.ok.length + ' paid, ' + summary.fail.length +
+                        ' FAILED \u2014 review the summary below.', 'error');
+                } else {
+                    setStatus('Batch complete: all ' + summary.ok.length + ' trees paid.', 'success');
+                }
+            }
+
             function $(id) { return document.getElementById(id); }
             function setStatus(msg, cls) {
                 const s = $('status');
@@ -1350,6 +1566,36 @@
                 // from the feed and only falls back to GAS when the feed carries no
                 // inline recipient_pk_hash. Do not fire the GAS call eagerly here.
                 $('submitButton').addEventListener('click', submit);
+                const batchCb = $('batchMode');
+                if (batchCb) batchCb.addEventListener('change', function () {
+                    _batchMode = !!batchCb.checked;
+                    const panel = $('batchPanel'); if (panel) panel.style.display = _batchMode ? 'block' : 'none';
+                    const single = $('submitButton'); if (single) single.style.display = _batchMode ? 'none' : '';
+                    const bbtn = $('batchSubmitButton'); if (bbtn) bbtn.style.display = _batchMode ? 'block' : 'none';
+                    if (_batchMode) { renderBatchList(); renderBatchSplitNote(); }
+                    setStatus('');
+                });
+                const bAll = $('batchSelectAll');
+                if (bAll) bAll.addEventListener('click', function () {
+                    currentFilteredRows().forEach(function (t) {
+                        var id = String(t.telegram_message_id || t.tree_id || '').trim();
+                        if (id) _batchSelected[id] = 1;
+                    });
+                    renderBatchList();
+                });
+                const bClear = $('batchClearAll');
+                if (bClear) bClear.addEventListener('click', function () { _batchSelected = {}; renderBatchList(); });
+                const bList = $('batchList');
+                if (bList) bList.addEventListener('change', function (e) {
+                    var t = e.target;
+                    if (!t || !t.classList || !t.classList.contains('batch-cb')) return;
+                    if (t.checked) _batchSelected[t.value] = 1; else delete _batchSelected[t.value];
+                    updateBatchCount();
+                });
+                const amtEl = $('amount');
+                if (amtEl) amtEl.addEventListener('input', function () { if (_batchMode) renderBatchSplitNote(); });
+                const bSubmit = $('batchSubmitButton');
+                if (bSubmit) bSubmit.addEventListener('click', submitBatch);
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('change', renderTreeOptions);
                 const farmSel = $('farmFilter');

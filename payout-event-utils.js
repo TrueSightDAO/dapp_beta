@@ -944,6 +944,49 @@
         return hit ? trim(hit.telegram_message_id || hit.tree_id || '') : '';
     }
 
+    /**
+     * Split ONE backfilled cluster amount across N trees. Gary's model (2026-09-29):
+     * a cluster payout is ONE lump transfer (e.g. R$500 covering 10 trees), but the
+     * SINK books exactly ONE unit of `Cacao Tree - To Be Paid For` liability PER EVENT
+     * (`fpeComputeLegs_` emits a single `inv('main', -1, ...)` in every branch, and
+     * `fpeBookLedger_` discharges only the FIRST resolvable tree). So a batch MUST fire
+     * N single-tree events, each carrying its EVEN SHARE of the lump -- never one
+     * multi-tree event, which would silently under-book N-1 units.
+     *
+     * Returns { valid, total, perTree, count, drift, reason }. `perTree`/`drift` are
+     * clean numeric strings; `drift` = total - perTree*count (non-zero when the split
+     * does not divide evenly, e.g. 500/3 -> 166.67 each, 0.01 drift) so the caller can
+     * surface the rounding honestly instead of hiding it.
+     */
+    function _fmtAmount2(n) {
+        var s = (Math.round(n * 100) / 100).toFixed(2);
+        if (s.indexOf('.') !== -1) {
+            s = s.replace(/0+$/, '').replace(/\.$/, '');
+        }
+        return s;
+    }
+    function splitBatchAmount(rawTotal, count) {
+        var n = parseInt(count, 10);
+        if (!isFinite(n) || n < 1) {
+            return { valid: false, reason: 'Batch size must be at least 1 tree.' };
+        }
+        var total = parseAmount(rawTotal);
+        if (!total.valid) { return { valid: false, reason: total.reason }; }
+        var t = Number(total.value);
+        var per = Math.round((t / n) * 100) / 100;
+        if (!isFinite(per) || per <= 0) {
+            return { valid: false, reason: 'Per-tree amount must be positive.' };
+        }
+        var drift = Math.round((t - per * n) * 100) / 100;
+        return {
+            valid: true,
+            total: _fmtAmount2(t),
+            perTree: _fmtAmount2(per),
+            count: n,
+            drift: _fmtAmount2(drift)
+        };
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         TREE_REJECT_EVENT_NAME: TREE_REJECT_EVENT_NAME,
@@ -958,6 +1001,7 @@
         UNLINKED_PROGRAM: UNLINKED_PROGRAM,
         parseTreeIds: parseTreeIds,
         parseAmount: parseAmount,
+        splitBatchAmount: splitBatchAmount,
         isValidIso8601: isValidIso8601,
         validate: validate,
         buildAttributes: buildAttributes,

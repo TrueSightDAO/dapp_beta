@@ -869,5 +869,35 @@ test('farmPlotFilterNotApplied: true when a facet is set but no tree is locatabl
     assert.strictEqual(u.farmPlotFilterNotApplied('fazenda-bom-sucesso', '', on, _PLOTS), false);
 });
 
+
+// --- splitBatchAmount (cluster backfill: one lump -> N single-tree events) -----
+test('splitBatchAmount: an even split carries no drift', () => {
+    assert.deepStrictEqual(u.splitBatchAmount('500', 10), { valid: true, total: '500', perTree: '50', count: 10, drift: '0' });
+});
+test('splitBatchAmount: accepts the pt-BR lump (R$ 500,00)', () => {
+    const r = u.splitBatchAmount('R$ 500,00', 10);
+    assert.strictEqual(r.valid, true);
+    assert.strictEqual(r.total, '500');
+    assert.strictEqual(r.perTree, '50');
+});
+test('splitBatchAmount: an uneven split rounds to cents and reports the drift', () => {
+    const r = u.splitBatchAmount('500', 3);
+    assert.strictEqual(r.valid, true);
+    assert.strictEqual(r.perTree, '166.67');
+    assert.strictEqual(r.drift, '-0.01');  // 500 - 166.67*3 (rounds up -> 0.01 over)
+});
+test('splitBatchAmount: a single-tree batch is the identity', () => {
+    assert.deepStrictEqual(u.splitBatchAmount('50', 1), { valid: true, total: '50', perTree: '50', count: 1, drift: '0' });
+});
+test('splitBatchAmount: rejects a non-positive / missing batch size', () => {
+    assert.strictEqual(u.splitBatchAmount('500', 0).valid, false);
+    assert.strictEqual(u.splitBatchAmount('500', '').valid, false);
+});
+test('splitBatchAmount: rejects a bad lump (zero / negative / non-numeric)', () => {
+    assert.strictEqual(u.splitBatchAmount('0', 10).valid, false);
+    assert.strictEqual(u.splitBatchAmount('-5', 10).valid, false);
+    assert.strictEqual(u.splitBatchAmount('abc', 10).valid, false);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

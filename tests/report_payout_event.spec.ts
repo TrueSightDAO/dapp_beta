@@ -1036,4 +1036,111 @@ test.describe('report_payout_event.html', () => {
     await page.selectOption('#plotFilter', 'PL-005');
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(0);
   });
+
+  test('batch: ticking trees fires ONE single-tree PAYOUT EVENT per tree, each carrying total/N', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Real ephemeral keypair so the in-browser signing is genuine.
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+
+    // Capture every signed payload Edgar receives.
+    const bodies: string[] = [];
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        bodies.push(route.request().postData() || '');
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: 'success' }) });
+      }
+      return route.continue();
+    });
+    page.on('dialog', (d) => d.accept());
+
+    // Enter batch mode -> the panel + checkbox list appear.
+    await page.check('#batchMode');
+    await expect(page.locator('#batchPanel')).toBeVisible();
+    await expect(page.locator('#batchList input.batch-cb').first()).toBeVisible({ timeout: 15000 });
+
+    // Select every filtered tree (3 in the mock feed).
+    await page.selectOption('#programSlug', '');   // whole cluster in scope (T2 is unattributed)
+    await page.click('#batchSelectAll');
+    await expect(page.locator('#batchCount')).toContainText('3 selected');
+
+    // ONE lump of 300 -> the split preview shows 100 each.
+    await page.fill('#amount', '300');
+    await page.selectOption('#currency', 'BRL');
+    await page.fill('#paidAt', '2026-09-12T21:38:00Z');
+    await page.fill('#bankRef', 'E6890081000000000000000000000');
+    await expect(page.locator('#batchSplitNote')).toContainText('100 each');
+
+    await page.click('#batchSubmitButton');
+    await expect(page.locator('#status')).toContainText(/all 3 trees paid/i, { timeout: 30000 });
+
+    // Exactly THREE events fired -- one per tree, NOT one multi-tree event.
+    expect(bodies).toHaveLength(3);
+    const treeLine = (b: string) => (b.match(/Tree Planting IDs:\s*(.+)/)?.[1] || '').trim();
+    const amtLine = (b: string) => (b.match(/Amount:\s*(.+)/)?.[1] || '').trim();
+    // Each event keys a SINGLE tree id, and each carries the split amount (100).
+    for (const b of bodies) {
+      expect(treeLine(b)).not.toContain(',');
+      expect(amtLine(b)).toBe('100');
+    }
+    // The three tree ids are distinct and cover the whole cluster.
+    const ids = bodies.map(treeLine).sort();
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toContain('Edgar_TEST_T1');
+
+    // The paid trees are gone from the batch list (no double-submit surface).
+    await expect(page.locator('#batchSelectAll')).toBeVisible();
+    await expect(page.locator('#batchList input.batch-cb')).toHaveCount(0);
+  });
+
+  test('batch: a mid-batch failure is reported per-tree, never swallowed as a silent partial success', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    await page.evaluate(async () => {
+      const kp = await (window as any).EdgarPayloadHelper.generateEphemeralKeyPair();
+      localStorage.setItem('privateKey', kp.privateKey);
+      localStorage.setItem('publicKey', kp.publicKey);
+    });
+
+    // First tree succeeds; every later tree's Edgar call returns an UNVERIFIED result.
+    let n = 0;
+    await page.route('**/edgar.truesight.me/**', (route) => {
+      if (route.request().url().includes('submit_contribution')) {
+        n += 1;
+        const ok = n === 1;
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ signature_verification: ok ? 'success' : 'failure' }) });
+      }
+      return route.continue();
+    });
+    page.on('dialog', (d) => d.accept());
+
+    await page.check('#batchMode');
+    await page.selectOption('#programSlug', '');   // whole cluster in scope (T2 is unattributed)
+    await page.click('#batchSelectAll');
+    await page.fill('#amount', '300');
+    await page.selectOption('#currency', 'BRL');
+    await page.fill('#paidAt', '2026-09-12T21:38:00Z');
+    await page.fill('#bankRef', 'E6890081000000000000000000000');
+
+    await page.click('#batchSubmitButton');
+    // The batch reports BOTH halves -- success count AND the failures.
+    await expect(page.locator('#status')).toContainText(/1 paid, 2 FAILED/i, { timeout: 30000 });
+    const summary = page.locator('#batchSummary');
+    await expect(summary.locator('.bs-ok')).toContainText('1 paid');
+    await expect(summary.locator('.bs-fail')).toContainText('2 FAILED');
+    // The two failures are NAMED, not just counted.
+    await expect(summary.locator('ul li')).toHaveCount(2);
+  });
 });
