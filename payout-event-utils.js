@@ -660,6 +660,36 @@
         });
     }
 
+    // -- Paid / linkage predicates (payout-feed class fix, thread 35944) -------
+    // The pending-tree feed's `status` is QR-LINKAGE (NEW = no QR yet, LINKED =
+    // has a Linked QR Code) -- NOT payment state. Gary's directive: EVERY unpaid
+    // tree is payable, INCLUDING already-LINKED ones; and the link page must keep
+    // offering ONLY unlinked trees. The generator therefore emits each tree's real
+    // `status` plus a `paid` boolean (joined from the Ops `payouts` tab); these
+    // predicates let each consumer state what it needs instead of relying on the
+    // feed having been pre-filtered to NEW.
+    function isPaidTree(tree) {
+        if (!tree) return false;
+        var v = tree.paid;
+        if (v === true) return true;
+        return typeof v === 'string' && v.trim().toLowerCase() === 'true';
+    }
+    function isUnpaidTree(tree) { return !isPaidTree(tree); }
+    function isLinkedTree(tree) {
+        if (!tree) return false;
+        var lq = String(tree.linked_qr || tree.linkedQrCode || '').trim();
+        if (lq) return true;
+        return String(tree.status || '').trim().toUpperCase() === 'LINKED';
+    }
+    // The link page links a SOLD QR to an UNLINKED tree -> that is the inverse.
+    function isLinkableTree(tree) { return !isLinkedTree(tree); }
+    function unpaidTrees(trees) {
+        return (trees || []).filter(isUnpaidTree);
+    }
+    function linkableTrees(trees) {
+        return (trees || []).filter(isLinkableTree);
+    }
+
     // STRICT program filter (governor directive, thread 35944): when a program is
     // chosen, KEEP a tree only when its resolved program EQUALS it. Rows that
     // resolve to '' (unattributed) are HIDDEN -- never shown as if they belonged.
@@ -1062,6 +1092,12 @@
         programForTree: programForTree,
         submissionSourceHost: submissionSourceHost,
         feedHasProgramData: feedHasProgramData,
+        isPaidTree: isPaidTree,
+        isUnpaidTree: isUnpaidTree,
+        isLinkedTree: isLinkedTree,
+        isLinkableTree: isLinkableTree,
+        unpaidTrees: unpaidTrees,
+        linkableTrees: linkableTrees,
         treesForProgram: treesForProgram,
         programFilterNotApplied: programFilterNotApplied,
         treePlotMatch: treePlotMatch,

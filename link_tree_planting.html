@@ -20,6 +20,7 @@
     <script src="./scripts/dao_members_cache.js"></script>
     <script src="./scripts/permissions.js"></script>
     <script src="./scripts/edgar_payload_helper.js"></script>
+    <script src="./payout-event-utils.js?v=20260929a"></script>
 
     <style>
         /* TrueSight DApp — light "Saffron Monk" / earthen palette to match the rest of the DApp */
@@ -312,6 +313,20 @@
         let contributorName = '';
         let qrItems = [];
         let sunmintItems = [];
+
+        // This page LINKS an unlinked tree-planting submission to a SOLD QR code,
+        // so it must offer ONLY unlinked submissions. The payout feed now carries
+        // each tree's real Status (NEW|LINKED) + a paid flag (class fix, thread
+        // 35944); before that change every row was Status==NEW, so this filter is
+        // INERT until LINKED rows appear. Prefers the shared predicate.
+        function isLinkableSubmission(s) {
+            if (typeof PayoutEventUtils !== 'undefined' && PayoutEventUtils.isLinkableTree) {
+                return PayoutEventUtils.isLinkableTree(s);
+            }
+            var lq = String((s && (s.linked_qr || s.linkedQrCode)) || '').trim();
+            var st = String((s && s.status) || '').trim().toUpperCase();
+            return !lq && st !== 'LINKED';
+        }
         let selectedQrCode = null;
         let selectedSubmission = null;
         let plotItems = [];
@@ -560,7 +575,7 @@
                 const res = await fetch(SUNMINT_PENDING_URL, { cache: 'no-cache' });
                 const data = await res.json();
                 if (data.status !== 'success') throw new Error(data.message || 'Failed to load Sunmint submissions');
-                sunmintItems = data.items || [];
+                sunmintItems = (data.items || []).filter(isLinkableSubmission);
                 renderSunmintList();
             } catch (err) {
                 sel.innerHTML = '<option value="">Error loading Sunmint submissions: ' + escapeHtml(err.message) + '</option>';
