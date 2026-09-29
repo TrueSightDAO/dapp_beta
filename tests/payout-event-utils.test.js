@@ -933,5 +933,40 @@ test('parseFilterUrl: round-trips through filterUrlParams', () => {
     assert.deepStrictEqual(u.parseFilterUrl(qs, d), want);
 });
 
+// --- paid / linkage predicates (payout-feed class fix, thread 35944) --------
+test('isUnpaidTree: absent paid flag => unpaid (back-compat NEW-only feed)', () => {
+    assert.strictEqual(u.isUnpaidTree({ status: 'NEW' }), true);
+    assert.strictEqual(u.isUnpaidTree({ status: 'NEW', paid: false }), true);
+});
+test('isUnpaidTree: paid LINKED tree is NOT unpaid (stays out of the picker)', () => {
+    assert.strictEqual(u.isUnpaidTree({ status: 'LINKED', paid: true }), false);
+});
+test('isUnpaidTree: string "true" from a sheet round-trip is honoured', () => {
+    assert.strictEqual(u.isUnpaidTree({ paid: 'true' }), false);
+    assert.strictEqual(u.isUnpaidTree({ paid: ' TRUE ' }), false);
+});
+test('isLinkableTree: NEW / no linked qr => linkable', () => {
+    assert.strictEqual(u.isLinkableTree({ status: 'NEW' }), true);
+    assert.strictEqual(u.isLinkableTree({}), true);
+});
+test('isLinkableTree: LINKED or a linked_qr => NOT linkable', () => {
+    assert.strictEqual(u.isLinkableTree({ status: 'LINKED' }), false);
+    assert.strictEqual(u.isLinkableTree({ status: 'NEW', linked_qr: '2024OSR_81PB_20260412_3' }), false);
+});
+test('linkableTrees keeps only unlinked submissions (link-page guard)', () => {
+    const feed = [{ telegram_message_id: 'a', status: 'NEW' },
+                  { telegram_message_id: 'b', status: 'LINKED', linked_qr: 'X' },
+                  { telegram_message_id: 'c', status: 'LINKED', linked_qr: 'Y' },
+                  { telegram_message_id: 'd', status: 'NEW' }];
+    assert.deepStrictEqual(u.linkableTrees(feed).map(t => t.telegram_message_id), ['a', 'd']);
+});
+test('unpaidTrees keeps unpaid (incl. LINKED-unpaid) and drops paid', () => {
+    const feed = [{ telegram_message_id: 'a', status: 'NEW' },
+                  { telegram_message_id: 'b', status: 'LINKED', paid: false },
+                  { telegram_message_id: 'c', status: 'LINKED', paid: true },
+                  { telegram_message_id: 'd', status: 'NEW', paid: true }];
+    assert.deepStrictEqual(u.unpaidTrees(feed).map(t => t.telegram_message_id), ['a', 'b']);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

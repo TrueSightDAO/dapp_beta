@@ -22,7 +22,7 @@
     <script src="./scripts/permissions.js"></script>
     <script src="./scripts/edgar_payload_helper.js"></script>
     <script src="./scripts/edgar_submission.js?v=20260913a"></script>
-    <script src="./payout-event-utils.js?v=20260926c"></script>
+    <script src="./payout-event-utils.js?v=20260929a"></script>
 
     <style>
         /* TrueSight DApp — light "Saffron Monk" / earthen palette, matching link_tree_planting.html */
@@ -650,7 +650,10 @@
                 ).filter(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
                     return id && !_submittedTreeIds[id];
-                });
+                // Gary (thread 35944): EVERY UNPAID tree is payable, INCLUDING
+                // already-LINKED ones -- `status` is QR-linkage, not payment. Drop
+                // only trees the feed marks paid (absent `paid` => unpaid, back-compat).
+                }).filter(U.isUnpaidTree);
             }
 
             function renderTreeOptions() {
