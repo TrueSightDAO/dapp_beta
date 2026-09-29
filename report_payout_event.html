@@ -384,6 +384,9 @@
             let _maskedKeyByPk = {};      // pk_hash -> {pix_key_type, pix_key_masked} (masked-only)
             let _autoFilledPk = '';       // the pk_hash WE filled, so we never clobber a typed one
             let _urlParamApplied = false; // ?tree_id= deep-link applied ONCE, after the feed loads
+            let _programOptionsLoaded = false; // Program dropdown populated from its SSOT
+            let _farmOptionsLoaded = false;    // Farm dropdown populated from its SSOT
+            let _urlFiltersApplied = false;    // ?farm=&plot=&program= applied ONCE (after both load)
             let _pendingHasProgramData = false;  // does the pending feed carry program attribution?
             const RECEIPT_REPO_BASE_URL = 'https://github.com/TrueSightDAO/payout-receipts-raw/blob/main/receipts/';
             let uploadedReceiptFile = null;
@@ -475,6 +478,8 @@
                 sel.innerHTML = opts.join('');
                 sel.value = keep || '';
                 renderProgramFilterNote();
+                _programOptionsLoaded = true;
+                tryApplyUrlFilters();
             }
 
             // Loud-failure affordance: when a program is chosen but the feed carries
@@ -547,6 +552,8 @@
                 sel.innerHTML = opts.join('');
                 sel.value = ids.indexOf(keep) !== -1 ? keep : '';
                 applyPlotOptions();
+                _farmOptionsLoaded = true;
+                tryApplyUrlFilters();
             }
 
             // Cascade: the Plot dropdown lists only the chosen farm's plots. With no farm
@@ -572,6 +579,48 @@
                 sel.innerHTML = opts.join('');
                 sel.value = plots.indexOf(keep) !== -1 ? keep : '';
                 renderFarmPlotFilterNote();
+            }
+
+            // -- Filter state <-> URL (farm/plot/program) -------------------------
+            // Changing Farm/Plot/Program mirrors the facets into the URL so the
+            // filtered view is shareable/bookmarkable; a colleague opening the link
+            // lands on the same cluster. Defaults are omitted so a pristine link stays
+            // clean. Composes with ?tx= / ?tree_id= (each touches only its own keys).
+            const FILTER_URL_DEFAULTS = { farm: '', plot: '', program: 'crf-anapu' };
+
+            // Mirror the current filter facets into the URL (replaceState -- no history spam).
+            function setUrlFilterParams() {
+                try {
+                    const u = new URL(window.location.href);
+                    const wanted = U.filterUrlParams(
+                        { farm: currentFarm(), plot: currentPlot(), program: currentProgram() },
+                        FILTER_URL_DEFAULTS
+                    );
+                    U.FILTER_URL_KEYS.forEach(function (k) {
+                        if (Object.prototype.hasOwnProperty.call(wanted, k)) u.searchParams.set(k, wanted[k]);
+                        else u.searchParams.delete(k);
+                    });
+                    window.history.replaceState({}, '', u.toString());
+                } catch (e) { console.warn('setUrlFilterParams', e); }
+            }
+
+            // Apply ?farm=&plot=&program= ONCE, after BOTH dropdowns are populated.
+            // A facet the SSOT does not offer is ignored (graceful), never forced.
+            function tryApplyUrlFilters() {
+                if (_urlFiltersApplied || !_programOptionsLoaded || !_farmOptionsLoaded) return;
+                _urlFiltersApplied = true;
+                try {
+                    const f = U.parseFilterUrl(window.location.search, FILTER_URL_DEFAULTS);
+                    const ps = $('programSlug');
+                    if (ps && Array.prototype.some.call(ps.options, function (o) { return o.value === f.program; })) ps.value = f.program;
+                    const fs = $('farmFilter');
+                    if (fs && f.farm && Array.prototype.some.call(fs.options, function (o) { return o.value === f.farm; })) fs.value = f.farm;
+                    applyPlotOptions();
+                    const pls = $('plotFilter');
+                    if (pls && f.plot && Array.prototype.some.call(pls.options, function (o) { return o.value === f.plot; })) pls.value = f.plot;
+                    renderTreeOptions();
+                    setUrlFilterParams();   // normalize: drop facets the data could not honor
+                } catch (e) { console.warn('tryApplyUrlFilters', e); }
             }
 
             // Loud-failure affordance mirrored from renderProgramFilterNote: when a
@@ -741,6 +790,7 @@
                 renderTreeOptions();
                 renderOverpayGuard();
                 renderTreeDetails();
+                setUrlFilterParams();
             }
 
             // One card per id currently in the tree field: species, planting date,
@@ -1597,11 +1647,11 @@
                 const bSubmit = $('batchSubmitButton');
                 if (bSubmit) bSubmit.addEventListener('click', submitBatch);
                 const programSel = $('programSlug');
-                if (programSel) programSel.addEventListener('change', renderTreeOptions);
+                if (programSel) programSel.addEventListener('change', function () { renderTreeOptions(); setUrlFilterParams(); });
                 const farmSel = $('farmFilter');
-                if (farmSel) farmSel.addEventListener('change', function () { applyPlotOptions(); renderTreeOptions(); });
+                if (farmSel) farmSel.addEventListener('change', function () { applyPlotOptions(); renderTreeOptions(); setUrlFilterParams(); });
                 const plotSel = $('plotFilter');
-                if (plotSel) plotSel.addEventListener('change', renderTreeOptions);
+                if (plotSel) plotSel.addEventListener('change', function () { renderTreeOptions(); setUrlFilterParams(); });
                 const picker = $('treePicker');
                 if (picker) picker.addEventListener('change', addPickedTree);
                 const guardHost = $('overpayGuard');
