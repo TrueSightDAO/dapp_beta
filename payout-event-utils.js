@@ -688,6 +688,157 @@
         return !hasData;
     }
 
+    // ── Farm / Plot spatial filter ──────────────────────────────────────────
+    // The unpaid-tree feed carries each tree's latitude/longitude but NO
+    // farm/plot field. sunmint/plots/index.geojson (Polygon features with
+    // plot_id/farm_id) is the live SSOT, so a point-in-polygon test of a tree's
+    // coordinates yields its plot_id -> farm_id for free — no new data
+    // collection, no form change. Farm and Program are INDEPENDENT, combinable
+    // facets; Plot NESTS inside Farm. Both combine with Program via AND.
+
+    // Ordered OUTER rings (arrays of [lng, lat] pairs) for a Polygon or a
+    // MultiPolygon. [] for an unparseable geometry so a malformed feature can
+    // never silently match a tree.
+    function _rings(coords) {
+        if (!Array.isArray(coords) || !coords.length) return [];
+        var first = coords[0];
+        if (Array.isArray(first) && Array.isArray(first[0]) && Array.isArray(first[0][0])) {
+            var out = [];
+            coords.forEach(function (poly) {
+                if (Array.isArray(poly) && Array.isArray(poly[0])) out.push(poly[0]);
+            });
+            return out;
+        }
+        return [coords[0]]; // Polygon -> the outer ring (holes ignored for the filter)
+    }
+
+    // Point-on-segment test (epsilon-tolerant): a tree exactly on a plot edge is
+    // read as INSIDE so it is never silently dropped.
+    function _onSegment(px, py, ax, ay, bx, by) {
+        var EPS = 1e-9;
+        var cross = (py - ay) * (bx - ax) - (px - ax) * (by - ay);
+        if (Math.abs(cross) > EPS) return false;
+        return px >= Math.min(ax, bx) - EPS && px <= Math.max(ax, bx) + EPS &&
+            py >= Math.min(ay, by) - EPS && py <= Math.max(ay, by) + EPS;
+    }
+
+    // Ray-casting (even-odd) point-in-polygon against ONE ring of [lng, lat].
+    function _pointInRing(lat, lng, ring) {
+        if (!Array.isArray(ring) || ring.length < 3) return false;
+        var inside = false;
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            var xi = Number(ring[i][0]), yi = Number(ring[i][1]);
+            var xj = Number(ring[j][0]), yj = Number(ring[j][1]);
+            if (!isFinite(xi) || !isFinite(yi) || !isFinite(xj) || !isFinite(yj)) continue;
+            if (_onSegment(lng, lat, xi, yi, xj, yj)) return true;
+            if (((yi > lat) !== (yj > lat)) &&
+                (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+        }
+        return inside;
+    }
+
+    // The plot a pending tree sits on, by joining its lat/long against the plot
+    // polygons. Returns {plot_id, farm_id} — both '' when the tree carries no
+    // usable coordinates or falls outside every registered plot (graceful-empty,
+    // exactly like an unattributed row under the Program filter).
+    function treePlotMatch(tree, geojson) {
+        if (!tree) return { plot_id: '', farm_id: '' };
+        var lat = _num(tree.latitude), lng = _num(tree.longitude);
+        if (lat === null || lng === null) return { plot_id: '', farm_id: '' };
+        var feats = (geojson && geojson.features) || [];
+        for (var i = 0; i < feats.length; i++) {
+            var f = feats[i];
+            if (!f || !f.geometry) continue;
+            var rings = _rings(f.geometry.coordinates);
+            for (var r = 0; r < rings.length; r++) {
+                if (_pointInRing(lat, lng, rings[r])) {
+                    var p = f.properties || {};
+                    return { plot_id: trim(p.plot_id || ''), farm_id: trim(p.farm_id || '') };
+                }
+            }
+        }
+        return { plot_id: '', farm_id: '' };
+    }
+
+    // farm_id -> the farm record, from sunmint/farms/index.json ({farms:[...]}).
+    function farmsById(farmsIndex) {
+        var out = {};
+        var list = (farmsIndex && farmsIndex.farms) || [];
+        list.forEach(function (f) {
+            var id = trim(f && f.farm_id);
+            if (id && !out[id]) out[id] = f;
+        });
+        return out;
+    }
+
+    // Ordered farm ids that actually have >=1 plot in the geojson — so the Farm
+    // dropdown never offers a farm the spatial join can never match.
+    function farmsWithPlots(plotsGeojson) {
+        var seen = {}, out = [];
+        var feats = (plotsGeojson && plotsGeojson.features) || [];
+        feats.forEach(function (f) {
+            var id = trim(f && f.properties && f.properties.farm_id);
+            if (id && !seen[id]) { seen[id] = 1; out.push(id); }
+        });
+        return out;
+    }
+
+    // [plot_id, ...] for one farm, in geojson order — drives the cascading Plot
+    // dropdown once a Farm is chosen.
+    function plotsForFarm(plotsGeojson, farmId) {
+        var want = trim(farmId);
+        var out = [];
+        if (!want) return out;
+        var feats = (plotsGeojson && plotsGeojson.features) || [];
+        feats.forEach(function (f) {
+            var p = (f && f.properties) || {};
+            if (trim(p.farm_id) === want) {
+                var pid = trim(p.plot_id);
+                if (pid && out.indexOf(pid) === -1) out.push(pid);
+            }
+        });
+        return out;
+    }
+
+    // Farm/Plot narrowing: keep a tree when it matches the chosen farm AND (when
+    // set) the chosen plot. A blank farm AND plot = every tree. Once ANY facet is
+    // chosen an off-plot tree (which matches no farm) is HIDDEN — never shown as
+    // if it belonged. While NO plot geometry is loaded the facet cannot narrow, so
+    // every tree is kept and farmPlotFilterNotApplied() says so (mirrors
+    // treesForProgram's hasData guard).
+    function treesForFarmPlot(trees, farmId, plotId, plotsGeojson) {
+        var all = trees || [];
+        var farm = trim(farmId), plot = trim(plotId);
+        if (!farm && !plot) return all;
+        var feats = (plotsGeojson && plotsGeojson.features) || [];
+        if (!feats.length) return all;
+        return all.filter(function (t) {
+            var m = treePlotMatch(t, plotsGeojson);
+            if (!m.plot_id && !m.farm_id) return false;   // off-plot -> no facet matches
+            if (farm && m.farm_id !== farm) return false;
+            if (plot && m.plot_id !== plot) return false;
+            return true;
+        });
+    }
+
+    // True when a Farm/Plot facet is chosen but no tree could be spatially located
+    // in any registered plot (or no plot geometry is loaded) — the page must SAY
+    // the filter is idle rather than imply it applied. Mirrors
+    // programFilterNotApplied.
+    function farmPlotFilterNotApplied(farmId, plotId, trees, plotsGeojson) {
+        var farm = trim(farmId), plot = trim(plotId);
+        if (!farm && !plot) return false;
+        var all = trees || [];
+        if (!all.length) return false;
+        var feats = (plotsGeojson && plotsGeojson.features) || [];
+        if (!feats.length) return true;
+        var anyLocated = all.some(function (t) {
+            var m = treePlotMatch(t, plotsGeojson);
+            return !!(m.plot_id || m.farm_id);
+        });
+        return !anyLocated;
+    }
+
     // --- [TREE PLANTING REJECT EVENT] payload -------------------------------
     // The governor action "mark tree as invalid": the SAME event the
     // monitor-tree-growth page emits, so the governor/sentinel-only GAS consumer
@@ -824,6 +975,12 @@
         feedHasProgramData: feedHasProgramData,
         treesForProgram: treesForProgram,
         programFilterNotApplied: programFilterNotApplied,
+        treePlotMatch: treePlotMatch,
+        farmsById: farmsById,
+        farmsWithPlots: farmsWithPlots,
+        plotsForFarm: plotsForFarm,
+        treesForFarmPlot: treesForFarmPlot,
+        farmPlotFilterNotApplied: farmPlotFilterNotApplied,
         payeeViewerBase: payeeViewerBase,
         payeeMyTreesUrl: payeeMyTreesUrl,
         PAYEE_VIEWER_DEFAULT: PAYEE_VIEWER_DEFAULT,
