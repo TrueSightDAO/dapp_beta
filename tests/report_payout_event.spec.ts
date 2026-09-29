@@ -69,10 +69,11 @@ async function mockBackend(
         contentType: 'application/json',
         body: JSON.stringify({
           status: 'success',
-          count: 2,
+          count: 3,
           items: [
             { telegram_message_id: 'Edgar_TEST_T1', species: 'Cacau', planting_date: '2026-09-01', photo_url: 'http://x/t1.jpg', latitude: '-3.1', longitude: '-52.1', status: 'NEW', program: 'crf-anapu', recipient_pk_hash: feedRecipient ? 'pk-qkejKJJW3IAD' : '' },
             { telegram_message_id: 'Edgar_TEST_T2', species: 'Cacau', planting_date: '2026-09-02', photo_url: 'http://x/t2.jpg', latitude: '-3.2', longitude: '-52.2', status: 'NEW', program: '', recipient_pk_hash: '' },
+            { telegram_message_id: 'Edgar_TEST_T3', species: 'Cacau', planting_date: '2026-09-03', photo_url: 'http://x/t3.jpg', latitude: '-3.3', longitude: '-52.3', status: 'NEW', program: 'crf-anapu', request_txid: 'TSL3TEST1234567890ABCDEF', recipient_pk_hash: '' },
           ],
         }),
       });
@@ -956,5 +957,40 @@ test.describe('report_payout_event.html', () => {
 
     await page.selectOption('#treePicker', '');
     await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBeNull();
+  });
+
+  test('SELECT -> URL: a signed tree mirrors the SHORT tx handle (?tx=), not ?tree_id= (Gary 2026-09-29)', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T3"]')).toHaveCount(1, { timeout: 15000 });
+
+    await page.selectOption('#programSlug', '');
+    await page.selectOption('#treePicker', 'Edgar_TEST_T3');
+    // The short 8-char transaction handle lands in the URL...
+    await expect.poll(() => new URL(page.url()).searchParams.get('tx')).toBe('TSL3TEST');
+    // ...and the long canonical id is NOT used for a signed row.
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBeNull();
+  });
+
+  test('DEEP-LINK: ?tx=<short handle> selects that tree on load', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html?tx=TSL3TEST');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker')).toHaveValue('Edgar_TEST_T3', { timeout: 15000 });
+  });
+
+  test('SELECT -> URL: a txid-less row still mirrors the canonical ?tree_id= (fallback)', async ({ page }) => {
+    await mockBackend(page);
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1, { timeout: 15000 });
+
+    await page.selectOption('#treePicker', 'Edgar_TEST_T1');
+    await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
+    await expect.poll(() => new URL(page.url()).searchParams.get('tx')).toBeNull();
   });
 });

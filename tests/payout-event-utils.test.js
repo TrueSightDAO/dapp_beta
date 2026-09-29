@@ -734,6 +734,31 @@ test('payeeViewerBase: unknown program -> SunMint beta default', () => {
     assert.strictEqual(u.payeeViewerBase('mystery'), 'https://beta.sunmint.truesight.me');
 });
 
+test('selectionUrlParam: tx:<handle> when a signed txid exists, else the canonical id', () => {
+    assert.deepStrictEqual(
+        u.selectionUrlParam({ request_txid: 'CxSlFq7RuxycxGqIylxz+woi', telegram_message_id: 'Edgar_1_2' }, 'Edgar_1_2'),
+        { key: 'tx', value: 'CxSlFq7R' });
+    assert.deepStrictEqual(
+        u.selectionUrlParam({ telegram_message_id: 'Edgar_1_2' }, 'Edgar_1_2'),
+        { key: 'tree_id', value: 'Edgar_1_2' });
+    assert.deepStrictEqual(u.selectionUrlParam({}, 'X'), { key: 'tree_id', value: 'X' });
+    assert.strictEqual(u.selectionUrlParam({}, ''), null);
+    assert.strictEqual(u.selectionUrlParam(null, ''), null);
+});
+
+test('resolveTxHandle: matches request_txid by prefix/substring, tolerates the tx: label', () => {
+    const feed = [
+        { telegram_message_id: 'Edgar_A', request_txid: 'CxSlFq7RuxycxGqIylxz' },
+        { telegram_message_id: 'Edgar_B', request_txid: 'HdRM45+q9x81dxQoWhzw' },
+    ];
+    assert.strictEqual(u.resolveTxHandle(feed, 'CxSlFq7R'), 'Edgar_A');
+    assert.strictEqual(u.resolveTxHandle(feed, 'tx:CxSlFq7R'), 'Edgar_A');
+    assert.strictEqual(u.resolveTxHandle(feed, 'HdRM45'), 'Edgar_B');
+    assert.strictEqual(u.resolveTxHandle(feed, 'nope'), '');
+    assert.strictEqual(u.resolveTxHandle(feed, ''), '');
+    assert.strictEqual(u.resolveTxHandle(null, 'Cx'), '');
+});
+
 
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

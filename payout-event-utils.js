@@ -748,6 +748,41 @@
         return base + '/my-trees/?tree=' + encodeURIComponent(id);
     }
 
+    /**
+     * The URL query a tree SELECTION should mirror. When the row carries a signed
+     * `Request Transaction ID`, the short 8-char handle is the human/URL identity
+     * (`{key:'tx', value:'CxSlFq7R'}`); otherwise fall back to the canonical
+     * transport id (`{key:'tree_id', value:<id>}`) so a txid-less row still links.
+     * Null when there is nothing to link. DISPLAY/DEEP-LINK ONLY -- the signed
+     * payload always keys off the picker's canonical value, never the URL.
+     */
+    function selectionUrlParam(tree, id) {
+        var tx = shortTxid(tree);
+        if (tx) return { key: 'tx', value: tx };
+        var canonical = trim(id || (tree && (tree.telegram_message_id || tree.tree_id)) || '');
+        return canonical ? { key: 'tree_id', value: canonical } : null;
+    }
+
+    /**
+     * Resolve a `?tx=<handle>` deep-link against the feed: the tree whose
+     * `request_txid` starts with (else contains) the handle, case-insensitive and
+     * tolerating a leading `tx:` label. Returns the CANONICAL id ('' if none).
+     * Mirrors the viewer site's `?tx=` substring semantics so a short handle works.
+     * With 8-char handles there are no prefix collisions in the live feed (148
+     * distinct txids, 0 collisions at length 8 as of 2026-09-29).
+     */
+    function resolveTxHandle(trees, handle) {
+        var h = trim(handle).toLowerCase().replace(/^tx:/, '');
+        if (!h) return '';
+        var list = trees || [];
+        var hit = list.find(function (t) {
+            return trim(t && t.request_txid).toLowerCase().indexOf(h) === 0;
+        }) || list.find(function (t) {
+            return trim(t && t.request_txid).toLowerCase().indexOf(h) >= 0;
+        });
+        return hit ? trim(hit.telegram_message_id || hit.tree_id || '') : '';
+    }
+
     var utils = {
         EVENT_NAME: EVENT_NAME,
         TREE_REJECT_EVENT_NAME: TREE_REJECT_EVENT_NAME,
@@ -791,7 +826,9 @@
         programFilterNotApplied: programFilterNotApplied,
         payeeViewerBase: payeeViewerBase,
         payeeMyTreesUrl: payeeMyTreesUrl,
-        PAYEE_VIEWER_DEFAULT: PAYEE_VIEWER_DEFAULT
+        PAYEE_VIEWER_DEFAULT: PAYEE_VIEWER_DEFAULT,
+        selectionUrlParam: selectionUrlParam,
+        resolveTxHandle: resolveTxHandle
     };
 
     global.PayoutEventUtils = utils;
