@@ -208,6 +208,17 @@
             <div class="hint">The program this payout belongs to. Pick one to narrow the unpaid-tree list below to that program&rsquo;s trees; leave it as <em>no program</em> for a general disbursement (the emitted <code>Program</code> is then <code>unlinked_program</code> and the CFR-only Tier-2 write does not fire).</div>
             <div id="programFilterNote" class="hint" style="display:none;"></div>
 
+            <label for="farmFilter">Farm</label>
+            <select id="farmFilter">
+                <option value="">(all farms)</option>
+            </select>
+            <label for="plotFilter">Plot</label>
+            <select id="plotFilter" disabled>
+                <option value="">(all plots)</option>
+            </select>
+            <div class="hint">Narrow the unpaid-tree list by <strong>farm</strong> and <strong>plot</strong>, alongside the Program filter &mdash; all facets apply together (AND). A tree's farm/plot is derived by a point-in-polygon join of its GPS coordinates against the registered plot boundaries, so a tree with no usable coordinates or an unregistered location matches no farm (it is hidden once you pick one). Plot options cascade from the chosen farm.</div>
+            <div id="farmPlotFilterNote" class="hint" style="display:none;"></div>
+
             <label for="treePicker">Tree Planting ID <span class="primary-tag">primary</span></label>
             <select id="treePicker">
                 <option value="">Loading unpaid trees&hellip;</option>
@@ -350,6 +361,8 @@
             let _selectedTreeId = '';        // picker selection -- the tree being paid (drives autofill/reject)
             let _programHosts = {};          // host -> program slug (from the registry, SSOT)
             let _signedInName = '';          // resolved contributor name (for the reject payload)
+            let _plotsGeojson = null;        // sunmint/plots/index.geojson (SSOT for the Farm/Plot spatial join)
+            let _farmsById = {};             // farm_id -> farm record (sunmint/farms/index.json)
 
             function loadPendingTrees() {
                 if (typeof fetch !== 'function') return;
@@ -455,6 +468,94 @@
                 return U.treesForProgram(_pendingTrees, program, _programHosts, _pendingHasProgramData);
             }
 
+            // ── Farm / Plot filter (mirrors the Program filter above) ────────────
+            // Program and Farm/Plot are INDEPENDENT facets (AND), plot nests in farm.
+
+            function currentFarm() {
+                const el = $('farmFilter');
+                return el ? String(el.value || '').trim() : '';
+            }
+
+            function currentPlot() {
+                const el = $('plotFilter');
+                return el ? String(el.value || '').trim() : '';
+            }
+
+            // Load the farm/plot SSOTs (plot polygons + farms index) once, then populate
+            // the Farm dropdown. Keeps the current selection.
+            function loadFarmPlotOptions() {
+                if (typeof fetch !== 'function') return;
+                Promise.all([
+                    fetch('https://raw.githubusercontent.com/TrueSightDAO/sunmint/main/plots/index.geojson', { cache: 'no-cache' }).then(function (r) { return r.json(); }).catch(function () { return null; }),
+                    fetch('https://raw.githubusercontent.com/TrueSightDAO/sunmint/main/farms/index.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).catch(function () { return null; })
+                ]).then(function (res) {
+                    _plotsGeojson = res[0];
+                    _farmsById = U.farmsById(res[1]);
+                    applyFarmOptions();
+                    renderTreeOptions();
+                }).catch(function () { /* leave the selects as they are */ });
+            }
+
+            // Farm options = only farms that actually carry a plot in the geojson (so the
+            // dropdown never offers a farm the join can never match), labelled by the
+            // farms-index display name.
+            function applyFarmOptions() {
+                const sel = $('farmFilter');
+                if (!sel) return;
+                const keep = sel.value || '';
+                var ids = U.farmsWithPlots(_plotsGeojson);
+                var opts = ['<option value="">(all farms)</option>'];
+                ids.forEach(function (id) {
+                    var f = _farmsById[id] || {};
+                    var label = (f.name ? f.name : id) + (f.region ? ' - ' + f.region : '');
+                    opts.push('<option value="' + escapeHtml(id) + '">' + escapeHtml(label) + '</option>');
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = ids.indexOf(keep) !== -1 ? keep : '';
+                applyPlotOptions();
+            }
+
+            // Cascade: the Plot dropdown lists only the chosen farm's plots. With no farm
+            // chosen, plot narrowing is disabled (the facet is not applied).
+            function applyPlotOptions() {
+                const sel = $('plotFilter');
+                if (!sel) return;
+                const farm = currentFarm();
+                const keep = sel.value || '';
+                if (!farm) {
+                    sel.innerHTML = '<option value="">(all plots)</option>';
+                    sel.disabled = true;
+                    sel.value = '';
+                    renderFarmPlotFilterNote();
+                    return;
+                }
+                sel.disabled = false;
+                var plots = U.plotsForFarm(_plotsGeojson, farm);
+                var opts = ['<option value="">(all plots)</option>'];
+                plots.forEach(function (pid) {
+                    opts.push('<option value="' + escapeHtml(pid) + '">' + escapeHtml(pid) + '</option>');
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = plots.indexOf(keep) !== -1 ? keep : '';
+                renderFarmPlotFilterNote();
+            }
+
+            // Loud-failure affordance mirrored from renderProgramFilterNote: when a
+            // farm/plot is chosen but no pending tree could be spatially located, say so
+            // rather than imply the filter narrowed.
+            function renderFarmPlotFilterNote() {
+                const el = $('farmPlotFilterNote');
+                if (!el) return;
+                if (U.farmPlotFilterNotApplied(currentFarm(), currentPlot(), _pendingTrees, _plotsGeojson)) {
+                    el.style.display = 'block';
+                    el.style.color = '#8a6d3b';
+                    el.textContent = 'Farm/Plot filter not applied: none of the unpaid trees could be located in a registered plot (they may lack coordinates or fall outside every plot boundary), so all unpaid trees are still listed.';
+                } else {
+                    el.style.display = 'none';
+                    el.textContent = '';
+                }
+            }
+
             // The PICKER lists only UNPAID trees (the public pending cache is already
             // Status==NEW, i.e. not-yet-paid). Trees paid in THIS session are dropped
             // via _submittedTreeIds so a just-paid tree cannot be picked twice.
@@ -463,7 +564,9 @@
                 if (!sel) return;
                 const chosen = {};
                 if (_selectedTreeId) chosen[_selectedTreeId] = 1;
-                const rows = treesForProgram(currentProgram()).filter(function (t) {
+                const rows = U.treesForFarmPlot(
+                    treesForProgram(currentProgram()), currentFarm(), currentPlot(), _plotsGeojson
+                ).filter(function (t) {
                     var id = String(t.telegram_message_id || t.tree_id || '').trim();
                     return id && !_submittedTreeIds[id];
                 });
@@ -486,6 +589,7 @@
                 sel.innerHTML = opts.join('');
                 sel.value = chosen[_selectedTreeId] ? _selectedTreeId : '';
                 renderProgramFilterNote();
+                renderFarmPlotFilterNote();
             }
 
             // Single-select: picking a tree REPLACES the current selection.
@@ -1010,6 +1114,7 @@
                             $('authBadge').className = 'status-badge governor';
                             $('content').style.display = 'block';
                             loadProgramOptions();
+                            loadFarmPlotOptions();
                             loadPendingTrees();
                             loadRegistrations();
                         },
@@ -1247,6 +1352,10 @@
                 $('submitButton').addEventListener('click', submit);
                 const programSel = $('programSlug');
                 if (programSel) programSel.addEventListener('change', renderTreeOptions);
+                const farmSel = $('farmFilter');
+                if (farmSel) farmSel.addEventListener('change', function () { applyPlotOptions(); renderTreeOptions(); });
+                const plotSel = $('plotFilter');
+                if (plotSel) plotSel.addEventListener('change', renderTreeOptions);
                 const picker = $('treePicker');
                 if (picker) picker.addEventListener('change', addPickedTree);
                 const guardHost = $('overpayGuard');

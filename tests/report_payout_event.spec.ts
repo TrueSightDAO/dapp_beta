@@ -995,4 +995,45 @@ test.describe('report_payout_event.html', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('tree_id')).toBe('Edgar_TEST_T1');
     await expect.poll(() => new URL(page.url()).searchParams.get('tx')).toBeNull();
   });
+
+  test('FARM/PLOT filter: cascading selects narrow the unpaid-tree list (Gary 2026-09-29)', async ({ page }) => {
+    await mockBackend(page);
+    // Override the farm/plot SSOT fetches: PL-002 + PL-005 on fazenda-bom-sucesso.
+    // T1's coords (-3.1, -52.1) fall inside PL-002; T2/T3 are off-plot.
+    await page.route('**/sunmint/plots/index.geojson', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'FeatureCollection', features: [
+        { type: 'Feature', properties: { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' },
+          geometry: { type: 'Polygon', coordinates: [[[-52.15, -3.15], [-52.05, -3.15], [-52.05, -3.05], [-52.15, -3.05], [-52.15, -3.15]]] } },
+        { type: 'Feature', properties: { plot_id: 'PL-005', farm_id: 'fazenda-bom-sucesso' },
+          geometry: { type: 'Polygon', coordinates: [[[-52.35, -3.25], [-52.25, -3.25], [-52.25, -3.15], [-52.35, -3.15], [-52.35, -3.25]]] } },
+      ] }),
+    }));
+    await page.route('**/sunmint/farms/index.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'farms_index', farms: [
+        { farm_id: 'fazenda-bom-sucesso', name: 'Fazenda Bom Sucesso', region: 'Altamira, Para' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // Farm dropdown is populated from the farms-with-plots set (not the raw index).
+    await expect(page.locator('#farmFilter option[value="fazenda-bom-sucesso"]')).toHaveCount(1, { timeout: 15000 });
+
+    // Pick the farm -> the Plot dropdown cascades from it.
+    await page.selectOption('#farmFilter', 'fazenda-bom-sucesso');
+    await expect(page.locator('#plotFilter option[value="PL-002"]')).toHaveCount(1);
+    await expect(page.locator('#plotFilter option[value="PL-005"]')).toHaveCount(1);
+
+    // With no program filter, the farm facet leaves only the on-plot tree (T1).
+    await page.selectOption('#programSlug', '');
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(0);
+
+    // Narrow further to PL-005 -> the on-PL-002 tree drops out.
+    await page.selectOption('#plotFilter', 'PL-005');
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(0);
+  });
 });
