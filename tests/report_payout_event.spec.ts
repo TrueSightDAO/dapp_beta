@@ -1000,7 +1000,7 @@ test.describe('report_payout_event.html', () => {
     await mockBackend(page);
     // Override the farm/plot SSOT fetches: PL-002 + PL-005 on fazenda-bom-sucesso.
     // T1's coords (-3.1, -52.1) fall inside PL-002; T2/T3 are off-plot.
-    await page.route('**/sunmint/plots/index.geojson', (route) => route.fulfill({
+    await page.route('**/plots/index.geojson', (route) => route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ type: 'FeatureCollection', features: [
         { type: 'Feature', properties: { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' },
@@ -1009,7 +1009,7 @@ test.describe('report_payout_event.html', () => {
           geometry: { type: 'Polygon', coordinates: [[[-52.35, -3.25], [-52.25, -3.25], [-52.25, -3.15], [-52.35, -3.15], [-52.35, -3.25]]] } },
       ] }),
     }));
-    await page.route('**/sunmint/farms/index.json', (route) => route.fulfill({
+    await page.route('**/farms/index.json', (route) => route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ type: 'farms_index', farms: [
         { farm_id: 'fazenda-bom-sucesso', name: 'Fazenda Bom Sucesso', region: 'Altamira, Para' },
@@ -1035,6 +1035,75 @@ test.describe('report_payout_event.html', () => {
     // Narrow further to PL-005 -> the on-PL-002 tree drops out.
     await page.selectOption('#plotFilter', 'PL-005');
     await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(0);
+  });
+
+  test('filters: changing Farm/Plot/Program mirrors the facets into the URL', async ({ page }) => {
+    await mockBackend(page);
+    await page.route('**/plots/index.geojson', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'FeatureCollection', features: [
+        { type: 'Feature', properties: { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' },
+          geometry: { type: 'Polygon', coordinates: [[[-52.15, -3.15], [-52.05, -3.15], [-52.05, -3.05], [-52.15, -3.05], [-52.15, -3.15]]] } },
+      ] }),
+    }));
+    await page.route('**/farms/index.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'farms_index', farms: [
+        { farm_id: 'fazenda-bom-sucesso', name: 'Fazenda Bom Sucesso', region: 'Altamira, Para' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#farmFilter option[value="fazenda-bom-sucesso"]')).toHaveCount(1, { timeout: 15000 });
+
+    // Clean start: default program only -> the URL carries no filter facets.
+    await expect.poll(() => new URL(page.url()).searchParams.get('program')).toBeNull();
+
+    // Choose farm -> URL reflects it; plot cascades.
+    await page.selectOption('#farmFilter', 'fazenda-bom-sucesso');
+    await expect.poll(() => new URL(page.url()).searchParams.get('farm')).toBe('fazenda-bom-sucesso');
+    await page.selectOption('#plotFilter', 'PL-002');
+    await expect.poll(() => new URL(page.url()).searchParams.get('plot')).toBe('PL-002');
+
+    // Clear the program away from its default -> the URL says so explicitly.
+    await page.selectOption('#programSlug', '');
+    await expect.poll(() => new URL(page.url()).searchParams.get('program')).toBe('');
+
+    // Back to a pristine filter -> the facets drop out of the URL (clean link).
+    await page.selectOption('#farmFilter', '');
+    await expect.poll(() => new URL(page.url()).searchParams.get('farm')).toBeNull();
+    await expect.poll(() => new URL(page.url()).searchParams.get('plot')).toBeNull();
+    await page.selectOption('#programSlug', 'crf-anapu');
+    await expect.poll(() => new URL(page.url()).searchParams.get('program')).toBeNull();
+  });
+
+  test('filters: a ?farm=&plot=&program= deep-link restores the filtered view', async ({ page }) => {
+    await mockBackend(page);
+    await page.route('**/plots/index.geojson', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'FeatureCollection', features: [
+        { type: 'Feature', properties: { plot_id: 'PL-002', farm_id: 'fazenda-bom-sucesso' },
+          geometry: { type: 'Polygon', coordinates: [[[-52.15, -3.15], [-52.05, -3.15], [-52.05, -3.05], [-52.15, -3.05], [-52.15, -3.15]]] } },
+      ] }),
+    }));
+    await page.route('**/farms/index.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ type: 'farms_index', farms: [
+        { farm_id: 'fazenda-bom-sucesso', name: 'Fazenda Bom Sucesso', region: 'Altamira, Para' },
+      ] }),
+    }));
+    await signIn(page, GOV_PUBLIC_KEY);
+    await page.goto('/report_payout_event.html?farm=fazenda-bom-sucesso&plot=PL-002&program=');
+    await expect(page.locator('#content')).toBeVisible({ timeout: 15000 });
+
+    // The facets from the link are applied once the SSOTs land.
+    await expect(page.locator('#farmFilter')).toHaveValue('fazenda-bom-sucesso', { timeout: 15000 });
+    await expect(page.locator('#plotFilter')).toHaveValue('PL-002');
+    await expect(page.locator('#programSlug')).toHaveValue('');
+    // The on-PL-002 tree stays; the off-plot tree is filtered out.
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T1"]')).toHaveCount(1);
+    await expect(page.locator('#treePicker option[value="Edgar_TEST_T2"]')).toHaveCount(0);
   });
 
   test('batch: ticking trees fires ONE single-tree PAYOUT EVENT per tree, each carrying total/N', async ({ page }) => {

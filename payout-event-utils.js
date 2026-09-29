@@ -909,6 +909,41 @@
         return base + '/my-trees/?tree=' + encodeURIComponent(id);
     }
 
+
+    // --- filter URL state (farm / plot / program) ---------------------------
+    // Gary (2026-09-29): changing Farm/Plot/Program should also update the URL, so
+    // the filtered view is shareable/bookmarkable. Defaults are caller-supplied
+    // (the page knows its own initial state); the util stays generic. Only the
+    // three fixed facet keys are handled -- composes with ?tx= / ?tree_id=.
+    var FILTER_URL_KEYS = ['farm', 'plot', 'program'];
+
+    // The facets that differ from their defaults -- i.e. the ones worth putting in
+    // the URL. A pristine (all-default) filter yields {} so a clean link stays clean.
+    function filterUrlParams(filters, defaults) {
+        var f = filters || {}, d = defaults || {}, out = {};
+        FILTER_URL_KEYS.forEach(function (k) {
+            var v = trim(f[k]);
+            if (v !== trim(d[k])) out[k] = v;
+        });
+        return out;
+    }
+
+    // Read the three facets from a URL query (URLSearchParams or a query string).
+    // A key ABSENT from the query falls back to its default, so an untouched link
+    // restores the page's initial filter state exactly. A key present-but-empty
+    // (e.g. `?program=`) is honored as an explicit empty value.
+    function parseFilterUrl(search, defaults) {
+        var d = defaults || {}, params = null;
+        if (search && typeof search.get === 'function') params = search;
+        else if (typeof URLSearchParams !== 'undefined') params = new URLSearchParams(String(search || ''));
+        var out = {};
+        FILTER_URL_KEYS.forEach(function (k) {
+            var v = (params && params.has && params.has(k)) ? trim(params.get(k)) : trim(d[k]);
+            out[k] = v;
+        });
+        return out;
+    }
+
     /**
      * The URL query a tree SELECTION should mirror. When the row carries a signed
      * `Request Transaction ID`, the short 8-char handle is the human/URL identity
@@ -1039,7 +1074,10 @@
         payeeMyTreesUrl: payeeMyTreesUrl,
         PAYEE_VIEWER_DEFAULT: PAYEE_VIEWER_DEFAULT,
         selectionUrlParam: selectionUrlParam,
-        resolveTxHandle: resolveTxHandle
+        resolveTxHandle: resolveTxHandle,
+        filterUrlParams: filterUrlParams,
+        parseFilterUrl: parseFilterUrl,
+        FILTER_URL_KEYS: FILTER_URL_KEYS
     };
 
     global.PayoutEventUtils = utils;

@@ -899,5 +899,39 @@ test('splitBatchAmount: rejects a bad lump (zero / negative / non-numeric)', () 
     assert.strictEqual(u.splitBatchAmount('abc', 10).valid, false);
 });
 
+// --- filter URL state (farm / plot / program) ------------------------------
+test('filterUrlParams: only non-default facets are emitted', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    assert.deepStrictEqual(u.filterUrlParams({ farm: 'fazenda-x', plot: '', program: 'crf-anapu' }, d), { farm: 'fazenda-x' });
+});
+test('filterUrlParams: an all-default filter yields {} (clean link stays clean)', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    assert.deepStrictEqual(u.filterUrlParams({ farm: '', plot: '', program: 'crf-anapu' }, d), {});
+});
+test('filterUrlParams: program cleared away from default is emitted as empty (explicit)', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    assert.deepStrictEqual(u.filterUrlParams({ farm: '', plot: '', program: '' }, d), { program: '' });
+});
+test('parseFilterUrl: absent keys fall back to defaults (untouched link restores initial state)', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    assert.deepStrictEqual(u.parseFilterUrl('', d), { farm: '', plot: '', program: 'crf-anapu' });
+});
+test('parseFilterUrl: reads farm/plot/program from a query string', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    assert.deepStrictEqual(u.parseFilterUrl('?farm=fazenda-x&plot=PL-002&program=', d),
+        { farm: 'fazenda-x', plot: 'PL-002', program: '' });
+});
+test('parseFilterUrl: accepts URLSearchParams and ignores unrelated keys (?tx=)', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    const sp = new URLSearchParams('tx=CxSlFq7R&farm=fazenda-x');
+    assert.deepStrictEqual(u.parseFilterUrl(sp, d), { farm: 'fazenda-x', plot: '', program: 'crf-anapu' });
+});
+test('parseFilterUrl: round-trips through filterUrlParams', () => {
+    const d = { farm: '', plot: '', program: 'crf-anapu' };
+    const want = { farm: 'fazenda-x', plot: 'PL-002', program: '' };
+    const qs = new URLSearchParams(u.filterUrlParams(want, d)).toString();
+    assert.deepStrictEqual(u.parseFilterUrl(qs, d), want);
+});
+
 console.log('\npayout-event-utils: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
