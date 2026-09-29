@@ -690,6 +690,33 @@ test('buildRecipientMapFromFeed: tolerant of a non-list input', () => {
 });
 
 // --- payee-viewable my-trees link (Gary 2026-09-29) -----------------------
+test('payeeMyTreesUrl: PREFERS the short tx handle (?tx=<8>) when the row has a txid', () => {
+    // The signed Request Transaction ID's first 8 chars -- the DAO's canonical,
+    // re-post-stable identity -- is the link handle (Gary 2026-09-29).
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ telegram_message_id: 'Edgar_1', request_txid: 'YgyO2UUE9IQ8zzz', program: 'crf-anapu' }),
+        'https://cfr.truesight.me/my-trees/?tx=YgyO2UUE');
+    // Program attribution still picks the host when using ?tx=.
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'Edgar_2', request_txid: 'AbCdEfGh1234', program: '' }),
+        'https://beta.sunmint.truesight.me/my-trees/?tx=AbCdEfGh');
+    // ...and a caller-supplied viewers map still overrides the host under ?tx=.
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'X', request_txid: 'ZZZZZZZZscore', program: 'new-prog' },
+            {}, { 'new-prog': 'https://new.example' }),
+        'https://new.example/my-trees/?tx=ZZZZZZZZ');
+});
+test('payeeMyTreesUrl: a SHORT/whitespace txid still yields a usable handle', () => {
+    // Defensive: a txid shorter than 8 chars (or padded) must not fabricate chars.
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ tree_id: 'E', request_txid: '  abc  ' , program: 'crf-anapu' }),
+        'https://cfr.truesight.me/my-trees/?tx=abc');
+});
+test('payeeMyTreesUrl: falls back to ?tree=<id> when the row has NO txid', () => {
+    assert.strictEqual(
+        u.payeeMyTreesUrl({ telegram_message_id: 'Edgar_N', program: 'crf-anapu' }),
+        'https://cfr.truesight.me/my-trees/?tree=Edgar_N');
+});
 test('payeeMyTreesUrl: program picks the viewer host (crf vs SunMint beta)', () => {
     assert.strictEqual(
         u.payeeMyTreesUrl({ telegram_message_id: 'Edgar_1', program: 'crf-anapu' }),
