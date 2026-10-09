@@ -375,27 +375,38 @@
 
     async function loadLedgers() {
       var sel = document.getElementById('ledgerSelect');
-      try {
-        var res = await fetch(DAO_FORMS_BASE + '?ledgers=true');
-        var ledgers = await res.json();
-        sel.innerHTML = '<option value="">Select a ledger</option>';
-        var off = document.createElement('option');
-        off.value = 'offchain';
-        off.textContent = 'offchain (Main Ledger - Default)';
-        off.dataset.ledgerName = 'offchain';
-        sel.appendChild(off);
-        (ledgers || []).forEach(function (l) {
-          var o = document.createElement('option');
-          o.value = l.ledger_url;
-          o.textContent = l.ledger_name;
-          o.dataset.ledgerName = l.ledger_name;
-          sel.appendChild(o);
-        });
-        sel.disabled = false;
-      } catch (e) {
-        console.error('ledgers load failed', e);
-        sel.innerHTML = '<option value="">Error loading ledgers</option>';
+      var ledgers = null;
+      // Prefer the raw-CDN managed-ledger index (fast, no GAS cold-start / live
+      // sheet read). Falls back to the live GAS endpoint on any failure, so the
+      // dropdown never regresses to empty.
+      if (window.TreasuryCache && window.TreasuryCache.getManagedLedgers) {
+        try { ledgers = await window.TreasuryCache.getManagedLedgers(); }
+        catch (e) { console.warn('managed-ledgers load failed, falling back to GAS', e); ledgers = null; }
       }
+      if (!ledgers) {
+        try {
+          var res = await fetch(DAO_FORMS_BASE + '?ledgers=true');
+          ledgers = await res.json();
+        } catch (e) {
+          console.error('ledgers load failed', e);
+          sel.innerHTML = '<option value="">Error loading ledgers</option>';
+          return;
+        }
+      }
+      sel.innerHTML = '<option value="">Select a ledger</option>';
+      var off = document.createElement('option');
+      off.value = 'offchain';
+      off.textContent = 'offchain (Main Ledger - Default)';
+      off.dataset.ledgerName = 'offchain';
+      sel.appendChild(off);
+      (ledgers || []).forEach(function (l) {
+        var o = document.createElement('option');
+        o.value = l.ledger_url;
+        o.textContent = l.ledger_name;
+        o.dataset.ledgerName = l.ledger_name;
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
     }
 
     // Farm / State / Country seed lists.
