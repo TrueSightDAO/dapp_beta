@@ -26,6 +26,10 @@
     'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/dao_offchain_treasury.json';
   var PUBLIC_KEYS_BASE_URL =
     'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/public_keys/';
+  var MANAGED_LEDGERS_INDEX_URL =
+    'https://raw.githubusercontent.com/TrueSightDAO/treasury-cache/main/managed-ledgers/_index.json';
+  var MANAGED_LEDGERS_SESSION_BUST = Date.now(); // freshen per page load, memoize within session
+  var _managedLedgersPromise = null;
   var TREASURY_CACHE_SESSION_BUST = Date.now(); // freshen per page load, memoize within session
   var _promise = null;
 
@@ -62,6 +66,49 @@
     if (!snap) return null;
     return snap.managers.map(function (m) {
       return { key: m.manager_key, name: m.manager_name };
+    });
+  }
+
+  // Loads the managed-ledger index (treasury-cache/managed-ledgers/_index.json),
+  // refreshed by the daily publish-managed-ledger-snapshots workflow. Returns the
+  // parsed index, or null on any failure so callers fall back to the GAS endpoint.
+  function loadManagedLedgers() {
+    if (_managedLedgersPromise) return _managedLedgersPromise;
+    _managedLedgersPromise = (async function () {
+      try {
+        var url = MANAGED_LEDGERS_INDEX_URL + '?t=' + MANAGED_LEDGERS_SESSION_BUST;
+        var res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (!json || !Array.isArray(json.ledgers)) {
+          throw new Error('malformed managed-ledgers _index.json');
+        }
+        console.log('[treasury-cache] managed-ledgers loaded', {
+          generated_at: json.generated_at,
+          ledgers: json.ledgers.length
+        });
+        return json;
+      } catch (err) {
+        console.warn('[treasury-cache] managed-ledgers load failed, caller falls back to GAS:', err);
+        return null;
+      }
+    })();
+    return _managedLedgersPromise;
+  }
+
+  // [{ledger_name, ledger_url}] — drop-in for DAO_FORMS_BASE?ledgers=true, sourced
+  // from the managed-ledger index. ledger_name is the ledger_id (e.g. 'AGL13',
+  // 'BEC'); ledger_url prefers the landing page and falls back to the id itself
+  // (a couple of ledgers have no landing page) so every <option> has a non-empty
+  // value. Returns null when the index is unavailable.
+  async function getManagedLedgers() {
+    var idx = await loadManagedLedgers();
+    if (!idx) return null;
+    return idx.ledgers.map(function (l) {
+      return {
+        ledger_name: l.ledger_id,
+        ledger_url: l.ledger_url || l.ledger_id
+      };
     });
   }
 
@@ -233,6 +280,8 @@
     load: load,
     getManagers: getManagers,
     getLedgers: getLedgers,
+    loadManagedLedgers: loadManagedLedgers,
+    getManagedLedgers: getManagedLedgers,
     getAllCurrencies: getAllCurrencies,
     getManagerAssets: getManagerAssets,
     getManagerInventoryForShipping: getManagerInventoryForShipping,
