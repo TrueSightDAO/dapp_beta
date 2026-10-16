@@ -613,8 +613,15 @@
                         <option value="plastic" selected>Plastic HDPE (10 kg) — ISPM#15-exempt</option>
                         <option value="wood">Wood (35 kg) — heat-treated</option>
                     </select>
-                    <label for="palletCount" style="margin-top: 0.5rem;">Number of Pallets:</label>
-                    <input type="number" id="palletCount" value="1" min="1" step="1" style="width: 6rem;">
+                    <label for="packingModeSelect" style="margin-top: 0.5rem;">Packing mode:</label>
+                    <select id="packingModeSelect">
+                        <option value="">(loads from the freight lane)</option>
+                    </select>
+                    <label for="palletCount" style="margin-top: 0.5rem;">Number of Pallets (auto-derived from weight):</label>
+                    <input type="number" id="palletCount" value="1" min="1" step="1" style="width: 6rem;" readonly>
+                    <label style="font-weight: normal; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
+                        <input type="checkbox" id="palletCountOverride" style="width: auto;"> Override the auto-derived pallet count
+                    </label>
                     <small style="color: #666; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
                         Plastic pallets need no fumigation / phytosanitary certificate.
                     </small>
@@ -625,6 +632,10 @@
                     <label for="freightLaneSelect">Freight lane:</label>
                     <select id="freightLaneSelect" disabled>
                         <option value="">Loading freight lanes…</option>
+                    </select>
+                    <label for="freightBasisSelect" style="margin-top: 0.5rem;">Cost basis:</label>
+                    <select id="freightBasisSelect" disabled>
+                        <option value="">(default)</option>
                     </select>
                     <small id="freightLaneHint" style="color: #666; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
                         Loading lane registry…
@@ -710,16 +721,125 @@
         const PALLET_UNIT_WEIGHTS_KG = { plastic: 10, wood: 35 };
         const PALLET_TYPE_LABELS = { plastic: 'Plastic 10 kg', wood: 'Wood 35 kg' };
 
+        // Fallback packing model, used when a lane snapshot carries no `packing` block.
+        // Two box types only (frozen 2026-10-15):
+        //   box_10kg    - Reinforced Cardboard 40x30x30, 8 boxes/level x 3 = 24 boxes = 240 kg payload
+        //   thermic_120 - Thermic foam box (up to 120 kraft pouches), 2/level x 3 = 6 boxes = 144 kg payload
+        const DEFAULT_PACKING = {
+            palletizing_usd_per_pallet: 32.5,
+            pallet_unit_usd: 18.758,
+            pallet_tare_kg: 10,
+            modes: {
+                box_10kg: {
+                    label: '10 kg load boxes (Reinforced Cardboard 40x30x30)',
+                    boxes_per_pallet: 24,
+                    payload_kg: 240,
+                    box_unit_usd: 2.036
+                },
+                thermic_120: {
+                    label: 'Thermic foam box (up to 120 kraft pouches)',
+                    boxes_per_pallet: 6,
+                    payload_kg: 144,
+                    box_unit_usd: 24.1097
+                }
+            }
+        };
+
+        function getPackingConfig() {
+            const sel = document.getElementById('freightLaneSelect');
+            const laneId = sel ? sel.value : null;
+            const bundle = laneId ? freightLaneSnapshots[laneId] : null;
+            if (bundle && bundle.snapshot && bundle.snapshot.packing && bundle.snapshot.packing.modes) {
+                return bundle.snapshot.packing;
+            }
+            return DEFAULT_PACKING;
+        }
+
+        function getActivePackingModeKey() {
+            const sel = document.getElementById('packingModeSelect');
+            if (sel && sel.value) {
+                return sel.value;
+            }
+            const cfg = getPackingConfig();
+            const keys = cfg && cfg.modes ? Object.keys(cfg.modes) : [];
+            return keys.length ? keys[0] : null;
+        }
+
+        function getActivePackingMode() {
+            const cfg = getPackingConfig();
+            const key = getActivePackingModeKey();
+            return (cfg && cfg.modes && key && cfg.modes[key]) ? cfg.modes[key] : null;
+        }
+
+        function getCargoWeightKg() {
+            let grams = 0;
+            selectedItems.forEach(function(item) {
+                grams += (parseFloat(item.weight_grams) || 0) * (parseFloat(item.quantity) || 0);
+            });
+            return grams / 1000;
+        }
+
+        function isPalletCountOverridden() {
+            const cb = document.getElementById('palletCountOverride');
+            return !!(cb && cb.checked);
+        }
+
         function getPalletType() {
             const sel = document.getElementById('palletType');
             const val = sel ? sel.value : 'plastic';
             return PALLET_UNIT_WEIGHTS_KG[val] ? val : 'plastic';
         }
 
-        function getPalletCount() {
+        function derivePalletCount(cargoKg, mode) {
+            // Pallet count is DERIVED from weight and the active packing mode:
+            //   pallets = max(1, ceil(cargo_kg / payload_kg_per_pallet))
+            // so adding cargo raises the count and every pallet-dependent line scales.
+            if (!mode || !mode.payload_kg || mode.payload_kg <= 0) {
+                return 1;
+            }
+            const kg = Math.max(0, cargoKg);
+            return Math.max(1, Math.ceil(kg / mode.payload_kg));
+        }
+
+        function syncPalletCountField() {
+            // Keep the (readonly) palletCount input in sync with the derived value.
             const input = document.getElementById('palletCount');
-            const n = parseInt(input ? input.value : '1', 10);
-            return (isNaN(n) || n < 1) ? 1 : n;
+            if (!input) {
+                return;
+            }
+            if (isPalletCountOverridden()) {
+                input.readOnly = false;
+            } else {
+                input.readOnly = true;
+                input.value = String(derivePalletCount(getCargoWeightKg(), getActivePackingMode()));
+            }
+            updatePalletDerivationNote();
+        }
+
+        function updatePalletDerivationNote() {
+            const note = document.getElementById('palletDerivationNote');
+            if (!note) {
+                return;
+            }
+            const mode = getActivePackingMode();
+            if (!mode) {
+                note.textContent = 'Plastic pallets need no fumigation / phytosanitary certificate.';
+                return;
+            }
+            const cargoKg = getCargoWeightKg();
+            const derived = derivePalletCount(cargoKg, mode);
+            note.textContent = cargoKg.toFixed(1) + ' kg \u00f7 ' + mode.payload_kg + ' kg/pallet ' +
+                '(' + mode.label + ') \u2192 ' + derived + ' pallet' + (derived === 1 ? '' : 's') +
+                '. Plastic pallets need no fumigation / phytosanitary certificate.';
+        }
+
+        function getPalletCount() {
+            if (isPalletCountOverridden()) {
+                const input = document.getElementById('palletCount');
+                const n = parseInt(input ? input.value : '1', 10);
+                return (isNaN(n) || n < 1) ? 1 : n;
+            }
+            return derivePalletCount(getCargoWeightKg(), getActivePackingMode());
         }
 
         function getPalletUnitWeightKg() {
@@ -890,8 +1010,52 @@
                 : 0;
             pushLine('US Customs Exam Charges', examUsd, customsExams > 0 ? (customsExams + ' exam(s)') : 'No exams expected');
             
+            // Additional fixed line items declared by the snapshot (e.g. task-specific
+            // costs that are neither weight- nor value-driven, such as a bank wire fee
+            // or a duty-advance fee on an actual invoice).
+            if (Array.isArray(cc.fixed_line_items)) {
+                cc.fixed_line_items.forEach(function(fi) {
+                    const amt = parseFloat(fi.amount_usd);
+                    if (!isNaN(amt)) {
+                        pushLine(fi.label || 'Other', amt, fi.note || '');
+                    }
+                });
+            }
+            
             if (dutyPercent > 0) {
                 pushLine('Duty (' + dutyPercent + '% of cargo value)', cargoValueUsd * (dutyPercent / 100), '');
+            }
+            
+            // Palletizing + packaging: DERIVED from weight and the active packing mode,
+            // so these lines scale as cargo is added (rate per pallet x pallet count).
+            // A snapshot may OPT OUT of the dynamic packing model (packing_model_enabled:false)
+            // e.g. an invoiced-actuals basis that carries a FLAT palletizing line instead.
+            const packing = (snapshot && snapshot.packing_model_enabled === false) ? null : getPackingConfig();
+            const packingMode = packing ? getActivePackingMode() : null;
+            let palletCount = null;
+            let palletizingCost = 0;
+            let packagingMaterialCost = 0;
+            let palletMaterialCost = 0;
+            let boxMaterialCost = 0;
+            if (packing && packingMode) {
+                palletCount = derivePalletCount(getCargoWeightKg(), packingMode);
+                const palletizingRate = parseFloat(packing.palletizing_usd_per_pallet) || 0;
+                palletizingCost = palletizingRate * palletCount;
+                pushLine('Palletizing', palletizingCost,
+                    '$' + palletizingRate + '/pallet \u00d7 ' + palletCount + ' pallet' + (palletCount === 1 ? '' : 's'));
+                
+                const palletUnit = parseFloat(packing.pallet_unit_usd) || 0;
+                const boxUnit = parseFloat(packingMode.box_unit_usd) || 0;
+                const boxesPerPallet = parseFloat(packingMode.boxes_per_pallet) || 0;
+                const palletWoodCost = palletUnit * palletCount;
+                const boxCost = boxUnit * boxesPerPallet * palletCount;
+                packagingMaterialCost = palletWoodCost + boxCost;
+                palletMaterialCost = palletWoodCost;
+                boxMaterialCost = boxCost;
+                pushLine('Pallets (HDPE, ' + palletCount + ')', palletWoodCost,
+                    '$' + palletUnit + '/pallet \u00d7 ' + palletCount);
+                pushLine('Boxes (' + packingMode.label + ')', boxCost,
+                    '$' + boxUnit + '/box \u00d7 ' + boxesPerPallet + ' boxes \u00d7 ' + palletCount + ' pallet' + (palletCount === 1 ? '' : 's'));
             }
             
             return {
@@ -902,7 +1066,13 @@
                 air_freight_rate_per_kg: airFreightRatePerKg,
                 freight_source: 'agroverse-freight-audit',
                 snapshot_id: snapshot.snapshot_id || '',
-                calculator: calculator
+                calculator: calculator,
+                packing_mode: packingMode ? getActivePackingModeKey() : null,
+                pallet_count: palletCount,
+                palletizing_usd: palletizingCost,
+                packaging_material_usd: packagingMaterialCost,
+                pallet_material_usd: palletMaterialCost,
+                box_material_usd: boxMaterialCost
             };
         }
         
@@ -955,12 +1125,89 @@
             return freightLanesLoadPromise;
         }
         
+        // A2: a lane may carry alternate snapshots (e.g. an invoiced ACTUALS basis
+        // alongside the forward vendor quote). The basis selector picks which one the
+        // calculator consumes. Default basis is the forward quote (latest_snapshot_url).
+        function getLaneBasisOptions(lane) {
+            const opts = [];
+            if (lane && lane.latest_snapshot_url) {
+                opts.push({
+                    basis_id: 'forward_quote',
+                    label: lane.latest_basis_label || 'Forward quote (vendor)',
+                    url: lane.latest_snapshot_url
+                });
+            }
+            if (lane && Array.isArray(lane.alternate_snapshots)) {
+                lane.alternate_snapshots.forEach(function(alt) {
+                    if (alt && alt.snapshot_url) {
+                        opts.push({
+                            basis_id: alt.basis_id || alt.label || 'alternate',
+                            label: alt.label || alt.basis_id || 'Alternate',
+                            url: alt.snapshot_url
+                        });
+                    }
+                });
+            }
+            return opts;
+        }
+
+        function currentLaneId() {
+            const sel = document.getElementById('freightLaneSelect');
+            return sel ? sel.value : null;
+        }
+
+        function currentLaneBasisUrl() {
+            const laneId = currentLaneId();
+            const lane = freightLanesList.find(function(l) { return l.lane_id === laneId; });
+            if (!lane) {
+                return null;
+            }
+            const opts = getLaneBasisOptions(lane);
+            if (opts.length === 0) {
+                return null;
+            }
+            const sel = document.getElementById('freightBasisSelect');
+            const chosen = sel ? sel.value : '';
+            const match = opts.find(function(o) { return o.basis_id === chosen; });
+            return (match || opts[0]).url;
+        }
+
+        function populateFreightBasisSelect(lane) {
+            const sel = document.getElementById('freightBasisSelect');
+            if (!sel) {
+                return;
+            }
+            const opts = getLaneBasisOptions(lane);
+            sel.innerHTML = '';
+            if (opts.length <= 1) {
+                // Only a forward quote exists for this lane — nothing to toggle.
+                opts.forEach(function(o) {
+                    const opt = document.createElement('option');
+                    opt.value = o.basis_id;
+                    opt.textContent = o.label;
+                    sel.appendChild(opt);
+                });
+                sel.disabled = true;
+                return;
+            }
+            opts.forEach(function(o) {
+                const opt = document.createElement('option');
+                opt.value = o.basis_id;
+                opt.textContent = o.label;
+                sel.appendChild(opt);
+            });
+            sel.value = opts[0].basis_id;
+            sel.disabled = false;
+        }
+
         async function loadFreightSnapshotForLaneId(laneId) {
             const lane = freightLanesList.find(function(l) { return l.lane_id === laneId; });
             if (!lane || !lane.latest_snapshot_url) {
                 throw new Error('Lane not found or missing latest_snapshot_url');
             }
-            const response = await fetch(lane.latest_snapshot_url, { cache: 'no-store' });
+            populateFreightBasisSelect(lane);
+            const basisUrl = currentLaneBasisUrl() || lane.latest_snapshot_url;
+            const response = await fetch(basisUrl, { cache: 'no-store' });
             if (!response.ok) {
                 throw new Error('Failed to load lane snapshot (HTTP ' + response.status + ')');
             }
@@ -974,7 +1221,35 @@
                 throw new Error('Lane snapshot is not valid JSON (got ' + contentType + '). Preview: ' + preview);
             }
             freightLaneSnapshots[laneId] = { snapshot: snapshot, calculator: lane.calculator, lane: lane };
+            populatePackingModeSelect();
+            syncPalletCountField();
             updateFreightLaneHint();
+        }
+
+        function populatePackingModeSelect() {
+            const sel = document.getElementById('packingModeSelect');
+            if (!sel) {
+                return;
+            }
+            const cfg = getPackingConfig();
+            const modes = (cfg && cfg.modes) ? cfg.modes : {};
+            const keys = Object.keys(modes);
+            const prior = sel.value;
+            sel.innerHTML = '';
+            if (keys.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(no packing modes defined)';
+                sel.appendChild(opt);
+                return;
+            }
+            keys.forEach(function(key) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = (modes[key].label || key) + ' \u2014 ' + modes[key].payload_kg + ' kg/pallet';
+                sel.appendChild(opt);
+            });
+            sel.value = keys.indexOf(prior) >= 0 ? prior : keys[0];
         }
         
         function updateFreightLaneHint() {
@@ -1179,6 +1454,13 @@
             if (kirstenBtn) kirstenBtn.addEventListener('click', onQuickPickShipperClick);
             if (matheusBtn) matheusBtn.addEventListener('click', onQuickPickShipperClick);
             if (otherBtn) otherBtn.addEventListener('click', onOtherShipperClick);
+            document.getElementById('freightBasisSelect').addEventListener('change', function() {
+                loadFreightSnapshotForLaneId(currentLaneId()).then(function() {
+                    updateShippingManifest();
+                }).catch(function(err) {
+                    console.error('Error switching cost basis:', err);
+                });
+            });
             document.getElementById('freightLaneSelect').addEventListener('change', function() {
                 const laneId = this.value;
                 loadFreightSnapshotForLaneId(laneId).then(function() {
@@ -1200,11 +1482,29 @@
                 const el = document.getElementById(id);
                 if (el) {
                     el.addEventListener('change', function() {
+                        if (id === 'palletCount') {
+                            updatePalletDerivationNote();
+                        }
                         updateShippingManifest();
                         updateWeightSummary();
                     });
                 }
             });
+            // Packing mode drives the derived pallet count + palletizing/packaging lines
+            const packingModeSelectEl = document.getElementById('packingModeSelect');
+            if (packingModeSelectEl) {
+                packingModeSelectEl.addEventListener('change', function() {
+                    syncPalletCountField();
+                    updateShippingManifest();
+                    updateWeightSummary();
+                });
+            }
+            const palletCountOverrideEl = document.getElementById('palletCountOverride');
+            if (palletCountOverrideEl) {
+                palletCountOverrideEl.addEventListener('change', function() {
+                    syncPalletCountField();
+                });
+            }
             // Set up manager search input
             const managerSearchInput = document.getElementById('managerSearchInput');
             const managerAutocompleteList = document.getElementById('managerAutocompleteList');
@@ -1618,6 +1918,7 @@
             
             updateShippingManifest();
             updateWeightSummary();
+            syncPalletCountField();
             updateCalculateButton();
         }
         
