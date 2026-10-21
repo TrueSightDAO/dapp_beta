@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="description" content="Monitor tree growth — record a video measurement with the calibration card">
+  <meta name="description" content="Monitor tree growth — photograph the measurement with the calibration card">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Monitor Tree Growth</title>
 
   <meta property="og:title" content="Monitor Tree Growth">
-  <meta property="og:description" content="Monitor tree growth — record a video measurement with the calibration card">
+  <meta property="og:description" content="Monitor tree growth — photograph the measurement with the calibration card">
   <meta property="og:image" content="https://github.com/TrueSightDAO/.github/blob/main/assets/20240612_truesight_dao_logo_square.png?raw=true">
   <meta property="og:url" content="https://dapp.truesight.me/monitor_tree_growth.html">
   <meta property="og:type" content="website">
@@ -126,9 +126,12 @@
 
       <video id="cameraPreview" autoplay playsinline muted></video>
       <canvas id="captureCanvas" style="display: none;"></canvas>
+      <img id="closeupPreview" alt="Close-up preview" style="display:none; width:100%; max-width:100%; border-radius:5px; margin:0.5rem 0;">
+      <img id="contextPreview" alt="Context preview" style="display:none; width:100%; max-width:100%; border-radius:5px; margin:0.5rem 0;">
 
       <div class="button-container">
-        <button id="recordButton" style="display:none;" aria-label="Record Video">Start Recording</button>
+        <button id="closeupButton" style="display:none;" aria-label="Capture Close-up">1. Capture Close-up (card on trunk)</button>
+        <button id="contextButton" style="display:none;" aria-label="Capture Context">2. Capture Context (full tree)</button>
         <button id="submitButton" style="display:none;" aria-label="Submit Report">Submit Report</button>
       </div>
       <div id="action-status" aria-live="polite"></div>
@@ -158,10 +161,8 @@
     let latitude = null;
     let longitude = null;
     let stream = null;
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let videoFile = null;
-    let photoFile = null;
+    let closeupFile = null;
+    let contextFile = null;
     let treeIndex = null;
     let newKeysGenerated = false;
     let isSignatureRegistered = false;
@@ -310,7 +311,6 @@
 
     function startCamera() {
       const video = document.getElementById('cameraPreview');
-      const recordButton = document.getElementById('recordButton');
       const actionStatus = document.getElementById('action-status');
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         actionStatus.textContent = 'Camera not supported on this device.';
@@ -327,8 +327,7 @@
           stream = s;
           video.srcObject = stream;
           video.style.display = 'block';
-          recordButton.style.display = 'block';
-          actionStatus.textContent = 'Camera started. Select a tree, hold the calibration card against the trunk, then record a short video walking around the tree.';
+          actionStatus.textContent = 'Camera started. Select a tree, then take two photos: (1) close-up — calibration card against the trunk at breast height; (2) context — the full tree and surroundings.';
           actionStatus.className = 'status';
           return true;
         })
@@ -364,58 +363,27 @@
       });
     }
 
-    function startRecording() {
-      const recordButton = document.getElementById('recordButton');
-      const actionStatus = document.getElementById('action-status');
-      if (!stream || !window.MediaRecorder) {
-        actionStatus.textContent = 'Recording not supported — submit with a photo instead.';
-        actionStatus.className = 'error';
-        return;
-      }
-      recordedChunks = [];
-      videoFile = null;
-      photoFile = null;
-      try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      } catch (e) {
-        mediaRecorder = new MediaRecorder(stream);
-      }
-      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-      mediaRecorder.onstop = () => {
-        const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
-        videoFile = new File([videoBlob], 'tree_monitor_video.webm', { type: 'video/webm' });
-        capturePhoto();
-        actionStatus.textContent = 'Video captured (' + Math.round(videoFile.size / 1024) + ' KB). Enter DBH and submit.';
-        actionStatus.className = 'status';
-        recordButton.textContent = 'Re-record';
-      };
-      mediaRecorder.start();
-      recordButton.textContent = 'Stop Recording';
-      recordButton.style.background = '#dc3545';
-      actionStatus.textContent = 'Recording… walk around the tree with the calibration card in frame (max 20 s).';
-      actionStatus.className = 'status';
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
-      }, 20000);
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-      const recordButton = document.getElementById('recordButton');
-      recordButton.textContent = 'Start Recording';
-      recordButton.style.background = '#4CAF50';
-    }
-
-    function capturePhoto() {
+    function capturePhoto(slot) {
       const video = document.getElementById('cameraPreview');
       const canvas = document.getElementById('captureCanvas');
+      const actionStatus = document.getElementById('action-status');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       return new Promise(resolve => {
         canvas.toBlob(blob => {
-          photoFile = new File([blob], 'tree_monitor_photo.jpg', { type: 'image/jpeg' });
+          const file = new File([blob], 'tree_monitor_' + slot + '.jpg', { type: 'image/jpeg' });
+          if (slot === 'closeup') closeupFile = file; else contextFile = file;
+          const preview = document.getElementById(slot + 'Preview');
+          preview.src = URL.createObjectURL(file);
+          preview.style.display = 'block';
+          const btn = document.getElementById(slot + 'Button');
+          if (btn) btn.textContent = slot === 'closeup' ? 'Re-capture close-up' : 'Re-capture context';
+          actionStatus.textContent = (slot === 'closeup')
+            ? 'Close-up captured. Now capture the context photo (full tree + surroundings).'
+            : 'Context captured. Enter DBH and submit.';
+          actionStatus.className = 'status';
           resolve();
         }, 'image/jpeg', 0.9);
       });
@@ -460,14 +428,18 @@
       }
 
       try {
-        if (!videoFile) await capturePhoto();
+        if (!closeupFile) {
+          actionStatus.textContent = 'Please capture the close-up photo (calibration card on the trunk) first.';
+          actionStatus.className = 'error';
+          return;
+        }
         const measuredAt = new Date().toISOString();
         const now = new Date();
         const pad = (n) => n.toString().padStart(2, '0');
         const yyyymmddhhmmss = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         const safePublicKey = publicKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
-        const videoDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/${yyyymmddhhmmss}_${safePublicKey}_monitor.webm`;
-        const photoDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/${yyyymmddhhmmss}_${safePublicKey}_monitor.jpg`;
+        const closeupDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/growth/${yyyymmddhhmmss}_${safePublicKey}_closeup.jpg`;
+        const contextDestinationURL = `https://github.com/TrueSightDAO/sunmint/tree/main/images/growth/${yyyymmddhhmmss}_${safePublicKey}_context.jpg`;
 
         const nearbySummary = treeIndex
           ? treeIndex
@@ -477,7 +449,7 @@
               .join(', ')
           : '';
 
-        const requestText = `[TREE GROWTH MONITORING EVENT]\n- Tree ID: ${treeId}\n- Species: ${species || 'unknown'}\n- DBH (cm): ${dbh}\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Measurement Time: ${measuredAt}\n- Video URL: ${videoDestinationURL}\n- Photo URL: ${photoDestinationURL}\n- Nearby Trees: ${nearbySummary || 'n/a'}\n- Submission Source: ${window.location.href}\n--------`;
+        const requestText = `[TREE GROWTH MONITORING EVENT]\n- Tree ID: ${treeId}\n- Species: ${species || 'unknown'}\n- DBH (cm): ${dbh}\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Measurement Time: ${measuredAt}\n- Close-up Photo URL: ${closeupDestinationURL}\n- Context Photo URL: ${contextDestinationURL}\n- Nearby Trees: ${nearbySummary || 'n/a'}\n- Submission Source: ${window.location.href}\n--------`;
 
         const privateKeyObj = await window.crypto.subtle.importKey(
           "pkcs8", base64ToArrayBuffer(privateKey),
@@ -493,8 +465,8 @@
         if (await isOnline()) {
           const formData = new FormData();
           formData.append('text', shareText);
-          if (videoFile) formData.append('attachment', videoFile, 'tree_monitor_video.webm');
-          if (photoFile) formData.append('attachment', photoFile, 'tree_monitor_photo.jpg');
+          if (closeupFile) formData.append('attachment', closeupFile, 'tree_monitor_closeup.jpg');
+          if (contextFile) formData.append('attachment', contextFile, 'tree_monitor_context.jpg');
 
           const resp = await fetch(EDGAR_SUBMIT, { method: 'POST', body: formData });
           if (!resp.ok) throw new Error(await resp.text());
@@ -511,15 +483,15 @@
           isPostSubmission = true;
         } else {
           if (isMobileDevice() && navigator.share) {
-            await navigator.share({ text: shareText, files: videoFile ? [videoFile, photoFile] : [photoFile] });
+            await navigator.share({ text: shareText, files: [closeupFile].concat(contextFile ? [contextFile] : []) });
             actionStatus.innerHTML = `Internet or server not available. Please share the report to our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels.`;
             actionStatus.className = 'error';
           } else {
             if (await copyToClipboard(shareText)) {
-              actionStatus.innerHTML = `Internet or server not available. Report copied to clipboard. Please paste it into our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the video/photo.`;
+              actionStatus.innerHTML = `Internet or server not available. Report copied to clipboard. Please paste it into our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the photos.`;
               actionStatus.className = 'error';
             } else {
-              actionStatus.innerHTML = `Internet or server not available. Please manually share the report below to our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the video/photo:<br><br><pre>${shareText}</pre>`;
+              actionStatus.innerHTML = `Internet or server not available. Please manually share the report below to our <a href="https://t.me/TrueSightDAO" target="_blank">Telegram</a> or <a href="https://wa.me/14423405782" target="_blank">WhatsApp</a> channels with the photos:<br><br><pre>${shareText}</pre>`;
               actionStatus.className = 'error';
             }
           }
@@ -537,7 +509,6 @@
       const infoElement = document.getElementById('info');
       const descriptionElement = document.getElementById('description');
       const submitButton = document.getElementById('submitButton');
-      const recordButton = document.getElementById('recordButton');
 
       let publicKey = localStorage.getItem('publicKey');
       let privateKey = localStorage.getItem('privateKey');
@@ -584,19 +555,21 @@
         document.getElementById('treeSelect').innerHTML = '<option value="">Nearby trees unavailable — enter Tree ID manually</option>';
       }
 
-      descriptionElement.textContent = 'Measure your tree with the calibration card — the video is analyzed to estimate growth and carbon (PM002).';
+      descriptionElement.textContent = 'Measure your tree with the calibration card — the photo is analyzed to estimate growth and carbon (PM002).';
       infoElement.style.display = 'block';
       statusElement.textContent = 'Ready.';
       statusElement.className = 'status fade-in';
 
-      recordButton.addEventListener('click', () => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
-        else startRecording();
-      });
+      document.getElementById('closeupButton').addEventListener('click', () => capturePhoto('closeup'));
+      document.getElementById('contextButton').addEventListener('click', () => capturePhoto('context'));
       submitButton.addEventListener('click', submitMonitorReport);
 
       const started = await startCamera();
-      if (!started) submitButton.style.display = 'block';
+      if (started) {
+        document.getElementById('closeupButton').style.display = 'block';
+        document.getElementById('contextButton').style.display = 'block';
+      }
+      submitButton.style.display = 'block';
     };
   </script>
 </body>
