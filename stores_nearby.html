@@ -1038,6 +1038,7 @@
                                     <option value="Candy Store">Candy Store</option>
                                     <option value="Yoga Studio">Yoga Studio</option>
                                     <option value="Apothecary">Apothecary</option>
+                                    <option value="Winery">Winery</option>
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
@@ -1254,6 +1255,10 @@
                                 <span style="flex: 1;">Apothecary</span>
                             </label>
                             <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; user-select: none; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" class="shop-type-filter-checkbox" value="Winery" style="margin-right: 0.75rem; cursor: pointer; width: 18px; height: 18px; accent-color: #28a745;">
+                                <span style="flex: 1;">Winery</span>
+                            </label>
+                            <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; user-select: none; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
                                 <input type="checkbox" class="shop-type-filter-checkbox" value="Other" style="margin-right: 0.75rem; cursor: pointer; width: 18px; height: 18px; accent-color: #28a745;">
                                 <span style="flex: 1;">Other</span>
                             </label>
@@ -1449,6 +1454,10 @@
                             <label style="display: flex; align-items: center; padding: 0.25rem; cursor: pointer; user-select: none;">
                                 <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Apothecary" style="margin-right: 0.5rem; cursor: pointer;">
                                 <span>Apothecary</span>
+                            </label>
+                            <label style="display: flex; align-items: center; padding: 0.25rem; cursor: pointer; user-select: none;">
+                                <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Winery" style="margin-right: 0.5rem; cursor: pointer;">
+                                <span>Winery</span>
                             </label>
                             <label style="display: flex; align-items: center; padding: 0.25rem; cursor: pointer; user-select: none;">
                                 <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Other" style="margin-right: 0.5rem; cursor: pointer;">
@@ -6494,6 +6503,7 @@
                             <option value="Candy Store" ${store.shop_type === 'Candy Store' ? 'selected' : ''}>Candy Store</option>
                             <option value="Yoga Studio" ${store.shop_type === 'Yoga Studio' ? 'selected' : ''}>Yoga Studio</option>
                             <option value="Apothecary" ${store.shop_type === 'Apothecary' ? 'selected' : ''}>Apothecary</option>
+                            <option value="Winery" ${store.shop_type === 'Winery' ? 'selected' : ''}>Winery</option>
                             <option value="Other" ${store.shop_type === 'Other' ? 'selected' : ''}>Other</option>
                         </select>
                         <label for="instagramUpdate-${index}" style="display: block; margin: 0.75rem 0 0.5rem; font-weight: 600;">Instagram Profile URL (optional):</label>
