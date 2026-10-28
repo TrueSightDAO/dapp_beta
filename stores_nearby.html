@@ -1033,6 +1033,7 @@
                                     <option value="Natural Goods" selected>Natural Goods</option>
                                     <option value="Conscious Cafe">Conscious Cafe</option>
                                     <option value="Boutique Chocolate">Boutique Chocolate</option>
+                                    <option value="Winery">Winery</option>
                                     <option value="Antique Store">Antique Store</option>
                                     <option value="Gift Shop">Gift Shop</option>
                                     <option value="Candy Store">Candy Store</option>
@@ -1232,6 +1233,8 @@
                             <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; user-select: none; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
                                 <input type="checkbox" class="shop-type-filter-checkbox" value="Boutique Chocolate" style="margin-right: 0.75rem; cursor: pointer; width: 18px; height: 18px; accent-color: #28a745;">
                                 <span style="flex: 1;">Boutique Chocolate</span>
+                                <input type="checkbox" class="shop-type-filter-checkbox" value="Winery" style="margin-right: 0.75rem; cursor: pointer; width: 18px; height: 18px; accent-color: #28a745;">
+                                <span style="flex: 1;">Winery</span>
                             </label>
                             <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; user-select: none; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
                                 <input type="checkbox" class="shop-type-filter-checkbox" value="Antique Store" style="margin-right: 0.75rem; cursor: pointer; width: 18px; height: 18px; accent-color: #28a745;">
@@ -1429,6 +1432,8 @@
                             <label style="display: flex; align-items: center; padding: 0.25rem; cursor: pointer; user-select: none;">
                                 <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Boutique Chocolate" style="margin-right: 0.5rem; cursor: pointer;">
                                 <span>Boutique Chocolate</span>
+                                <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Winery" style="margin-right: 0.5rem; cursor: pointer;">
+                                <span>Winery</span>
                             </label>
                             <label style="display: flex; align-items: center; padding: 0.25rem; cursor: pointer; user-select: none;">
                                 <input type="checkbox" class="expanded-shop-type-filter-checkbox" value="Antique Store" style="margin-right: 0.5rem; cursor: pointer;">
@@ -6489,6 +6494,7 @@
                             <option value="Natural Goods" ${store.shop_type === 'Natural Goods' ? 'selected' : ''}>Natural Goods</option>
                             <option value="Conscious Cafe" ${store.shop_type === 'Conscious Cafe' ? 'selected' : ''}>Conscious Cafe</option>
                             <option value="Boutique Chocolate" ${store.shop_type === 'Boutique Chocolate' ? 'selected' : ''}>Boutique Chocolate</option>
+                            <option value="Winery" ${store.shop_type === 'Winery' ? 'selected' : ''}>Winery</option>
                             <option value="Antique Store" ${store.shop_type === 'Antique Store' ? 'selected' : ''}>Antique Store</option>
                             <option value="Gift Shop" ${store.shop_type === 'Gift Shop' ? 'selected' : ''}>Gift Shop</option>
                             <option value="Candy Store" ${store.shop_type === 'Candy Store' ? 'selected' : ''}>Candy Store</option>
